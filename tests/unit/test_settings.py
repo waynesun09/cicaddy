@@ -3,7 +3,12 @@
 import os
 from unittest.mock import patch
 
-from cicaddy.config.settings import CoreSettings, Settings, load_core_settings, load_settings
+from cicaddy.config.settings import (
+    CoreSettings,
+    Settings,
+    load_core_settings,
+    load_settings,
+)
 
 
 class TestCoreSettings:
@@ -12,10 +17,19 @@ class TestCoreSettings:
     def test_default_values(self):
         """Test that CoreSettings has sensible defaults."""
         # Use clean env to avoid picking up LOG_LEVEL etc from developer env
-        clean_env = {k: v for k, v in os.environ.items() if k not in (
-            "LOG_LEVEL", "AI_PROVIDER", "MAX_INFER_ITERS",
-            "MAX_EXECUTION_TIME", "CONTEXT_SAFETY_FACTOR", "SSL_VERIFY",
-        )}
+        clean_env = {
+            k: v
+            for k, v in os.environ.items()
+            if k
+            not in (
+                "LOG_LEVEL",
+                "AI_PROVIDER",
+                "MAX_INFER_ITERS",
+                "MAX_EXECUTION_TIME",
+                "CONTEXT_SAFETY_FACTOR",
+                "SSL_VERIFY",
+            )
+        }
         with patch.dict(os.environ, clean_env, clear=True):
             settings = CoreSettings()
             assert settings.ai_provider == "gemini"

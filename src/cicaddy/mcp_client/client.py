@@ -92,7 +92,10 @@ class MCPClient:
         # HTTP protocol: Use official client compatibility path only if functions are patched in tests
         if self.config.protocol == "http":
             # Import to access the module-level functions
-            from .client import OfficialMCPClientSession, official_mcp_sse_client  # type: ignore
+            from .client import (  # type: ignore
+                OfficialMCPClientSession,
+                official_mcp_sse_client,
+            )
 
             # Check if official_mcp_sse_client is patched (has _mock_name attribute from unittest.mock)
             is_patched = hasattr(official_mcp_sse_client, "_mock_name") or hasattr(

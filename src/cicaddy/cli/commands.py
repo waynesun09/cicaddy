@@ -360,7 +360,8 @@ async def _send_error_notification(
             notifier = SlackNotifier(slack_webhook_urls, ssl_verify=settings.ssl_verify)
 
             context: Dict[str, Any] = {
-                "project_name": getattr(settings, "project_name", "") or "Unknown Project",
+                "project_name": getattr(settings, "project_name", "")
+                or "Unknown Project",
                 "project_id": getattr(settings, "project_id", None),
                 "error_type": "ai_provider_failure"
                 if exit_code in [2, 3]

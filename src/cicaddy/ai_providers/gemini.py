@@ -326,9 +326,7 @@ class GeminiProvider(BaseProvider):
                     )
                     raise TemporaryServiceError("Gemini service requires retry")
                 elif finish_reason == 2 or "MAX_TOKENS" in finish_reason_str:
-                    logger.warning(
-                        "Gemini response truncated due to max tokens"
-                    )
+                    logger.warning("Gemini response truncated due to max tokens")
 
             return response
 
@@ -337,7 +335,9 @@ class GeminiProvider(BaseProvider):
         except Exception as e:
             # Handle google.genai.errors.APIError for better error detection
             if genai_errors and isinstance(e, genai_errors.APIError):
-                status_code = getattr(e, "code", None) or getattr(e, "status_code", None)
+                status_code = getattr(e, "code", None) or getattr(
+                    e, "status_code", None
+                )
                 error_message = getattr(e, "message", str(e))
                 # Check for temporary service unavailable errors (503, 429, etc.)
                 if (
@@ -736,7 +736,15 @@ class GeminiProvider(BaseProvider):
             "SPII",
             "MALFORMED_FUNCTION_CALL",
             "FINISH_REASON_UNSPECIFIED",
-            "3", "4", "5", "6", "7", "8", "9", "10", "11",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
         ]:
             return StopReason.end_of_turn
         else:

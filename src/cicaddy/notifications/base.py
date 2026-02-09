@@ -356,9 +356,7 @@ class SlackBaseNotifier(BaseNotifier):
             if ai_usage:
                 compact_usage = TokenUsageExtractor.format_compact_usage(ai_usage)
                 if compact_usage:
-                    provider_display_name = ai_usage.get(
-                        "provider", "Cicaddy"
-                    ).title()
+                    provider_display_name = ai_usage.get("provider", "Cicaddy").title()
                     message += (
                         f"🤖 *Powered by {provider_display_name}* | {compact_usage}"
                     )

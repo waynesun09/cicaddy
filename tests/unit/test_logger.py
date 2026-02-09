@@ -4,7 +4,6 @@ import logging
 import os
 from unittest import mock
 
-
 from cicaddy.utils.logger import (
     clear_log_buffer,
     get_captured_logs,

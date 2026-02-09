@@ -14,16 +14,15 @@ Based on real-world analysis of 12 jobs across 4 pipelines showing:
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+
+# TYPE_CHECKING import to avoid circular dependency
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from cicaddy.ai_providers.base import BaseProvider, ProviderMessage
 from cicaddy.execution.error_classifier import ClassifiedError, ErrorType
 from cicaddy.execution.event_log import EventLog
 from cicaddy.execution.steps import InferenceStep, StepType
 from cicaddy.utils.logger import get_logger
-
-# TYPE_CHECKING import to avoid circular dependency
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from cicaddy.execution.knowledge_store import AccumulatedKnowledge

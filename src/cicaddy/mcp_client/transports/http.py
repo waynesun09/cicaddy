@@ -10,8 +10,8 @@ from mcp.shared._httpx_utils import McpHttpClientFactory
 from cicaddy.config.settings import MCPServerConfig
 from cicaddy.utils.logger import get_logger
 
-from .base import BaseMCPTransport
 from ..retry import ServerRetryableError
+from .base import BaseMCPTransport
 
 logger = get_logger(__name__)
 

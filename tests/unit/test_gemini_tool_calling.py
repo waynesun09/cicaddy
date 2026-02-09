@@ -151,9 +151,7 @@ class TestGeminiToolCalling:
         gemini_provider.client = mock_client
 
         # Test chat completion with tools
-        response = await gemini_provider.chat_completion(
-            sample_messages, sample_tools
-        )
+        response = await gemini_provider.chat_completion(sample_messages, sample_tools)
 
         # Verify tools were converted
         mock_converter.assert_called_once_with(sample_tools)

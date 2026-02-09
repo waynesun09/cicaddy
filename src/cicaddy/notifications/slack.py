@@ -76,9 +76,7 @@ class SlackNotifier(SlackBaseNotifier):
 
         # Footer with AI usage info
         report_id = "mr_notification"  # Simple ID for MR notifications
-        message = self._add_footer(
-            message, report_id, "Cicaddy", analysis_results
-        )
+        message = self._add_footer(message, report_id, "Cicaddy", analysis_results)
 
         return message
 

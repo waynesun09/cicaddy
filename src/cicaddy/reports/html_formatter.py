@@ -368,7 +368,7 @@ class HTMLReportFormatter:
         from cicaddy.utils.token_utils import TokenUsageExtractor
 
         # Default token info structure for HTML
-        token_info = {
+        token_info = {  # nosec
             "has_token_data": False,
             "total_tokens": 0,
             "input_tokens": 0,
@@ -429,7 +429,7 @@ class HTMLReportFormatter:
 
         except Exception as e:
             # Log the error but don't fail the report generation
-            print(f"Warning: Failed to extract token info for HTML report: {e}")
+            logger.warning(f"Failed to extract token info for HTML report: {e}")
 
         return token_info
 
