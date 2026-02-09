@@ -1,0 +1,166 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cicaddy"
+version = "0.1.0"
+description = "Platform-agnostic pipeline AI agent with MCP tool integration and multi-step execution engine"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Wayne Sun"}
+]
+keywords = ["ai", "agent", "mcp", "pipeline", "workflow", "code-review", "automation", "ci-cd"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+]
+
+dependencies = [
+    "requests>=2.32.0",
+    "slack-sdk>=3.33.0",
+    "httpx>=0.28.0",
+    "httpx-sse>=0.4.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.0.0",
+    "pyyaml>=6.0.2",
+    "jinja2>=3.1.4",
+    "structlog>=24.5.0",
+    "mcp>=1.13.1",
+    "anthropic>=0.21.0",
+    "google-genai>=1.0.0",
+    "google-api-python-client>=2.108.0",
+    "google-auth-httplib2>=0.2.0",
+    "google-auth-oauthlib>=1.2.0",
+    "protobuf>=5.26.0",
+    "openai>=1.102.0",
+    "fire>=0.7.0",
+    "websockets>=13.0",
+    "typing-extensions>=4.12.0; python_version < '3.12'",
+    "python-dotenv>=1.0.0",
+    "dspy-ai>=2.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.14.0",
+    "aioresponses>=0.7.8",
+    "pre-commit>=4.0.0",
+    "build>=1.0.0",
+    "twine>=5.0.0",
+]
+enterprise = [
+    "opentelemetry-api>=1.27.0",
+    "opentelemetry-sdk>=1.27.0",
+    "opentelemetry-exporter-otlp>=1.27.0",
+    "opentelemetry-instrumentation>=0.48b0",
+    "redis>=5.0.0",
+    "psutil>=6.0.0",
+]
+test = [
+    "pytest>=8.4.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.14.0",
+    "aioresponses>=0.7.8",
+]
+
+[project.urls]
+Homepage = "https://github.com/cicaddy/cicaddy"
+Repository = "https://github.com/cicaddy/cicaddy.git"
+Issues = "https://github.com/cicaddy/cicaddy/issues"
+
+[project.scripts]
+cicaddy = "cicaddy.cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["cicaddy*"]
+exclude = ["tests*", "docs*", "examples*"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+    "--tb=short",
+    "--asyncio-mode=auto",
+    "-ra",
+]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow tests (deselect with '-m \"not slow\"')",
+    "network: Tests requiring network access",
+    "mcp: Tests related to MCP functionality",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = ["B101"]
+
+[dependency-groups]
+dev = [
+    "ty>=0.0.8",
+]
+
+[tool.ty]
+[tool.ty.src]
+include = ["src"]
+exclude = ["tests"]
+
+[tool.ty.rules]
+unresolved-import = "ignore"
+invalid-parameter-default = "warn"
+invalid-argument-type = "warn"
+invalid-assignment = "warn"
+invalid-return-type = "warn"
+possibly-missing-attribute = "warn"
+call-non-callable = "warn"
+unresolved-attribute = "warn"
+not-iterable = "warn"
+conflicting-declarations = "warn"

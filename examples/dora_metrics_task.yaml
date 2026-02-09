@@ -1,0 +1,417 @@
+# DORA Metrics Analysis - DSPy Task Definition
+# Generates DORA 2025 metrics report using a DevLake MCP server
+# DevLake MCP: https://github.com/konflux-ci/konflux-devlake-mcp
+# DORA Reference: https://dora.dev/guides/dora-metrics-four-keys/
+name: dora_metrics_analysis
+description: >
+  Analyze DORA 2025 metrics (Deployment Frequency, Lead Time for Changes,
+  Failed Deployment Recovery Time, Change Fail Rate, Rework Rate) from
+  a DevLake database and generate a comprehensive standalone HTML report
+  with grades, benchmarks, and recommendations.
+type: data_analysis
+version: "1.0"
+
+persona: >
+  expert DevOps Data Analyst specializing in DORA metrics and software
+  delivery performance. Your role is to analyze deployment and incident
+  data from the DevLake database and generate a comprehensive DORA
+  metrics report for the {{PROJECT_NAME}} project.
+
+inputs:
+  - name: analysis_days
+    env_var: ANALYSIS_DAYS
+    default: "30"
+    description: "Number of days to analyze"
+    required: true
+
+  - name: project_name
+    env_var: PROJECT_NAME
+    required: true
+    description: "DevLake project name to filter metrics (must match lake.project_mapping.project_name)"
+
+  - name: template_path
+    env_var: REPORT_TEMPLATE_PATH
+    default: "examples/templates/report_template.html"
+    description: "Path to the HTML report template file (read via read_file tool)"
+    required: true
+
+outputs:
+  - name: executive_summary
+    description: "Overall DORA performance assessment across all 5 metrics with grades and benchmark comparison"
+    required: true
+    format: paragraph
+
+  - name: deployment_frequency
+    description: "Deployment frequency metric with current value, grade, trend analysis, and top deploying components"
+    required: true
+    format: table
+
+  - name: lead_time_for_changes
+    description: "Lead time metric with current value, grade, stage breakdown, and bottleneck identification"
+    required: true
+    format: table
+
+  - name: failed_deployment_recovery_time
+    description: "Recovery time metric with current value, grade, and incident resolution analysis"
+    required: true
+    format: table
+
+  - name: change_fail_rate
+    description: "Change fail rate metric with current value, grade, and most affected components"
+    required: true
+    format: table
+
+  - name: rework_rate
+    description: "Rework rate metric with current value, grade (or Data Pending), hotfix/rollback patterns, and data quality notes"
+    required: true
+    format: table
+
+  - name: recommendations
+    description: "Specific actions to improve each metric, prioritized by impact"
+    required: true
+    format: table
+
+tools:
+  servers:
+    - devlake-mcp-instance
+    - local
+  required_tools:
+    - connect_database
+    - execute_query
+    - read_file
+  forbidden_tools: []
+
+constraints:
+  - "Execute at least 5 SQL queries using execute_query tool"
+  - "Complete ALL 5 DORA metrics calculations"
+  - "Generate a complete standalone HTML report with all metrics and grades"
+  - "NEVER use WITH clauses (CTEs) - they trigger security validation errors"
+  - "Use subqueries in SELECT/FROM/WHERE instead of CTEs"
+  - "Always use fully qualified table names: lake.table_name"
+  - "Cast DECIMAL/FLOAT results to CHAR to avoid JSON serialization errors"
+  - "NEVER use CREATE, DROP, ALTER, DELETE, INSERT, UPDATE - read-only access only"
+  - "If a query fails, NEVER STOP - immediately retry with corrected syntax"
+  - "Calculate grades for each metric using DORA 2025 benchmarks"
+  - "Organize report sections by Throughput and Instability"
+  - "Note data quality for Rework Rate (estimated / measured / data_pending)"
+  - "MUST use read_file tool to read the HTML template BEFORE generating the report"
+  - >
+    HTML ESCAPING: All dynamic data injected into the HTML (project names,
+    metric values, dates, labels, and any string sourced from the database)
+    MUST be HTML-escaped before insertion. Replace: & → &amp;, < → &lt;,
+    > → &gt;, " → &quot;, ' → &#39;.
+  - >
+    CRITICAL HTML STRUCTURE: Your final output MUST be a complete standalone
+    HTML document starting with <!DOCTYPE html><html><head> and including the
+    FULL <style> block copied from the template. Do NOT output only <div>
+    fragments. The report must render correctly when opened directly in a
+    browser without any external CSS. If your output does not start with
+    <!DOCTYPE html>, you have FAILED the task.
+  - >
+    SECTION ANCHORS: Every <div class="section"> MUST include an id attribute
+    derived from the section title in kebab-case. Example:
+    <div class="section" id="executive-summary">,
+    <div class="section" id="deployment-frequency">,
+    <div class="section" id="lead-time-for-changes">,
+    <div class="section" id="failed-deployment-recovery-time">,
+    <div class="section" id="change-fail-rate">,
+    <div class="section" id="rework-rate">,
+    <div class="section" id="recommendations">.
+
+reasoning: react
+output_format: html
+
+context: |
+  **Project Scope:** {{PROJECT_NAME}}
+  **Analysis Period:** Last {{ANALYSIS_DAYS}} days
+  **DORA Standard:** 2025 Report - 5 metrics across Throughput and Instability
+  **Reference:** https://dora.dev/guides/dora-metrics-four-keys/
+
+  === STEP 1: READ THE HTML TEMPLATE ===
+
+  BEFORE generating any report content, you MUST read the HTML report template:
+
+  ```
+  read_file(file_path="{{REPORT_TEMPLATE_PATH}}")
+  ```
+
+  The template is a CSS design system (Deep Space dark theme) with these
+  reusable component classes. Your final HTML MUST use them:
+
+  - `.container` — main layout wrapper
+  - `.header` — gradient glass page header containing `.header-top`,
+    `.team-badge` (project badge), `.report-date`, `h1` (title with `<span>`
+    for accent color), `.subtitle`
+  - `.metrics-grid` — responsive grid of `.metric-card` cards, each with
+    `.metric-value` (use `.success` / `.warning` / `.danger` / `.info` color
+    modifiers) and `.metric-label`
+  - `.section` — elevated card for each content section, containing
+    `.section-header` (with `.section-icon` + `h2`), `.executive-summary`
+    (gradient glass summary box with `h3` + `p`), `table` (with `td.text` for
+    non-mono cells), `.explanation-box` (contextual callout; add `.critical` or
+    `.warning` modifier as needed), `.highlight-box` (left-border callout)
+  - `.status-badge` with `.status-healthy` / `.status-warning` /
+    `.status-critical` / `.status-info` — pill badges for grades
+  - `.priority-tag` with `.priority-p0` / `.priority-p1` / `.priority-p2` /
+    `.priority-p3` — for recommendation priority labels
+
+  When replacing template placeholders with real data, HTML-escape all values:
+  & → &amp;, < → &lt;, > → &gt;, " → &quot;, ' → &#39;.
+  This applies to every string sourced from the database or inputs.
+
+  **WARNING:** Do NOT output only <div> body fragments without the wrapping
+  HTML/HEAD/STYLE. The report will appear unstyled without the template CSS.
+
+  === STEP 2: CONNECT TO DATABASE ===
+
+  Use connect_database() to establish connection, then run the mandatory
+  queries below.
+
+  === DORA 2025 METRIC FRAMEWORK ===
+
+  **Throughput** (how fast changes move through the system):
+  1. Deployment Frequency — how often code is deployed to production
+  2. Lead Time for Changes — time from commit to code running in production
+  3. Failed Deployment Recovery Time — time to recover from a failed deployment
+
+  **Instability** (how stable deployments are):
+  4. Change Fail Rate — ratio of deployments requiring immediate intervention
+  5. Rework Rate — ratio of unplanned deployments due to production incidents
+
+  === KEY TABLES ===
+
+  - `lake.cicd_deployment_commits` — deployment data with result, environment, finished_date, cicd_scope_id, commit_sha
+  - `lake.project_mapping` — maps scopes to projects (columns: project_name, row_id, table)
+  - `lake.pull_requests` — PR data with created_date, merged_date, merge_commit_sha, title
+  - `lake.incidents` — incident data with resolution_date, lead_time_minutes, scope_id, table
+  - `lake.project_incident_deployment_relationships` — links deployments to incidents
+
+  === SQL SAFETY RULES ===
+
+  - NEVER use WITH clauses (CTEs) — use subqueries instead
+  - Add CAST(... AS CHAR) to DECIMAL/FLOAT columns
+  - Use fully qualified names: lake.table_name
+  - If "Dangerous SQL keyword" error: rewrite using subqueries or JOINs
+  - If "JSON serialization" error: add CAST(... AS CHAR) to numeric columns
+
+  === MANDATORY SQL QUERIES ===
+
+  **Query 1 — DEPLOYMENT FREQUENCY (MANDATORY):**
+  ```sql
+  SELECT
+    COUNT(DISTINCT cdc.cicd_deployment_id) as total_deployments,
+    CAST(ROUND(COUNT(DISTINCT cdc.cicd_deployment_id) / ({{ANALYSIS_DAYS}} / 7.0), 2) AS CHAR) as deploys_per_week
+  FROM lake.cicd_deployment_commits cdc
+  JOIN lake.project_mapping pm ON cdc.cicd_scope_id = pm.row_id
+    AND pm.`table` = 'cicd_scopes'
+  WHERE pm.project_name = '{{PROJECT_NAME}}'
+    AND cdc.result = 'SUCCESS'
+    AND cdc.environment = 'PRODUCTION'
+    AND cdc.finished_date >= DATE_SUB(NOW(), INTERVAL {{ANALYSIS_DAYS}} DAY)
+  ```
+
+  **Query 2 — LEAD TIME FOR CHANGES (MANDATORY):**
+  Measures from PR created_date (first commit) to production deployment.
+  ```sql
+  SELECT
+    COUNT(*) as pr_count,
+    CAST(ROUND(AVG(TIMESTAMPDIFF(MINUTE, pr.created_date, cdc.finished_date)) / 60.0, 2) AS CHAR) as avg_lead_time_hours,
+    CAST(ROUND(AVG(TIMESTAMPDIFF(MINUTE, pr.merged_date, cdc.finished_date)) / 60.0, 2) AS CHAR) as avg_merge_to_deploy_hours
+  FROM lake.cicd_deployment_commits cdc
+  JOIN lake.project_mapping pm ON cdc.cicd_scope_id = pm.row_id
+    AND pm.`table` = 'cicd_scopes'
+  JOIN lake.pull_requests pr ON cdc.commit_sha = pr.merge_commit_sha
+  WHERE pm.project_name = '{{PROJECT_NAME}}'
+    AND cdc.result = 'SUCCESS'
+    AND cdc.environment = 'PRODUCTION'
+    AND pr.created_date IS NOT NULL
+    AND cdc.finished_date >= DATE_SUB(NOW(), INTERVAL {{ANALYSIS_DAYS}} DAY)
+  ```
+  Use `avg_lead_time_hours` (commit-to-deploy) for grading.
+
+  **Query 3 — CHANGE FAIL RATE (MANDATORY):**
+  Formula: failed_deployments / total_deployments * 100
+  ```sql
+  SELECT
+    (SELECT COUNT(DISTINCT cdc.cicd_deployment_id)
+     FROM lake.cicd_deployment_commits cdc
+     JOIN lake.project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'
+     WHERE pm.project_name = '{{PROJECT_NAME}}'
+       AND cdc.result = 'SUCCESS' AND cdc.environment = 'PRODUCTION'
+       AND cdc.finished_date >= DATE_SUB(NOW(), INTERVAL {{ANALYSIS_DAYS}} DAY)) as total_deployments,
+    (SELECT COUNT(DISTINCT pim.deployment_id)
+     FROM lake.project_incident_deployment_relationships pim
+     JOIN lake.cicd_deployment_commits cdc ON pim.deployment_id = cdc.cicd_deployment_id
+     JOIN lake.project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'
+     WHERE pm.project_name = '{{PROJECT_NAME}}'
+       AND cdc.environment = 'PRODUCTION'
+       AND cdc.finished_date >= DATE_SUB(NOW(), INTERVAL {{ANALYSIS_DAYS}} DAY)) as failed_deployments
+  ```
+
+  **Query 4 — FAILED DEPLOYMENT RECOVERY TIME (MANDATORY):**
+  ```sql
+  SELECT
+    COUNT(*) as incidents_resolved,
+    CAST(ROUND(AVG(i.lead_time_minutes / 60.0), 2) AS CHAR) as avg_recovery_time_hours
+  FROM lake.incidents i
+  JOIN lake.project_mapping pm ON i.scope_id = pm.row_id AND pm.`table` = i.`table`
+  WHERE pm.project_name = '{{PROJECT_NAME}}'
+    AND i.resolution_date IS NOT NULL
+    AND i.resolution_date >= DATE_SUB(NOW(), INTERVAL {{ANALYSIS_DAYS}} DAY)
+    AND i.lead_time_minutes IS NOT NULL
+    AND i.lead_time_minutes > 0
+  ```
+
+  **Query 5 — REWORK RATE (MANDATORY — NEW in DORA 2025):**
+  Rework Rate = deployments made TO FIX incidents (different from Change Fail Rate
+  which = deployments that CAUSED incidents).
+
+  Use PR title heuristics (Approach A) as the primary method for product-wide metrics:
+  ```sql
+  SELECT
+    COUNT(DISTINCT cdc.cicd_deployment_id) as total_deployments,
+    COUNT(DISTINCT CASE
+      WHEN pr.title LIKE '%hotfix%' OR pr.title LIKE '%revert%'
+        OR pr.title LIKE '%rollback%' OR pr.title LIKE '%fix forward%'
+        OR pr.title LIKE '%[patch]%'
+      THEN cdc.cicd_deployment_id END) as rework_deployments,
+    CAST(ROUND(
+      COUNT(DISTINCT CASE
+        WHEN pr.title LIKE '%hotfix%' OR pr.title LIKE '%revert%'
+          OR pr.title LIKE '%rollback%' OR pr.title LIKE '%fix forward%'
+          OR pr.title LIKE '%[patch]%'
+        THEN cdc.cicd_deployment_id END) * 100.0
+      / NULLIF(COUNT(DISTINCT cdc.cicd_deployment_id), 0), 2) AS CHAR) as rework_rate_pct
+  FROM lake.cicd_deployment_commits cdc
+  JOIN lake.project_mapping pm ON cdc.cicd_scope_id = pm.row_id AND pm.`table` = 'cicd_scopes'
+  LEFT JOIN lake.pull_requests pr ON cdc.commit_sha = pr.merge_commit_sha
+  WHERE pm.project_name = '{{PROJECT_NAME}}'
+    AND cdc.environment = 'PRODUCTION'
+    AND cdc.finished_date >= DATE_SUB(NOW(), INTERVAL {{ANALYSIS_DAYS}} DAY)
+  ```
+
+  Rework Rate data quality labels:
+  - "estimated" — Approach A (PR title heuristics), default for product-wide
+  - "measured" — direct incident-to-deployment correlation (single-repo only)
+  - "data_pending" — no reliable data source exists
+
+  If rework_deployments = 0, report as "data_pending" rather than 0%.
+
+  === DORA GRADE BENCHMARKS (2025) ===
+
+  **Deployment Frequency (Throughput):**
+  - ELITE: On-demand (>= 7/week)
+  - HIGH: >= 1/week
+  - MEDIUM: >= 0.25/week
+  - LOW: < 0.25/week
+
+  **Lead Time for Changes (Throughput):**
+  - ELITE: <= 24 hours
+  - HIGH: <= 168 hours (1 week)
+  - MEDIUM: <= 720 hours (1 month)
+  - LOW: > 720 hours
+
+  **Failed Deployment Recovery Time (Throughput):**
+  - ELITE: <= 1 hour
+  - HIGH: <= 24 hours
+  - MEDIUM: <= 168 hours (1 week)
+  - LOW: > 168 hours
+
+  **Change Fail Rate (Instability):**
+  - ELITE: 0–5%
+  - HIGH: 6–10%
+  - MEDIUM: 11–15%
+  - LOW: > 15%
+
+  **Rework Rate (Instability):**
+  - ELITE: 0–5%
+  - HIGH: 6–10%
+  - MEDIUM: 11–15%
+  - LOW: > 15%
+
+  === DORA 2025 SURVEY DISTRIBUTION (for benchmarking context) ===
+
+  Use this data to contextualize where the project stands relative to industry.
+
+  **Deployment Frequency:**
+  | Level                     | % at level | Top %  |
+  |---------------------------|------------|--------|
+  | < once per six months     | 3.6%       | 100%   |
+  | Monthly to every 6 months | 20.3%      | 96.4%  |
+  | Weekly to monthly         | 31.5%      | 76.1%  |
+  | Daily to weekly           | 21.9%      | 44.6%  |
+  | Hourly to daily           | 6.5%       | 22.7%  |
+  | On demand (multi/day)     | 16.2%      | 16.2%  |
+
+  **Lead Time for Changes:**
+  | Level                      | % at level | Top %  |
+  |----------------------------|------------|--------|
+  | More than six months       | 2.0%       | 100%   |
+  | Between 1 month and 6 mo   | 13.2%      | 98%    |
+  | Between 1 week and 1 month | 28.3%      | 84.7%  |
+  | Between 1 day and 1 week   | 31.9%      | 56.4%  |
+  | Less than one day          | 15.0%      | 24.4%  |
+  | Less than one hour         | 9.4%       | 9.4%   |
+
+  **Failed Deployment Recovery Time:**
+  | Level                      | % at level | Top %  |
+  |----------------------------|------------|--------|
+  | More than six months       | 1.0%       | 100%   |
+  | Between 1 month and 6 mo   | 4.9%       | 98.8%  |
+  | Between 1 week and 1 month | 9.4%       | 93.9%  |
+  | Between 1 day and 1 week   | 28.0%      | 84.5%  |
+  | Less than one day          | 35.3%      | 56.5%  |
+  | Less than one hour         | 21.3%      | 21.3%  |
+
+  **Change Fail Rate:**
+  | Level   | % at level | Top %  |
+  |---------|------------|--------|
+  | 0%–2%   | 8.5%       | 8.5%   |
+  | 2%–4%   | 8.1%       | 16.7%  |
+  | 4%–8%   | 19.6%      | 36.2%  |
+  | 8%–16%  | 26.0%      | 62.2%  |
+  | 16%–32% | 19.5%      | 81.6%  |
+  | 32%–64% | 12.5%      | 94.1%  |
+  | >64%    | 5.9%       | 100%   |
+
+  === CROSS-VALIDATION CHECKPOINT (before generating the report) ===
+
+  Verify before writing the final HTML:
+  1. HTML structure: Does output start with <!DOCTYPE html> and include the
+     full <style> block from the template? If not, re-read the template.
+  2. All 5 DORA metrics: Do you have data for DF, LT, FDRT, CFR, and RR?
+  3. Section anchors: Does every <div class="section"> have an id attribute?
+  4. Embedded JSON: Is the <script type="application/json" id="metrics-data">
+     block present at the end of <body>?
+  5. HTML escaping: Are all database-sourced strings HTML-escaped?
+
+  === EMBEDDED JSON METRICS (MANDATORY) ===
+
+  Embed a JSON summary at the end of <body> (before </body>) for dashboard
+  consumption. Use the EXACT key names shown below:
+
+  ```html
+  <script type="application/json" id="metrics-data">
+  {
+    "period_days": {{ANALYSIS_DAYS}},
+    "generated_at": "YYYY-MM-DDTHH:MM:SSZ",
+    "dora": {
+      "deployment_frequency": {"value": 0.0, "unit": "deploys/week"},
+      "lead_time": {"hours": 0.0},
+      "change_fail_rate": {"percentage": 0.0},
+      "failed_deployment_recovery_time": {"hours": 0.0},
+      "rework_rate": {"percentage": 0.0, "data_quality": "estimated"}
+    }
+  }
+  </script>
+  ```
+
+  Replace all 0.0 placeholders with actual numeric values from your queries.
+  If a metric has no data, use 0 for numeric values.
+
+  === ERROR RECOVERY ===
+
+  If a query fails, NEVER STOP. Immediately retry with corrected syntax:
+  - "Dangerous SQL keyword" error → Rewrite WITHOUT WITH/CTE, use subqueries
+  - "JSON serialization" error → Add CAST(... AS CHAR) to DECIMAL/FLOAT columns
+  - "Table not found" error → Use fully qualified name: lake.table_name
