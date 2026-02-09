@@ -217,27 +217,10 @@ class BaseAIAgent(ABC):
     async def _setup_platform_integration(self):
         """Setup platform-specific integration (e.g., GitLab, GitHub).
 
-        Override in subclasses to set up platform-specific analyzers.
-        The default implementation sets up GitLab analyzer for backward
-        compatibility when GitLab settings are available.
+        Override in subclasses or platform-specific packages to set up
+        platform analyzers. Base implementation is a no-op.
         """
-        # Check if GitLab-specific settings are available (Settings subclass)
-        project_id = getattr(self.settings, "project_id", None)
-        if project_id:
-            from cicaddy.gitlab_integration.analyzer import GitLabAnalyzer
-
-            gitlab_api_url = getattr(self.settings, "gitlab_api_url", "")
-            gitlab_token = getattr(self.settings, "gitlab_token", "")
-            logger.info(f"Initializing GitLab analyzer with URL: {gitlab_api_url}")
-            logger.info(f"Project ID: {project_id}")
-            self.gitlab_analyzer = GitLabAnalyzer(
-                token=gitlab_token,
-                api_url=gitlab_api_url,
-                project_id=project_id,
-                ssl_verify=self.settings.ssl_verify,
-            )
-        else:
-            logger.warning("No project ID available - platform analyzer disabled")
+        logger.warning("No project ID available - platform analyzer disabled")
 
     async def _setup_slack_notifier(self):
         """Setup Slack notifier if configured."""
