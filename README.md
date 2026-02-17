@@ -53,7 +53,29 @@ MCP_SERVERS_CONFIG=[]
 
 # Notifications
 SLACK_WEBHOOK_URL=https://hooks.slack.com/...
+
+# DSPy Task File (takes precedence over AI_TASK_PROMPT)
+AI_TASK_FILE=tasks/dora_report.yaml
 ```
+
+### DSPy Task Definition (YAML)
+
+Instead of raw prompt strings (`AI_TASK_PROMPT`), define structured tasks in YAML with typed inputs, expected outputs, MCP tool constraints, and reasoning strategy. Set `AI_TASK_FILE` to your task file path.
+
+See [`examples/dora_metrics_task.yaml`](examples/dora_metrics_task.yaml) for a complete DORA metrics analysis task using DevLake MCP, and [`examples/templates/report_template.html`](examples/templates/report_template.html) for the HTML report template.
+
+Key schema fields:
+
+| Field | Description |
+|-------|-------------|
+| `inputs[].env_var` | Resolve value from environment variable at load time |
+| `inputs[].format` | `diff` or `code` for fenced rendering in prompt |
+| `tools.servers` | Restrict to specific MCP servers |
+| `tools.required_tools` | Tools the AI must use during execution |
+| `tools.forbidden_tools` | Tools the AI must not use |
+| `reasoning` | `chain_of_thought`, `react`, or `simple` |
+| `output_format` | `markdown`, `html`, or `json` |
+| `context` | Supports `{{VAR}}` placeholders resolved at load time |
 
 ## Extending with Platform Plugins
 

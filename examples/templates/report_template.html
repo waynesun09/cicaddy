@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+  Cicaddy Report Template - Deep Space Dark Theme
+
+  A modern dark theme design system for AI-generated metrics and analytics
+  reports. Uses desaturated accent colors on deep backgrounds for reduced
+  eye strain, WCAG AA contrast compliance (>= 4.5:1), and a cinematic
+  aesthetic with subtle gradients and glass-morphism effects.
+
+  PLACEHOLDERS (replace with actual data):
+  - {{REPORT_TITLE}} - Main report title
+  - {{REPORT_SUBTITLE}} - Subtitle or scope description
+  - {{REPORT_ICON}} - Emoji icon for the report type
+  - {{BADGE_LABEL}} - Badge text (e.g., team name, project name)
+  - {{BADGE_ICON}} - Badge emoji
+  - {{REPORT_DATE}} - Generation date
+  - {{ANALYSIS_DAYS}} - Number of days analyzed
+-->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{REPORT_TITLE}}</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* ================================================================
+           CSS VARIABLES — Deep Space Theme
+           Avoids pure black (#000) and pure white (#fff) per dark-mode
+           best practices. Accent colors are slightly desaturated to
+           reduce glare on dark surfaces while maintaining >= 4.5:1
+           WCAG AA contrast.
+           ================================================================ */
+        :root {
+            /* Surfaces — layered depth via lightness steps */
+            --bg-base: #0c0e16;          /* deepest background */
+            --bg-surface: #13161f;       /* cards, sections */
+            --bg-surface-raised: #1a1d2b; /* elevated elements, table headers */
+            --bg-surface-overlay: #222638; /* modals, popovers */
+
+            /* Accent palette — desaturated for dark-mode comfort */
+            --accent-primary: #6d9fff;    /* soft blue — links, primary actions */
+            --accent-secondary: #5cc8d4;  /* teal — info, neutral metrics */
+            --accent-success: #4ade80;    /* green — healthy, pass */
+            --accent-warning: #fbbf24;    /* amber — caution */
+            --accent-danger: #f87171;     /* coral red — critical, fail */
+            --accent-purple: #a78bfa;     /* violet — highlights, tags */
+
+            /* Text — off-whites for readability without glare */
+            --text-primary: #e8eaed;      /* main body (contrast ~13:1 on base) */
+            --text-secondary: #9ba3b5;    /* labels, descriptions */
+            --text-muted: #5f6880;        /* footnotes, timestamps */
+
+            /* Borders & dividers */
+            --border-subtle: rgba(109, 159, 255, 0.12);
+            --border-default: rgba(109, 159, 255, 0.20);
+
+            /* Shadows */
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+
+            /* Radii */
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+
+            /* Transitions */
+            --transition-fast: 150ms ease;
+            --transition-normal: 250ms ease;
+        }
+
+        /* ================================================================
+           BASE RESET & TYPOGRAPHY
+           ================================================================ */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-base);
+            color: var(--text-primary);
+            line-height: 1.7;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* ================================================================
+           LAYOUT
+           ================================================================ */
+        .container {
+            max-width: 1320px;
+            margin: 0 auto;
+            padding: 2.5rem 2rem;
+        }
+
+        /* ================================================================
+           BACK LINK
+           ================================================================ */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.875rem;
+            margin-bottom: 1.25rem;
+            transition: color var(--transition-fast);
+        }
+
+        .back-link:hover { color: var(--accent-primary); }
+
+        /* ================================================================
+           HEADER — gradient glass effect
+           ================================================================ */
+        .header {
+            background: linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-surface-raised) 50%, rgba(109, 159, 255, 0.04) 100%);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-lg);
+            padding: 2rem 2.25rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow-md);
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .team-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(109, 159, 255, 0.08);
+            border: 1px solid rgba(109, 159, 255, 0.25);
+            padding: 0.4rem 0.9rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--accent-primary);
+            letter-spacing: 0.02em;
+        }
+
+        .report-date {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        h1 {
+            font-size: 1.875rem;
+            font-weight: 700;
+            margin-bottom: 0.4rem;
+            letter-spacing: -0.02em;
+        }
+
+        h1 span { color: var(--accent-primary); }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        /* ================================================================
+           METRICS GRID — glass cards with hover lift
+           ================================================================ */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.75rem;
+        }
+
+        .metric-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 1.25rem;
+            text-align: center;
+            box-shadow: var(--shadow-sm);
+            transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+        }
+
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--border-default);
+        }
+
+        .metric-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: -0.03em;
+        }
+
+        .metric-label {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            margin-top: 0.35rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-weight: 500;
+        }
+
+        .metric-value.success { color: var(--accent-success); }
+        .metric-value.warning { color: var(--accent-warning); }
+        .metric-value.danger { color: var(--accent-danger); }
+        .metric-value.info { color: var(--accent-secondary); }
+
+        /* === METRICS EXPLANATION === */
+        .metrics-explanation {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 1.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .metrics-explanation h4 {
+            margin-bottom: 0.75rem;
+            font-size: 0.875rem;
+            color: var(--text-primary);
+        }
+
+        .metrics-explanation-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 0.75rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* ================================================================
+           SECTIONS — elevated cards
+           ================================================================ */
+        .section {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 1.75rem;
+            margin-bottom: 1.5rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .section-header h2 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+
+        .section-icon {
+            width: 36px;
+            height: 36px;
+            background: rgba(109, 159, 255, 0.08);
+            border: 1px solid rgba(109, 159, 255, 0.15);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+
+        /* ================================================================
+           EXPLANATION BOXES — contextual tints
+           ================================================================ */
+        .explanation-box {
+            background: rgba(109, 159, 255, 0.06);
+            border: 1px solid rgba(109, 159, 255, 0.15);
+            border-radius: var(--radius-sm);
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .explanation-box h4 {
+            margin-bottom: 0.5rem;
+            color: var(--accent-primary);
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .explanation-box ul {
+            margin-left: 1.25rem;
+            color: var(--text-secondary);
+            font-size: 0.84rem;
+            line-height: 1.7;
+        }
+
+        .explanation-box p {
+            margin-top: 0.6rem;
+            font-size: 0.84rem;
+            color: var(--text-secondary);
+        }
+
+        .explanation-box.critical {
+            background: rgba(248, 113, 113, 0.06);
+            border-color: rgba(248, 113, 113, 0.18);
+        }
+
+        .explanation-box.critical h4 { color: var(--accent-danger); }
+
+        .explanation-box.warning {
+            background: rgba(251, 191, 36, 0.06);
+            border-color: rgba(251, 191, 36, 0.18);
+        }
+
+        .explanation-box.warning h4 { color: var(--accent-warning); }
+
+        /* ================================================================
+           EXECUTIVE SUMMARY — gradient glass panel
+           ================================================================ */
+        .executive-summary {
+            background: linear-gradient(135deg, rgba(109, 159, 255, 0.06) 0%, rgba(92, 200, 212, 0.06) 100%);
+            border: 1px solid rgba(109, 159, 255, 0.2);
+            border-radius: var(--radius-md);
+            padding: 1.5rem 1.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .executive-summary h3 {
+            font-size: 1.05rem;
+            margin-bottom: 1rem;
+            color: var(--accent-primary);
+            font-weight: 600;
+        }
+
+        .executive-summary p {
+            margin-bottom: 0.85rem;
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+
+        /* ================================================================
+           TABLES — striped with smooth hover
+           ================================================================ */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.84rem;
+        }
+
+        th, td {
+            padding: 0.8rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        th {
+            background: var(--bg-surface-raised);
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            font-size: 0.72rem;
+            letter-spacing: 0.06em;
+        }
+
+        /* first and last header cells get rounded corners */
+        thead tr th:first-child { border-radius: var(--radius-sm) 0 0 0; }
+        thead tr th:last-child { border-radius: 0 var(--radius-sm) 0 0; }
+
+        tbody tr {
+            transition: background var(--transition-fast);
+        }
+
+        tbody tr:nth-child(even) {
+            background: rgba(109, 159, 255, 0.02);
+        }
+
+        tbody tr:hover {
+            background: rgba(109, 159, 255, 0.06);
+        }
+
+        td {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+        }
+
+        /* text columns keep the body font */
+        td.text {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.84rem;
+        }
+
+        /* ================================================================
+           STATUS BADGES — pill-shaped with glow
+           ================================================================ */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.7rem;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .status-healthy {
+            background: rgba(74, 222, 128, 0.1);
+            color: var(--accent-success);
+            border: 1px solid rgba(74, 222, 128, 0.25);
+            box-shadow: 0 0 8px rgba(74, 222, 128, 0.08);
+        }
+
+        .status-warning {
+            background: rgba(251, 191, 36, 0.1);
+            color: var(--accent-warning);
+            border: 1px solid rgba(251, 191, 36, 0.25);
+            box-shadow: 0 0 8px rgba(251, 191, 36, 0.08);
+        }
+
+        .status-critical {
+            background: rgba(248, 113, 113, 0.1);
+            color: var(--accent-danger);
+            border: 1px solid rgba(248, 113, 113, 0.25);
+            box-shadow: 0 0 8px rgba(248, 113, 113, 0.08);
+        }
+
+        .status-info {
+            background: rgba(92, 200, 212, 0.1);
+            color: var(--accent-secondary);
+            border: 1px solid rgba(92, 200, 212, 0.25);
+            box-shadow: 0 0 8px rgba(92, 200, 212, 0.08);
+        }
+
+        /* ================================================================
+           PRIORITY TAGS
+           ================================================================ */
+        .priority-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 0.05em;
+        }
+
+        .priority-p0 { background: rgba(248, 113, 113, 0.15); color: var(--accent-danger); }
+        .priority-p1 { background: rgba(251, 191, 36, 0.15); color: var(--accent-warning); }
+        .priority-p2 { background: rgba(109, 159, 255, 0.15); color: var(--accent-primary); }
+        .priority-p3 { background: rgba(167, 139, 250, 0.15); color: var(--accent-purple); }
+
+        /* ================================================================
+           HIGHLIGHT BOXES — semantic callouts
+           ================================================================ */
+        .highlight-box {
+            background: rgba(74, 222, 128, 0.06);
+            border-left: 3px solid var(--accent-success);
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            padding: 1rem 1.25rem;
+            margin: 1rem 0;
+        }
+
+        .highlight-box.warning {
+            background: rgba(251, 191, 36, 0.06);
+            border-left-color: var(--accent-warning);
+        }
+
+        .highlight-box.critical {
+            background: rgba(248, 113, 113, 0.06);
+            border-left-color: var(--accent-danger);
+        }
+
+        .highlight-box.info {
+            background: rgba(92, 200, 212, 0.06);
+            border-left-color: var(--accent-secondary);
+        }
+
+        .highlight-box h4 {
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .highlight-box ol, .highlight-box ul {
+            margin-left: 1.25rem;
+            margin-top: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 0.84rem;
+            line-height: 1.7;
+        }
+
+        .highlight-box p {
+            color: var(--text-secondary);
+            font-size: 0.84rem;
+        }
+
+        /* ================================================================
+           CHART CONTAINER
+           ================================================================ */
+        .chart-container {
+            background: var(--bg-surface-raised);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 1.5rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .chart-container canvas { max-height: 400px; }
+
+        /* ================================================================
+           LINKS
+           ================================================================ */
+        a {
+            color: var(--accent-primary);
+            text-decoration: none;
+            transition: color var(--transition-fast);
+        }
+
+        a:hover {
+            color: #93b9ff;
+            text-decoration: underline;
+        }
+
+        /* ================================================================
+           FOOTER
+           ================================================================ */
+        .footer {
+            text-align: center;
+            padding: 2.5rem 2rem 2rem;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            border-top: 1px solid var(--border-subtle);
+            margin-top: 1rem;
+        }
+
+        .footer p { margin-top: 0.4rem; }
+
+        .footer a {
+            color: var(--text-muted);
+            transition: color var(--transition-fast);
+        }
+
+        .footer a:hover { color: var(--accent-primary); }
+
+        /* ================================================================
+           RESPONSIVE
+           ================================================================ */
+        @media (max-width: 768px) {
+            .container { padding: 1.25rem 1rem; }
+            .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+            .header { padding: 1.5rem; }
+            .header-top { flex-direction: column; gap: 0.5rem; align-items: flex-start; }
+            h1 { font-size: 1.5rem; }
+            .section { padding: 1.25rem; }
+            th, td { padding: 0.6rem 0.75rem; }
+        }
+
+        @media (max-width: 480px) {
+            .metrics-grid { grid-template-columns: 1fr; }
+            h1 { font-size: 1.25rem; }
+        }
+    </style>
+</head>
+<body>
+    <!--
+    ====================================================================
+    USAGE GUIDE — Build your report <body> using these components
+    ====================================================================
+
+    1. HEADER:
+         <div class="container">
+           <div class="header">
+             <div class="header-top">
+               <span class="team-badge">{{BADGE_ICON}} {{BADGE_LABEL}}</span>
+               <span class="report-date">Generated: {{REPORT_DATE}}</span>
+             </div>
+             <h1>{{REPORT_ICON}} {{REPORT_TITLE}} <span>Report</span></h1>
+             <p class="subtitle">{{REPORT_SUBTITLE}}</p>
+           </div>
+
+    2. METRICS GRID (3-8 cards):
+           <div class="metrics-grid">
+             <div class="metric-card">
+               <div class="metric-value success">42</div>
+               <div class="metric-label">Metric Name</div>
+             </div>
+           </div>
+           Value classes: .success / .warning / .danger / .info
+
+    3. SECTION with TABLE:
+           <div class="section" id="section-name">
+             <div class="section-header">
+               <div class="section-icon">icon</div>
+               <h2>Section Title</h2>
+             </div>
+             <div class="explanation-box">
+               <h4>How to Read This</h4>
+               <ul><li>Explanation</li></ul>
+             </div>
+             <table>
+               <thead><tr><th>Column</th></tr></thead>
+               <tbody><tr><td>Data</td></tr></tbody>
+             </table>
+           </div>
+
+    4. EXECUTIVE SUMMARY:
+           <div class="section" id="executive-summary">
+             <div class="section-header">
+               <div class="section-icon">icon</div>
+               <h2>Executive Summary</h2>
+             </div>
+             <div class="executive-summary">
+               <h3>Key Findings</h3>
+               <p>Summary text...</p>
+             </div>
+           </div>
+
+    5. STATUS BADGES (in table cells):
+           <span class="status-badge status-healthy">ELITE</span>
+           <span class="status-badge status-warning">MEDIUM</span>
+           <span class="status-badge status-critical">LOW</span>
+           <span class="status-badge status-info">N/A</span>
+
+    6. HIGHLIGHT BOXES (inside sections):
+           <div class="highlight-box critical">
+             <h4>Critical Issue</h4>
+             <p>Details</p>
+           </div>
+           Variants: (default=green), .warning, .critical, .info
+
+    7. PRIORITY TAGS (in table cells):
+           <span class="priority-tag priority-p0">P0</span>
+           <span class="priority-tag priority-p1">P1</span>
+           <span class="priority-tag priority-p2">P2</span>
+           <span class="priority-tag priority-p3">P3</span>
+
+    8. CHART CONTAINER (for Chart.js):
+           <div class="chart-container">
+             <canvas id="myChart"></canvas>
+           </div>
+
+    9. FOOTER:
+           <div class="footer">
+             <p>Report Title &middot; Generated from DevLake metrics</p>
+             <p>Analysis period: Last {{ANALYSIS_DAYS}} days</p>
+           </div>
+         </div>
+    ====================================================================
+    -->
+</body>
+</html>
