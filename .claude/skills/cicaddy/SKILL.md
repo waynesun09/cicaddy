@@ -57,6 +57,16 @@ uv run cicaddy config show --env-file .env
 uv run cicaddy validate --env-file .env
 ```
 
+Performs pre-flight checks without running the agent:
+
+- **AI Provider** — `AI_PROVIDER` is set and the corresponding API key exists
+  (`GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.)
+- **Agent type** — `AGENT_TYPE` is set; warns if it will be auto-detected
+- **MCP servers** — `MCP_SERVERS_CONFIG` is valid JSON, lists each server name
+  and protocol (credentials are masked)
+
+Exits `0` on pass (warnings allowed), `1` on error.
+
 ### Version
 
 ```bash
