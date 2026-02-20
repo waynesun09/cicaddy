@@ -219,28 +219,56 @@ def detect_my_platform(settings: Settings) -> Optional[str]:
 AgentFactory.register_detector(detect_my_platform, priority=10)
 ```
 
-### Entry point registration (for installable packages)
+### Entry point plugin registration (for installable packages)
 
-Register agents/detectors on import via a module that runs at startup:
+Cicaddy discovers plugins automatically via `importlib.metadata.entry_points()`.
+Register callables in your package's `pyproject.toml`:
 
-```python
-# my_platform_plugin/__init__.py
-from cicaddy.agent.factory import AgentFactory
-from .agents import MyCustomAgent
-from .detectors import detect_my_platform
+```toml
+[project.entry-points."cicaddy.agents"]
+my_platform = "my_plugin.plugin:register_agents"
 
-AgentFactory.register("my_custom", MyCustomAgent)
-AgentFactory.register_detector(detect_my_platform, priority=10)
+[project.entry-points."cicaddy.cli_args"]
+my_platform = "my_plugin.plugin:get_cli_args"
+
+[project.entry-points."cicaddy.env_vars"]
+my_platform = "my_plugin.plugin:get_env_vars"
+
+[project.entry-points."cicaddy.config_sections"]
+my_platform = "my_plugin.plugin:config_section"
+
+[project.entry-points."cicaddy.validators"]
+my_platform = "my_plugin.plugin:validate"
+
+[project.entry-points."cicaddy.settings_loader"]
+my_platform = "my_plugin.config:load_settings"
 ```
 
-Then import the plugin before running:
+Plugin callable signatures:
+
+| Group | Signature |
+|-------|-----------|
+| `cicaddy.agents` | `() -> None` — calls `AgentFactory.register()` / `register_detector()` |
+| `cicaddy.cli_args` | `() -> List[ArgMapping]` |
+| `cicaddy.env_vars` | `() -> List[str]` |
+| `cicaddy.config_sections` | `(config: Dict, mask_fn: Callable, sensitive_vars: frozenset) -> None` |
+| `cicaddy.validators` | `(config: Dict) -> Tuple[List[str], List[str]]` (errors, warnings) |
+| `cicaddy.settings_loader` | `() -> CoreSettings` |
+
+Example agent registration callable:
 
 ```python
-import my_platform_plugin  # triggers registration
-from cicaddy.agent.factory import create_agent_from_environment
+# my_plugin/plugin.py
+def register_agents():
+    from cicaddy.agent.factory import AgentFactory
+    from my_plugin.agents import MyCustomAgent, detect_my_platform
 
-agent = create_agent_from_environment()
+    AgentFactory.register("my_custom", MyCustomAgent)
+    AgentFactory.register_detector(detect_my_platform, priority=10)
 ```
+
+After `pip install cicaddy my-plugin`, cicaddy discovers and loads the plugin
+automatically — no manual imports needed.
 
 ### Built-in agent types
 

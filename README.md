@@ -79,24 +79,47 @@ Key schema fields:
 
 ## Extending with Platform Plugins
 
-`cicaddy` is designed to be extended by platform-specific packages:
+`cicaddy` discovers platform plugins automatically via Python `entry_points`. Plugins can register agents, CLI args, env vars, config sections, validators, and a settings loader — without modifying cicaddy itself.
+
+**1. Define plugin callables** (`my_plugin/plugin.py`):
 
 ```python
-from cicaddy.config.settings import CoreSettings
-from cicaddy.agent.factory import AgentFactory
-from cicaddy.agent.base import BaseAIAgent
+def register_agents():
+    from cicaddy.agent.factory import AgentFactory
+    from my_plugin.agent import MergeRequestAgent, detect_agent_type
 
-# Create platform-specific settings
-class GitLabSettings(CoreSettings):
-    gitlab_token: str = ""
-    project_id: str = ""
+    AgentFactory.register("merge_request", MergeRequestAgent)
+    AgentFactory.register_detector(detect_agent_type, priority=40)
 
-# Register custom agent
-class MergeRequestAgent(BaseAIAgent):
-    ...
-
-AgentFactory.register("merge_request", MergeRequestAgent)
+def get_cli_args():
+    from cicaddy.cli.arg_mapping import ArgMapping
+    return [
+        ArgMapping(cli_arg="--mr-iid", env_var="CI_MERGE_REQUEST_IID",
+                   help_text="Merge request IID"),
+    ]
 ```
+
+**2. Register in `pyproject.toml`**:
+
+```toml
+[project.entry-points."cicaddy.agents"]
+my_platform = "my_plugin.plugin:register_agents"
+
+[project.entry-points."cicaddy.cli_args"]
+my_platform = "my_plugin.plugin:get_cli_args"
+
+[project.entry-points."cicaddy.settings_loader"]
+my_platform = "my_plugin.config:load_settings"
+```
+
+**3. Install and run** — plugins are discovered automatically:
+
+```bash
+pip install cicaddy my-cicaddy-plugin
+cicaddy run --env-file .env
+```
+
+Available plugin groups: `cicaddy.agents`, `cicaddy.cli_args`, `cicaddy.env_vars`, `cicaddy.config_sections`, `cicaddy.validators`, `cicaddy.settings_loader`. See [cicaddy-gitlab](https://gitlab.cee.redhat.com/ccit/agents/gitlab-agent-task) for a complete plugin implementation.
 
 ## License
 
