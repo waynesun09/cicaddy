@@ -28,9 +28,9 @@ def setup_test_environment(monkeypatch):
         "JSON_LOGS": "false",
         "SSL_VERIFY": "false",
         "CRON_MODE": "true",
-        "CRON_TASK_TYPE": "custom",
-        "CRON_SCOPE": "external_tools",
-        "CRON_REPORT_FORMAT": "detailed",
+        "TASK_TYPE": "custom",
+        "TASK_SCOPE": "external_tools",
+        "TASK_REPORT_FORMAT": "detailed",
     }
 
     for key, value in test_env.items():

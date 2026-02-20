@@ -24,7 +24,7 @@ def create_parser() -> argparse.ArgumentParser:
         epilog="""
 Examples:
   cicaddy run --env-file .env
-  cicaddy run --agent-type cron --ai-provider gemini --log-level DEBUG
+  cicaddy run --agent-type task --ai-provider gemini --log-level DEBUG
   cicaddy config show --env-file .env
   cicaddy version
 
@@ -119,7 +119,7 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
 
     # Build dynamic agent-type choices from registry + standard aliases
     registered = AgentFactory.get_available_agent_types()
-    agent_type_choices = sorted(set(registered) | {"mr", "cron", "branch"})
+    agent_type_choices = sorted(set(registered) | {"mr", "task", "cron", "branch"})
 
     # Add all mapped arguments (base + plugin)
     for mapping in get_run_arg_mappings():

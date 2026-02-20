@@ -36,7 +36,7 @@ Key `run` flags:
 | Flag | Description |
 |------|-------------|
 | `--env-file, -e FILE` | Load env vars from a `.env` file |
-| `-t, --agent-type` | `cron` (default), `branch_review`, `merge_request`, or custom |
+| `-t, --agent-type` | `task` (default), `branch_review`, `merge_request`, or custom |
 | `--ai-provider` | `gemini`, `openai`, `claude` |
 | `--ai-model` | e.g. `gemini-3-pro-preview`, `gpt-4o` |
 | `--mcp-config` | JSON string or path with MCP server configs |
@@ -81,8 +81,8 @@ Core env vars for a DSPy task run:
 
 ```bash
 # Agent type
-AGENT_TYPE=cron           # cron | branch_review | merge_request | <custom>
-CRON_TASK_TYPE=custom     # for custom DSPy task file mode
+AGENT_TYPE=task           # task | branch_review | merge_request | <custom>
+TASK_TYPE=custom          # for custom DSPy task file mode
 
 # AI provider
 AI_PROVIDER=gemini        # gemini | openai | claude
@@ -274,7 +274,7 @@ automatically — no manual imports needed.
 
 | Type | Class | Activated by |
 |------|-------|--------------|
-| `cron` | `CronAIAgent` | `AGENT_TYPE=cron` or `CRON_TASK_TYPE` env var |
+| `task` | `TaskAgent` | `AGENT_TYPE=task` or `TASK_TYPE` env var |
 | `branch_review` | `BranchReviewAgent` | `AGENT_TYPE=branch` or branch push CI |
 | `merge_request` | *(platform plugin)* | `CI_MERGE_REQUEST_IID` or `AGENT_TYPE=mr` |
 

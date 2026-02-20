@@ -1,9 +1,9 @@
-from cicaddy.agent.cron_agent import CronAIAgent
+from cicaddy.agent.task_agent import TaskAgent
 from cicaddy.config.settings import Settings
 
 
-def _build_agent() -> CronAIAgent:
-    return CronAIAgent(settings=Settings())
+def _build_agent() -> TaskAgent:
+    return TaskAgent(settings=Settings())
 
 
 def test_email_format_markdown_analysis(monkeypatch):

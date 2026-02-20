@@ -12,7 +12,7 @@ The agent system uses a **registry-based factory** pattern:
 
 - `BaseAIAgent` (in `agent/base.py`) — abstract base with shared init, AI provider setup, MCP manager, execution engine, Slack notifier, and the `analyze()` template method.
 - `AgentFactory` (in `agent/factory.py`) — class-level registry mapping type strings to agent classes, with pluggable type detectors.
-- Built-in agents: `BranchReviewAgent`, `CronAIAgent`. Platform packages register their own (e.g., `MergeRequestAgent`).
+- Built-in agents: `BranchReviewAgent`, `TaskAgent`. Platform packages register their own (e.g., `MergeRequestAgent`).
 
 #### Extending with a platform-specific agent
 
@@ -87,7 +87,7 @@ Detectors run in priority order (lower = first). Built-in CI detector runs at pr
 
 ```
 cicaddy run --env-file .env
-cicaddy run --agent-type cron --ai-provider gemini
+cicaddy run --agent-type task --ai-provider gemini
 cicaddy config show --env-file .env
 cicaddy validate --env-file .env
 cicaddy version

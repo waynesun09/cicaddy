@@ -32,7 +32,7 @@ class AgentFactory:
         """Register an agent class for a given type name.
 
         Args:
-            agent_type: String identifier (e.g., "merge_request", "cron")
+            agent_type: String identifier (e.g., "merge_request", "task")
             agent_class: BaseAIAgent subclass to instantiate
         """
         cls._registry[agent_type] = agent_class
@@ -101,7 +101,7 @@ class AgentFactory:
             settings: Settings object to analyze
 
         Returns:
-            String agent type: "merge_request", "branch_review", or "cron"
+            String agent type: "merge_request", "branch_review", or "task"
         """
         # 1. Check explicit agent type override
         explicit_type = os.getenv("AGENT_TYPE")
@@ -116,11 +116,11 @@ class AgentFactory:
                     f"Using explicit agent type: branch_review (from AGENT_TYPE={explicit_type})"
                 )
                 return "branch_review"
-            elif explicit_type.lower() in ["cron", "scheduled"]:
+            elif explicit_type.lower() in ["task", "cron", "scheduled"]:
                 logger.info(
-                    f"Using explicit agent type: cron (from AGENT_TYPE={explicit_type})"
+                    f"Using explicit agent type: task (from AGENT_TYPE={explicit_type})"
                 )
-                return "cron"
+                return "task"
             else:
                 # Check if explicit type is a registered custom type
                 if explicit_type.lower() in AgentFactory._registry:
@@ -144,11 +144,11 @@ class AgentFactory:
             except Exception as e:
                 logger.warning(f"Type detector (priority={priority}) failed: {e}")
 
-        # 3. Default to cron for general/scheduled analysis
+        # 3. Default to task for general/scheduled analysis
         logger.info(
-            "No specific context detected, defaulting to cron agent for general analysis"
+            "No specific context detected, defaulting to task agent for general analysis"
         )
-        return "cron"
+        return "task"
 
     @staticmethod
     def get_available_agent_types() -> list[str]:
@@ -186,8 +186,8 @@ class AgentFactory:
             if not settings.ai_provider:
                 logger.warning("No AI provider configured, using default")
 
-        elif agent_type == "cron":
-            # Cron agent is more flexible, but check for basic requirements
+        elif agent_type in ("task", "cron"):
+            # Task agent is more flexible, but check for basic requirements
             if not settings.ai_provider:
                 logger.warning("No AI provider configured, using default")
 
@@ -200,8 +200,8 @@ class AgentFactory:
     @staticmethod
     def get_mcp_servers_for_context(
         agent_type: str,
-        cron_scope: Optional[str] = None,
-        cron_task_type: Optional[str] = None,
+        task_scope: Optional[str] = None,
+        task_type: Optional[str] = None,
     ) -> List[MCPServerConfig]:
         """
         Load MCP servers from environment configuration.
@@ -211,8 +211,8 @@ class AgentFactory:
 
         Args:
             agent_type: Type of agent being created (for logging only)
-            cron_scope: Scope for cron agents (for logging only)
-            cron_task_type: Task type for cron agents (for logging only)
+            task_scope: Scope for task agents (for logging only)
+            task_type: Task type for task agents (for logging only)
 
         Returns:
             List of MCP server configurations from environment
@@ -268,11 +268,11 @@ def _detect_ci_agent_type(settings: Settings) -> Optional[str]:
         logger.info(f"Detected merge request context: CI_MERGE_REQUEST_IID={ci_mr_iid}")
         return "merge_request"
 
-    # Check for cron task configuration
-    cron_task_type = os.getenv("CRON_TASK_TYPE")
-    if cron_task_type:
-        logger.info(f"Detected cron context: CRON_TASK_TYPE={cron_task_type}")
-        return "cron"
+    # Check for task configuration
+    task_type = os.getenv("TASK_TYPE") or os.getenv("CRON_TASK_TYPE")
+    if task_type:
+        logger.info(f"Detected task context: TASK_TYPE={task_type}")
+        return "task"
 
     # Check CI pipeline source
     pipeline_source = os.getenv("CI_PIPELINE_SOURCE")
@@ -283,8 +283,8 @@ def _detect_ci_agent_type(settings: Settings) -> Optional[str]:
             )
             return "merge_request"
         elif pipeline_source == "schedule":
-            logger.info(f"Detected cron context: CI_PIPELINE_SOURCE={pipeline_source}")
-            return "cron"
+            logger.info(f"Detected task context: CI_PIPELINE_SOURCE={pipeline_source}")
+            return "task"
         elif pipeline_source == "push":
             # Check if this is a branch push (not to default branch)
             ci_commit_branch = os.getenv("CI_COMMIT_BRANCH")
@@ -314,12 +314,13 @@ def _detect_ci_agent_type(settings: Settings) -> Optional[str]:
 
 # --- Register built-in agents and detectors ---
 from .branch_agent import BranchReviewAgent  # noqa: E402
-from .cron_agent import CronAIAgent  # noqa: E402
 from .mr_agent import MergeRequestAgent  # noqa: E402
+from .task_agent import TaskAgent  # noqa: E402
 
 AgentFactory.register("merge_request", MergeRequestAgent)
 AgentFactory.register("branch_review", BranchReviewAgent)
-AgentFactory.register("cron", CronAIAgent)
+AgentFactory.register("task", TaskAgent)
+AgentFactory.register("cron", TaskAgent)  # backward compat alias
 
 # Register CI environment detector with default priority
 AgentFactory.register_detector(_detect_ci_agent_type, priority=50)
