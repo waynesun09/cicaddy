@@ -181,17 +181,6 @@ class AgentFactory:
                 )
                 return False
 
-            # MR agent requires GitLab configuration
-            gitlab_token = getattr(settings, "gitlab_token", "")
-            if not gitlab_token:
-                logger.error("Merge request agent requires gitlab_token")
-                return False
-
-            project_id = getattr(settings, "project_id", None)
-            if not project_id:
-                logger.error("Merge request agent requires project_id")
-                return False
-
         elif agent_type == "branch_review":
             # Branch review agent needs basic AI provider
             if not settings.ai_provider:
@@ -326,7 +315,9 @@ def _detect_ci_agent_type(settings: Settings) -> Optional[str]:
 # --- Register built-in agents and detectors ---
 from .branch_agent import BranchReviewAgent  # noqa: E402
 from .cron_agent import CronAIAgent  # noqa: E402
+from .mr_agent import MergeRequestAgent  # noqa: E402
 
+AgentFactory.register("merge_request", MergeRequestAgent)
 AgentFactory.register("branch_review", BranchReviewAgent)
 AgentFactory.register("cron", CronAIAgent)
 
