@@ -28,9 +28,7 @@ class MergeRequestAgent(BaseReviewAgent):
 
     def _resolve_mr_iid(self) -> Optional[str]:
         """Resolve merge request IID from settings or environment."""
-        mr_iid = (
-            getattr(self.settings, "merge_request_iid", None) if self.settings else None
-        )
+        mr_iid = getattr(self.settings, "merge_request_iid", None)
         if mr_iid:
             logger.debug(f"MR IID from settings: {mr_iid}")
             return mr_iid
@@ -45,11 +43,7 @@ class MergeRequestAgent(BaseReviewAgent):
     def _resolve_source_branch(self) -> str:
         """Resolve source branch from settings, environment, or default."""
         # Settings field first
-        branch = (
-            getattr(self.settings, "merge_request_source_branch", None)
-            if self.settings
-            else None
-        )
+        branch = getattr(self.settings, "merge_request_source_branch", None)
         if branch:
             logger.debug(f"Source branch from settings: {branch}")
             return branch
@@ -73,11 +67,7 @@ class MergeRequestAgent(BaseReviewAgent):
     def _resolve_target_branch(self) -> str:
         """Resolve target branch from settings, environment, or default."""
         # Settings field first
-        branch = (
-            getattr(self.settings, "merge_request_target_branch", None)
-            if self.settings
-            else None
-        )
+        branch = getattr(self.settings, "merge_request_target_branch", None)
         if branch:
             logger.debug(f"Target branch from settings: {branch}")
             return branch
@@ -101,6 +91,7 @@ class MergeRequestAgent(BaseReviewAgent):
     async def get_diff_content(self) -> str:
         """Get merge request diff content using git CLI."""
         self._validate_initialized()
+        assert self.diff_analyzer is not None
 
         logger.info(
             f"Getting MR diff between {self.source_branch} and {self.target_branch}"
