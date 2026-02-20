@@ -32,7 +32,7 @@ class BaseAIAgent(ABC):
         self.ai_provider: Optional[BaseProvider] = None
         self.mcp_manager: Optional[OfficialMCPClientManager] = None
         self.local_tool_registry: Optional[ToolRegistry] = None
-        self.gitlab_analyzer = (
+        self.platform_analyzer = (
             None  # Set by _setup_platform_integration() in subclasses
         )
         self.slack_notifier: Optional[RichSlackNotifier] = None
@@ -467,7 +467,7 @@ class BaseAIAgent(ABC):
         """Create summary of analysis context for reporting."""
         return {
             "tools_available": len(context.get("mcp_tools", [])),
-            "gitlab_available": context.get("gitlab_available", False),
+            "platform_available": context.get("platform_available", False),
             "project_name": context.get("project", {}).get("name", "Unknown"),
         }
 
@@ -649,7 +649,7 @@ Detailed Execution Logs
         return {
             "project": {"name": "Analysis Failed", "id": "unknown"},
             "timestamp": self.start_time.isoformat(),
-            "gitlab_available": False,
+            "platform_available": False,
             "mcp_tools": [],
         }
 

@@ -56,10 +56,10 @@ class CronAIAgent(BaseAIAgent):
             or not project_id
         ):
             if self.scope == "external_tools":
-                logger.info("GitLab analyzer not needed for external_tools scope")
+                logger.info("Platform analyzer not needed for external_tools scope")
             else:
-                logger.warning("No project ID available - GitLab analyzer disabled")
-            self.gitlab_analyzer = None
+                logger.warning("No project ID available - platform analyzer disabled")
+            self.platform_analyzer = None
 
         # Replace base Slack notifier with enhanced cron notifier
         slack_webhook_urls = self.settings.get_slack_webhook_urls()
@@ -113,9 +113,9 @@ class CronAIAgent(BaseAIAgent):
         """Gather project context based on scope for cron analysis."""
         logger.info(f"Gathering project context for scope: {self.scope}")
 
-        if self.gitlab_analyzer:
+        if self.platform_analyzer:
             try:
-                project_info = await self.gitlab_analyzer.get_project_info()
+                project_info = await self.platform_analyzer.get_project_info()
             except Exception as e:
                 # Handle various platform-related errors
                 error_type = type(e).__name__
@@ -152,7 +152,7 @@ class CronAIAgent(BaseAIAgent):
             "scope": self.scope,
             "task_type": self.task_type,
             "timestamp": self.start_time.isoformat(),
-            "gitlab_available": self.gitlab_analyzer is not None,
+            "platform_available": self.platform_analyzer is not None,
         }
 
         if self.scope == "full_project":
@@ -546,9 +546,9 @@ Focus on maintaining project quality and health.
             "focus_areas": ["security", "quality", "dependencies", "architecture"],
         }
 
-        if not self.gitlab_analyzer:
+        if not self.platform_analyzer:
             logger.warning(
-                "GitLab analyzer not available for full project context - using basic context"
+                "Platform analyzer not available for full project context - using basic context"
             )
         else:
             # Future enhancement: could fetch repository statistics, branch info, etc.
@@ -564,9 +564,9 @@ Focus on maintaining project quality and health.
             "focus_areas": ["current_state", "deployment_readiness"],
         }
 
-        if not self.gitlab_analyzer:
+        if not self.platform_analyzer:
             logger.warning(
-                "GitLab analyzer not available for main branch context - using basic context"
+                "Platform analyzer not available for main branch context - using basic context"
             )
         else:
             # Future enhancement: could fetch branch status, latest commits, etc.
@@ -582,9 +582,9 @@ Focus on maintaining project quality and health.
             "focus_areas": ["recent_commits", "impact_assessment"],
         }
 
-        if not self.gitlab_analyzer:
+        if not self.platform_analyzer:
             logger.warning(
-                "GitLab analyzer not available for recent changes context - using basic context"
+                "Platform analyzer not available for recent changes context - using basic context"
             )
         else:
             # Future enhancement: could fetch recent commits, merge requests, etc.
@@ -700,7 +700,7 @@ Please provide your analysis and recommendations for monitoring this infrastruct
 Execution Context:
 - Project: {context.get("project", {}).get("name", "Unknown")}
 - Timestamp: {context.get("timestamp", "Unknown")}
-- GitLab Available: {context.get("gitlab_available", False)}
+- Platform Available: {context.get("platform_available", False)}
 """
 
         # Return combined prompt (system + context)

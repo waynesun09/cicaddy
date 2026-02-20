@@ -171,7 +171,7 @@ class BranchReviewAgent(BaseReviewAgent):
 
         # Build comprehensive prompt for branch analysis
         prompt = f"""
-You are an AI agent performing branch analysis on a GitLab project.
+You are an AI agent performing branch analysis on a code project.
 
 Project: {context.get("project", {}).get("name", "Unknown")}
 Branch Comparison: {source_branch} → {target_branch}
@@ -248,81 +248,15 @@ Security Analysis Focus:
     async def send_notifications(
         self, report: Dict[str, Any], analysis_result: Dict[str, Any]
     ):
-        """Send notifications via Slack and post GitLab commit comment for branch reviews."""
+        """Send notifications for branch reviews.
+
+        Platform-specific comment posting (e.g., GitLab commit comments)
+        is handled by platform plugin overrides.
+        """
         logger.info(
             f"Sending notifications for branch review: {self.source_branch} -> {self.target_branch}"
         )
-
-        # Send Slack notification using parent class method
         await super().send_notifications(report, analysis_result)
-
-        # Post comment to GitLab commit if in CI environment and GitLab analyzer is available
-        await self._post_gitlab_commit_comment(report, analysis_result)
-
-    async def _post_gitlab_commit_comment(
-        self, report: Dict[str, Any], analysis_result: Dict[str, Any]
-    ):
-        """Post analysis results as a comment to the current commit."""
-        # Only post comments if we have GitLab analyzer and are in CI environment
-        if not self.gitlab_analyzer:
-            logger.debug("No GitLab analyzer available, skipping commit comment")
-            return
-
-        # Get commit SHA from CI environment
-        commit_sha = os.getenv("CI_COMMIT_SHA")
-        if not commit_sha:
-            logger.debug("No CI_COMMIT_SHA available, skipping commit comment")
-            return
-
-        try:
-            # Format comment content for GitLab
-            comment_content = self._format_gitlab_comment(report, analysis_result)
-
-            # Post comment to commit
-            result = await self.gitlab_analyzer.post_commit_note(
-                commit_sha, comment_content
-            )
-            logger.info(
-                f"Posted analysis comment to commit {commit_sha[:8]}, note ID: {result.get('id')}"
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to post GitLab commit comment: {e}")
-            # Don't raise - comment posting failure shouldn't break the analysis
-
-    def _format_gitlab_comment(
-        self, report: Dict[str, Any], analysis_result: Dict[str, Any]
-    ) -> str:
-        """Format analysis results for GitLab commit comment."""
-        ai_analysis = analysis_result.get("ai_analysis", "No analysis available")
-        status = analysis_result.get("status", "unknown")
-        execution_time = analysis_result.get("execution_time", 0)
-
-        # Get project name and branch info
-        project_name = report.get("project", "Unknown Project")
-
-        # Format status indicator
-        status_emoji = "✅" if status == "success" else "❌"
-
-        # Create comprehensive comment
-        comment = f"""## 🤖 AI Branch Analysis Results {status_emoji}
-
-**Project:** {project_name}
-**Branch Comparison:** {self.source_branch} → {self.target_branch}
-**Analysis Status:** {status.title()}
-**Execution Time:** {execution_time:.1f}s
-**Report ID:** `{report.get("report_id", "unknown")}`
-
-### Analysis Summary
-
-{ai_analysis}
-
----
-*Analysis performed by [Cicaddy](https://github.com/waynesun09/cicaddy) | \
-Report: `{report.get("report_id", "N/A")}`*
-"""
-
-        return comment
 
     def get_session_id(self) -> str:
         """
