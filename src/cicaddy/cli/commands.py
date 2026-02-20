@@ -295,12 +295,7 @@ async def _run_agent_async(settings: Any, logger: Any) -> int:
         elif hasattr(agent, "process_merge_request"):
             logger.info("Running merge request analysis")
             results = await agent.process_merge_request()
-            logger.info(
-                "MR analysis completed",
-                execution_time=results.get("execution_time", 0)
-                if isinstance(results, dict)
-                else 0,
-            )
+            logger.info("MR analysis completed")
         else:
             logger.info("Running base agent analysis")
             results = await agent.analyze()

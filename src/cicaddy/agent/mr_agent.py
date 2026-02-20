@@ -247,7 +247,7 @@ Please provide your comprehensive analysis.
             if "server" in tool:
                 tool_info += f" (from {tool['server']} server)"
 
-            if "inputSchema" in tool and tool["inputSchema"]:
+            if tool.get("inputSchema"):
                 schema = tool["inputSchema"]
                 if "properties" in schema:
                     params = []
