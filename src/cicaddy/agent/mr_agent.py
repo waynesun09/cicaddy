@@ -234,7 +234,10 @@ Please provide your comprehensive analysis.
         """Format MCP tool schemas for inclusion in prompts."""
         tools_info = []
         for tool in mcp_tools:
-            tool_info = f"- {tool['name']}: {tool.get('description', 'No description available')}"
+            tool_name = tool.get("name", "unnamed")
+            tool_info = (
+                f"- {tool_name}: {tool.get('description', 'No description available')}"
+            )
             if "server" in tool:
                 tool_info += f" (from {tool['server']} server)"
 
