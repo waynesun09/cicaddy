@@ -607,8 +607,13 @@ def load_core_settings() -> CoreSettings:
 def load_settings() -> Settings:
     """Load settings from environment variables.
 
-    This is the main entry point for loading configuration. Platform-specific
-    packages should override this function to add
-    platform-specific defaults and env var handling.
+    This is the main entry point for loading configuration. If a plugin has
+    registered a ``cicaddy.settings_loader`` entry point, that loader is
+    called instead of the default :func:`load_core_settings`.
     """
+    from cicaddy.plugin import get_settings_loader
+
+    plugin_loader = get_settings_loader()
+    if plugin_loader:
+        return plugin_loader()
     return load_core_settings()

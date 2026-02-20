@@ -1,7 +1,7 @@
 """CLI argument to environment variable mappings."""
 
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from cicaddy.config.settings import SENSITIVE_ENV_VAR_NAMES
 
@@ -20,12 +20,14 @@ class ArgMapping:
 
 
 # CLI argument mappings for the 'run' command
+# NOTE: --agent-type choices are set to None here and built dynamically
+# from AgentFactory.get_available_agent_types() in main.py
 RUN_ARG_MAPPINGS: List[ArgMapping] = [
     ArgMapping(
         cli_arg="--agent-type",
         env_var="AGENT_TYPE",
-        choices=["cron", "branch"],
-        help_text="Agent type: cron (scheduled), branch (review)",
+        choices=None,
+        help_text="Agent type (auto-detected if not specified)",
         short_arg="-t",
     ),
     ArgMapping(
@@ -70,9 +72,23 @@ RUN_ARG_MAPPINGS: List[ArgMapping] = [
 SENSITIVE_ENV_VARS: frozenset = SENSITIVE_ENV_VAR_NAMES
 
 
+def get_run_arg_mappings() -> List[ArgMapping]:
+    """Return RUN_ARG_MAPPINGS merged with plugin-provided CLI args.
+
+    Plugin args with the same ``cli_arg`` name replace base args (dict merge).
+    """
+    from cicaddy.plugin import get_plugin_cli_args
+
+    # Build a dict keyed by cli_arg for merging
+    merged: Dict[str, ArgMapping] = {m.cli_arg: m for m in RUN_ARG_MAPPINGS}
+    for plugin_arg in get_plugin_cli_args():
+        merged[plugin_arg.cli_arg] = plugin_arg
+    return list(merged.values())
+
+
 def get_arg_mapping_by_env_var(env_var: str) -> Optional[ArgMapping]:
     """Get an ArgMapping by its environment variable name."""
-    for mapping in RUN_ARG_MAPPINGS:
+    for mapping in get_run_arg_mappings():
         if mapping.env_var == env_var:
             return mapping
     return None
@@ -82,7 +98,7 @@ def get_arg_mapping_by_cli_arg(cli_arg: str) -> Optional[ArgMapping]:
     """Get an ArgMapping by its CLI argument name."""
     # Normalize the CLI arg (remove leading dashes, replace dashes with underscores)
     normalized = cli_arg.lstrip("-").replace("-", "_")
-    for mapping in RUN_ARG_MAPPINGS:
+    for mapping in get_run_arg_mappings():
         mapping_normalized = mapping.cli_arg.lstrip("-").replace("-", "_")
         if mapping_normalized == normalized:
             return mapping

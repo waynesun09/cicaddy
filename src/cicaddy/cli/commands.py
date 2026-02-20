@@ -89,6 +89,15 @@ def cmd_config_show(args: Namespace) -> int:
     else:
         print("  MCP_SERVERS_CONFIG: (not set)")
 
+    # Plugin config sections
+    from cicaddy.plugin import get_plugin_config_sections
+
+    for section_fn in get_plugin_config_sections():
+        try:
+            section_fn(config, mask_sensitive_value, SENSITIVE_ENV_VARS)
+        except Exception as e:
+            print(f"\n[Plugin Error: {e}]")
+
     print("\nNote: Sensitive values (API keys, tokens) are masked with ****.")
 
     return 0
@@ -184,6 +193,17 @@ def cmd_validate(args: Namespace) -> int:
             print("  MCP_SERVERS_CONFIG: invalid JSON ✗")
     else:
         print("  MCP_SERVERS_CONFIG: (not configured) ~")
+
+    # Plugin validators
+    from cicaddy.plugin import get_plugin_validators
+
+    for validator_fn in get_plugin_validators():
+        try:
+            plugin_errors, plugin_warnings = validator_fn(config)
+            errors.extend(plugin_errors)
+            warnings.extend(plugin_warnings)
+        except Exception as e:
+            warnings.append(f"Plugin validator failed: {e}")
 
     # Summary
     print("\n" + "=" * 50)
@@ -286,16 +306,43 @@ async def _run_agent_async(settings: Any, logger: Any) -> int:
         # Determine which method to call based on agent type
         if hasattr(agent, "run_scheduled_analysis"):
             logger.info("Running scheduled analysis")
-            results = await agent.run_scheduled_analysis()
+            results = await getattr(agent, "run_scheduled_analysis")()
             logger.info(
                 "Scheduled analysis completed",
                 task_type=results.get("task_type", "unknown"),
                 execution_time=results.get("execution_time", 0),
             )
         elif hasattr(agent, "process_merge_request"):
-            logger.info("Running merge request analysis")
-            results = await agent.process_merge_request()
-            logger.info("MR analysis completed")
+            mr_iid = getattr(settings, "merge_request_iid", None)
+            logger.info("Running merge request analysis", merge_request_iid=mr_iid)
+            results = await getattr(agent, "process_merge_request")()
+
+            if isinstance(results, dict) and (
+                "turn_id" in results or "ai_analysis" in results
+            ):
+                # Single execution turn result from base agent
+                logger.info(
+                    "MR analysis completed",
+                    tasks=["analysis"],
+                    success_count=1,
+                )
+            else:
+                # Multi-task results from extended agent
+                logger.info(
+                    "MR analysis completed",
+                    tasks=list(results.keys())
+                    if isinstance(results, dict)
+                    else "analysis",
+                    success_count=(
+                        sum(
+                            1
+                            for r in results.values()
+                            if isinstance(r, dict) and r.get("status") == "success"
+                        )
+                        if isinstance(results, dict)
+                        else 1
+                    ),
+                )
         else:
             logger.info("Running base agent analysis")
             results = await agent.analyze()
@@ -367,6 +414,7 @@ async def _send_error_notification(
                 "project_name": getattr(settings, "project_name", "")
                 or "Unknown Project",
                 "project_id": getattr(settings, "project_id", None),
+                "merge_request_iid": getattr(settings, "merge_request_iid", None),
                 "error_type": "ai_provider_failure"
                 if exit_code in [2, 3]
                 else "general_failure",
