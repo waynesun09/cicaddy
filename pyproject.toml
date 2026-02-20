@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cicaddy"
-version = "0.1.1"
+version = "0.1.2"
 description = "Platform-agnostic pipeline AI agent with MCP tool integration and multi-step execution engine"
 readme = "README.md"
 requires-python = ">=3.11"
