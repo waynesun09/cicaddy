@@ -318,7 +318,7 @@ Security Analysis Focus:
 {ai_analysis}
 
 ---
-*Analysis performed by [Cicaddy](https://github.com/cicaddy/cicaddy) | \
+*Analysis performed by [Cicaddy](https://github.com/waynesun09/cicaddy) | \
 Report: `{report.get("report_id", "N/A")}`*
 """
 

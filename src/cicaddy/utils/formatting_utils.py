@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 class CommentFormatter:
     """Utility class for formatting comments and notifications."""
 
-    DEFAULT_PROJECT_URL = "https://github.com/cicaddy/cicaddy"
+    DEFAULT_PROJECT_URL = "https://github.com/waynesun09/cicaddy"
 
     @staticmethod
     def format_footer(link_url: Optional[str] = None) -> str:
