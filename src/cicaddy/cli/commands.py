@@ -316,19 +316,29 @@ async def _run_agent_async(settings: Any, logger: Any) -> int:
             mr_iid = getattr(settings, "merge_request_iid", None)
             logger.info("Running merge request analysis", merge_request_iid=mr_iid)
             results = await getattr(agent, "process_merge_request")()
-            logger.info(
-                "MR analysis completed",
-                tasks=list(results.keys()) if isinstance(results, dict) else "analysis",
-                success_count=(
-                    sum(
-                        1
-                        for r in results.values()
-                        if isinstance(r, dict) and r.get("status") == "success"
-                    )
-                    if isinstance(results, dict)
-                    else 1
-                ),
-            )
+
+            if isinstance(results, dict) and ("turn_id" in results or "ai_analysis" in results):
+                # Single execution turn result from base agent
+                logger.info(
+                    "MR analysis completed",
+                    tasks=["analysis"],
+                    success_count=1,
+                )
+            else:
+                # Multi-task results from extended agent
+                logger.info(
+                    "MR analysis completed",
+                    tasks=list(results.keys()) if isinstance(results, dict) else "analysis",
+                    success_count=(
+                        sum(
+                            1
+                            for r in results.values()
+                            if isinstance(r, dict) and r.get("status") == "success"
+                        )
+                        if isinstance(results, dict)
+                        else 1
+                    ),
+                )
         else:
             logger.info("Running base agent analysis")
             results = await agent.analyze()
