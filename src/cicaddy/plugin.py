@@ -31,7 +31,11 @@ def discover_plugins() -> None:
     _plugins_discovered = True
 
     eps = entry_points()
-    agent_eps = eps.select(group="cicaddy.agents") if hasattr(eps, "select") else eps.get("cicaddy.agents", [])
+    agent_eps = (
+        eps.select(group="cicaddy.agents")
+        if hasattr(eps, "select")
+        else eps.get("cicaddy.agents", [])
+    )
     for ep in agent_eps:
         try:
             register_fn = ep.load()
@@ -51,7 +55,11 @@ def get_plugin_cli_args() -> List:
 
     result: List[ArgMapping] = []
     eps = entry_points()
-    cli_eps = eps.select(group="cicaddy.cli_args") if hasattr(eps, "select") else eps.get("cicaddy.cli_args", [])
+    cli_eps = (
+        eps.select(group="cicaddy.cli_args")
+        if hasattr(eps, "select")
+        else eps.get("cicaddy.cli_args", [])
+    )
     for ep in cli_eps:
         try:
             args_fn = ep.load()
@@ -69,7 +77,11 @@ def get_plugin_env_vars() -> List[str]:
     """
     result: List[str] = []
     eps = entry_points()
-    env_eps = eps.select(group="cicaddy.env_vars") if hasattr(eps, "select") else eps.get("cicaddy.env_vars", [])
+    env_eps = (
+        eps.select(group="cicaddy.env_vars")
+        if hasattr(eps, "select")
+        else eps.get("cicaddy.env_vars", [])
+    )
     for ep in env_eps:
         try:
             vars_fn = ep.load()
@@ -88,7 +100,11 @@ def get_plugin_config_sections() -> List[Callable]:
     """
     result: List[Callable] = []
     eps = entry_points()
-    cfg_eps = eps.select(group="cicaddy.config_sections") if hasattr(eps, "select") else eps.get("cicaddy.config_sections", [])
+    cfg_eps = (
+        eps.select(group="cicaddy.config_sections")
+        if hasattr(eps, "select")
+        else eps.get("cicaddy.config_sections", [])
+    )
     for ep in cfg_eps:
         try:
             result.append(ep.load())
@@ -106,7 +122,11 @@ def get_plugin_validators() -> List[Callable]:
     """
     result: List[Callable] = []
     eps = entry_points()
-    val_eps = eps.select(group="cicaddy.validators") if hasattr(eps, "select") else eps.get("cicaddy.validators", [])
+    val_eps = (
+        eps.select(group="cicaddy.validators")
+        if hasattr(eps, "select")
+        else eps.get("cicaddy.validators", [])
+    )
     for ep in val_eps:
         try:
             result.append(ep.load())
@@ -123,7 +143,11 @@ def get_settings_loader() -> Optional[Callable]:
     return a :class:`cicaddy.config.settings.CoreSettings` (or subclass) instance.
     """
     eps = entry_points()
-    loader_eps = eps.select(group="cicaddy.settings_loader") if hasattr(eps, "select") else eps.get("cicaddy.settings_loader", [])
+    loader_eps = (
+        eps.select(group="cicaddy.settings_loader")
+        if hasattr(eps, "select")
+        else eps.get("cicaddy.settings_loader", [])
+    )
     for ep in loader_eps:
         try:
             loader = ep.load()

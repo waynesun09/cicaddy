@@ -306,7 +306,7 @@ async def _run_agent_async(settings: Any, logger: Any) -> int:
         # Determine which method to call based on agent type
         if hasattr(agent, "run_scheduled_analysis"):
             logger.info("Running scheduled analysis")
-            results = await agent.run_scheduled_analysis()
+            results = await getattr(agent, "run_scheduled_analysis")()
             logger.info(
                 "Scheduled analysis completed",
                 task_type=results.get("task_type", "unknown"),
@@ -315,7 +315,7 @@ async def _run_agent_async(settings: Any, logger: Any) -> int:
         elif hasattr(agent, "process_merge_request"):
             mr_iid = getattr(settings, "merge_request_iid", None)
             logger.info("Running merge request analysis", merge_request_iid=mr_iid)
-            results = await agent.process_merge_request()
+            results = await getattr(agent, "process_merge_request")()
             logger.info(
                 "MR analysis completed",
                 tasks=list(results.keys()) if isinstance(results, dict) else "analysis",
