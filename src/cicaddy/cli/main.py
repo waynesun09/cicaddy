@@ -29,7 +29,7 @@ Examples:
   cicaddy version
 
 For more information, visit:
-  https://github.com/cicaddy/cicaddy
+  https://github.com/waynesun09/cicaddy
 """,
     )
 

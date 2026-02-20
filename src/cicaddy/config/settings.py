@@ -201,6 +201,17 @@ class CoreSettings(BaseSettings):
         None, validation_alias="GIT_WORKING_DIRECTORY"
     )
 
+    # Merge request / pull request fields (platform-agnostic)
+    merge_request_iid: Optional[str] = Field(
+        None, validation_alias="CI_MERGE_REQUEST_IID"
+    )
+    merge_request_source_branch: Optional[str] = Field(
+        None, validation_alias="CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
+    )
+    merge_request_target_branch: Optional[str] = Field(
+        None, validation_alias="CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    )
+
     # Logging configuration
     log_level: str = Field(
         "INFO",

@@ -16,9 +16,9 @@ class HTMLReportFormatter:
 
     # Default values for report customization
     DEFAULT_HEADER = "AI Agent Analysis Report"
-    DEFAULT_SUBHEADER = 'Analysis results from <a href="https://github.com/cicaddy/cicaddy" target="_blank">Cicaddy</a>'
+    DEFAULT_SUBHEADER = 'Analysis results from <a href="https://github.com/waynesun09/cicaddy" target="_blank">Cicaddy</a>'
     DEFAULT_HEADER_EMOJI = "🤖"
-    DEFAULT_PROJECT_URL = "https://github.com/cicaddy/cicaddy"
+    DEFAULT_PROJECT_URL = "https://github.com/waynesun09/cicaddy"
 
     # Default CI environment variables to display in reports.
     # Each tuple is (env_var_name, display_label).
