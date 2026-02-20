@@ -51,7 +51,7 @@ def get_plugin_cli_args() -> List:
     Each entry point should be a callable returning a list of
     :class:`cicaddy.cli.arg_mapping.ArgMapping` instances.
     """
-    from cicaddy.cli.arg_mapping import ArgMapping  # noqa: F811 — deferred import
+    from cicaddy.cli.arg_mapping import ArgMapping  # deferred import
 
     result: List[ArgMapping] = []
     eps = entry_points()
