@@ -5,7 +5,7 @@ import argparse
 import sys
 from typing import Any, Dict, List, Optional
 
-from cicaddy.cli.arg_mapping import RUN_ARG_MAPPINGS
+from cicaddy.cli.arg_mapping import get_run_arg_mappings
 from cicaddy.cli.commands import (
     cmd_config_show,
     cmd_run,
@@ -103,6 +103,12 @@ For more information, visit:
 
 def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
     """Add arguments for the 'run' subcommand."""
+    from cicaddy.agent.factory import AgentFactory
+    from cicaddy.plugin import discover_plugins
+
+    # Ensure plugins are loaded so agent types are registered
+    discover_plugins()
+
     # Environment file option
     parser.add_argument(
         "--env-file",
@@ -111,14 +117,24 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
         help="Load environment from a .env file (lowest priority, CLI args override)",
     )
 
-    # Add all mapped arguments
-    for mapping in RUN_ARG_MAPPINGS:
+    # Build dynamic agent-type choices from registry + standard aliases
+    registered = AgentFactory.get_available_agent_types()
+    agent_type_choices = sorted(
+        set(registered) | {"mr", "cron", "branch"}
+    )
+
+    # Add all mapped arguments (base + plugin)
+    for mapping in get_run_arg_mappings():
         kwargs: Dict[str, Any] = {
             "help": mapping.help_text or f"Set {mapping.env_var}",
             "dest": mapping.cli_arg.lstrip("-").replace("-", "_"),
         }
 
-        if mapping.choices:
+        if mapping.env_var == "AGENT_TYPE":
+            # Use dynamically built choices for --agent-type
+            kwargs["choices"] = agent_type_choices
+            kwargs["metavar"] = "AGENT_TYPE"
+        elif mapping.choices:
             kwargs["choices"] = mapping.choices
             kwargs["metavar"] = mapping.cli_arg.lstrip("-").upper().replace("-", "_")
 

@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 from dotenv import dotenv_values, load_dotenv
 
-from cicaddy.cli.arg_mapping import RUN_ARG_MAPPINGS
+from cicaddy.cli.arg_mapping import get_run_arg_mappings
 
 
 def load_env_file(env_file: str, override: bool = False) -> Dict[str, str]:
@@ -48,7 +48,7 @@ def apply_cli_args_to_env(args: Dict[str, Any]) -> Dict[str, str]:
     """
     applied: Dict[str, str] = {}
 
-    for mapping in RUN_ARG_MAPPINGS:
+    for mapping in get_run_arg_mappings():
         # Convert CLI arg name to attribute name (--agent-type -> agent_type)
         attr_name = mapping.cli_arg.lstrip("-").replace("-", "_")
         value = args.get(attr_name)
@@ -75,8 +75,8 @@ def get_effective_config() -> Dict[str, Optional[str]]:
     """
     config: Dict[str, Optional[str]] = {}
 
-    # Get all mapped environment variables
-    for mapping in RUN_ARG_MAPPINGS:
+    # Get all mapped environment variables (base + plugin)
+    for mapping in get_run_arg_mappings():
         config[mapping.env_var] = os.environ.get(mapping.env_var)
 
     # Add some additional commonly used variables
@@ -85,6 +85,11 @@ def get_effective_config() -> Dict[str, Optional[str]]:
         "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
     ]
+
+    # Extend with plugin-provided env vars
+    from cicaddy.plugin import get_plugin_env_vars
+
+    additional_vars.extend(get_plugin_env_vars())
 
     for var in additional_vars:
         if var not in config:

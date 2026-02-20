@@ -324,6 +324,11 @@ AgentFactory.register("cron", CronAIAgent)
 # Register CI environment detector with default priority
 AgentFactory.register_detector(_detect_ci_agent_type, priority=50)
 
+# Discover and register plugin agents (idempotent)
+from cicaddy.plugin import discover_plugins  # noqa: E402
+
+discover_plugins()
+
 
 def create_agent_from_environment() -> BaseAIAgent:
     """
