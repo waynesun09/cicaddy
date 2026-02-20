@@ -437,8 +437,8 @@ class BaseAIAgent(ABC):
             return "branchreview"
         elif "mergerequest" in normalized or "mr" in normalized:
             return "mr"
-        elif "cron" in normalized:
-            return "cron"
+        elif "cron" in normalized or "taskagent" in normalized:
+            return "task"
         else:
             # Generic cleanup for other agent types
             return (

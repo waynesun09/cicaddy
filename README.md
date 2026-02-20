@@ -25,7 +25,7 @@ pip install cicaddy
 cicaddy run --env-file .env
 
 # Run with CLI arguments
-cicaddy run --ai-provider gemini --agent-type cron --log-level DEBUG
+cicaddy run --ai-provider gemini --agent-type task --log-level DEBUG
 
 # Show configuration
 cicaddy config show --env-file .env
@@ -45,8 +45,8 @@ AI_MODEL=gemini-2.5-flash
 GEMINI_API_KEY=your-key-here
 
 # Agent
-AGENT_TYPE=cron
-CRON_TASK_TYPE=scheduled_analysis
+AGENT_TYPE=task
+TASK_TYPE=scheduled_analysis
 
 # MCP Servers (JSON array)
 MCP_SERVERS_CONFIG=[]

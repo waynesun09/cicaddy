@@ -176,6 +176,7 @@ class TestAgentTypeChoicesDynamic:
 
         # Built-in agents should be registered
         available = AgentFactory.get_available_agent_types()
-        assert "cron" in available
+        assert "task" in available
+        assert "cron" in available  # backward compat alias
         assert "branch_review" in available
         assert "merge_request" in available

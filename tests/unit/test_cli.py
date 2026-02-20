@@ -95,7 +95,7 @@ class TestEnvLoader:
     def test_apply_cli_args_to_env(self):
         """apply_cli_args_to_env should set environment variables."""
         args = {
-            "agent_type": "cron",
+            "agent_type": "task",
             "ai_provider": "gemini",
             "log_level": "DEBUG",
         }
@@ -103,8 +103,8 @@ class TestEnvLoader:
         try:
             applied = apply_cli_args_to_env(args)
             assert "AGENT_TYPE" in applied
-            assert applied["AGENT_TYPE"] == "cron"
-            assert os.environ.get("AGENT_TYPE") == "cron"
+            assert applied["AGENT_TYPE"] == "task"
+            assert os.environ.get("AGENT_TYPE") == "task"
             assert os.environ.get("AI_PROVIDER") == "gemini"
         finally:
             for var in ["AGENT_TYPE", "AI_PROVIDER", "LOG_LEVEL"]:
@@ -148,10 +148,10 @@ class TestEnvLoader:
 
     def test_get_effective_config(self):
         """get_effective_config should return current environment values."""
-        os.environ["AGENT_TYPE"] = "cron"
+        os.environ["AGENT_TYPE"] = "task"
         try:
             config = get_effective_config()
-            assert config["AGENT_TYPE"] == "cron"
+            assert config["AGENT_TYPE"] == "task"
         finally:
             del os.environ["AGENT_TYPE"]
 
@@ -186,13 +186,19 @@ class TestParser:
     def test_parser_run_with_agent_type(self):
         """Parser should accept --agent-type option."""
         parser = create_parser()
-        args = parser.parse_args(["run", "--agent-type", "cron"])
-        assert args.agent_type == "cron"
+        args = parser.parse_args(["run", "--agent-type", "task"])
+        assert args.agent_type == "task"
 
     def test_parser_run_with_short_agent_type(self):
         """Parser should accept -t option."""
         parser = create_parser()
-        args = parser.parse_args(["run", "-t", "cron"])
+        args = parser.parse_args(["run", "-t", "task"])
+        assert args.agent_type == "task"
+
+    def test_parser_run_with_cron_agent_type_backward_compat(self):
+        """Parser should still accept 'cron' as agent type for backward compat."""
+        parser = create_parser()
+        args = parser.parse_args(["run", "--agent-type", "cron"])
         assert args.agent_type == "cron"
 
     def test_parser_run_with_verbose(self):

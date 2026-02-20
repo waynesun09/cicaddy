@@ -5,7 +5,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Use standard logging for settings module to avoid circular imports
@@ -230,11 +230,16 @@ class CoreSettings(BaseSettings):
     # SSL/TLS configuration
     ssl_verify: bool = Field(True, validation_alias="SSL_VERIFY")
 
-    # Cron-specific configuration
-    cron_task_type: str = Field("scheduled_analysis", validation_alias="CRON_TASK_TYPE")
-    cron_scope: str = Field("recent_changes", validation_alias="CRON_SCOPE")
-    cron_schedule_name: Optional[str] = Field(
-        None, validation_alias="CRON_SCHEDULE_NAME"
+    # Task-specific configuration (TASK_* preferred, CRON_* kept for backward compat)
+    task_type: str = Field(
+        "scheduled_analysis",
+        validation_alias=AliasChoices("TASK_TYPE", "CRON_TASK_TYPE"),
+    )
+    task_scope: str = Field(
+        "recent_changes", validation_alias=AliasChoices("TASK_SCOPE", "CRON_SCOPE")
+    )
+    task_schedule_name: Optional[str] = Field(
+        None, validation_alias=AliasChoices("TASK_SCHEDULE_NAME", "CRON_SCHEDULE_NAME")
     )
 
     # Local tools configuration

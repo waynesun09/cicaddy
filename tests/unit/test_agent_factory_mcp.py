@@ -71,7 +71,7 @@ class TestAgentFactoryMCPSelection:
             os.environ, {"MCP_SERVERS_CONFIG": json.dumps(mcp_config)}, clear=True
         ):
             servers = AgentFactory.get_mcp_servers_for_context(
-                "cron", "full_project", "custom"
+                "task", "full_project", "custom"
             )
 
             assert len(servers) == 2
@@ -133,17 +133,17 @@ class TestAgentFactoryMCPSelection:
         ):
             # All agent types should get the same server configuration
             mr_servers = AgentFactory.get_mcp_servers_for_context("merge_request")
-            cron_servers = AgentFactory.get_mcp_servers_for_context(
-                "cron", "full_project", "security_audit"
+            task_servers = AgentFactory.get_mcp_servers_for_context(
+                "task", "full_project", "security_audit"
             )
             branch_servers = AgentFactory.get_mcp_servers_for_context("branch_review")
 
             assert len(mr_servers) == 1
-            assert len(cron_servers) == 1
+            assert len(task_servers) == 1
             assert len(branch_servers) == 1
             assert (
                 mr_servers[0].name
-                == cron_servers[0].name
+                == task_servers[0].name
                 == branch_servers[0].name
                 == "generic-server"
             )

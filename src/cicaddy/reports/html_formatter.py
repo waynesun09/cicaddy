@@ -91,7 +91,7 @@ class HTMLReportFormatter:
         Extract job name from report_id by removing agent_type prefix and timestamp postfix.
 
         Report ID format: {agent_type}_{job_name}_{timestamp} or {agent_type}_{timestamp}
-        Example: cron_sourcebot_llama_20251105_211002 -> sourcebot_llama
+        Example: task_sourcebot_llama_20251105_211002 -> sourcebot_llama
 
         Args:
             report_id: The report ID string
