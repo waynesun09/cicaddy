@@ -84,11 +84,11 @@ class BaseReviewAgent(BaseAIAgent):
             logger.error(f"Failed to get review context: {e}")
             review_context = {"error": f"Failed to get review context: {str(e)}"}
 
-        # Get project information if GitLab analyzer is available
+        # Get project information if platform analyzer is available
         project_info = {}
-        if self.gitlab_analyzer:
+        if self.platform_analyzer:
             try:
-                project_info = await self.gitlab_analyzer.get_project_info()
+                project_info = await self.platform_analyzer.get_project_info()
             except Exception as e:
                 logger.warning(f"Could not get project info: {e}")
                 project_info = {"name": "Unknown Project", "error": str(e)}
@@ -97,7 +97,7 @@ class BaseReviewAgent(BaseAIAgent):
         context = {
             "project": project_info,
             "diff": diff_content,
-            "gitlab_available": self.gitlab_analyzer is not None,
+            "platform_available": self.platform_analyzer is not None,
             "timestamp": self.start_time.isoformat(),
             "diff_lines": len(diff_content.splitlines()) if diff_content else 0,
             **review_context,  # Merge review-specific context
@@ -107,7 +107,7 @@ class BaseReviewAgent(BaseAIAgent):
             "Analysis context gathered",
             diff_lines=context["diff_lines"],
             analysis_type=context.get("analysis_type", "unknown"),
-            gitlab_available=context["gitlab_available"],
+            platform_available=context["platform_available"],
         )
 
         return context
