@@ -72,20 +72,23 @@ def get_provider_config(settings) -> Dict[str, Any]:
     # Provider-specific configurations
     if provider == "gemini":
         config["api_key"] = settings.gemini_api_key
-        # If no Gemini API key available (e.g., in tests), fall back to OpenAI to avoid external failures
         if not config.get("api_key"):
-            logger.warning(
-                "GEMINI_API_KEY missing; falling back to OpenAI provider for tests"
+            raise ValueError(
+                "Gemini API key not provided. Set the GEMINI_API_KEY environment variable."
             )
-            provider = "openai"
-            config["ai_provider"] = provider
-            config["model_id"] = get_default_model(provider)
-            config["api_key"] = settings.openai_api_key
     elif provider == "openai":
         config["api_key"] = settings.openai_api_key
+        if not config.get("api_key"):
+            raise ValueError(
+                "OpenAI API key not provided. Set the OPENAI_API_KEY environment variable."
+            )
         config["base_url"] = None  # Use default OpenAI endpoint
     elif provider in ["claude", "anthropic"]:
         config["api_key"] = settings.anthropic_api_key
+        if not config.get("api_key"):
+            raise ValueError(
+                "Anthropic API key not provided. Set the ANTHROPIC_API_KEY environment variable."
+            )
 
     logger.info(
         f"Created provider config for {provider} with model {config['model_id']}"
