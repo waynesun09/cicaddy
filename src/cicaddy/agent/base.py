@@ -40,7 +40,7 @@ class BaseAIAgent(ABC):
         self.start_time = datetime.now()
         # Maximum inference iterations for multi-step execution (like Llama Stack)
         # Provide sane default if settings mock omits this attribute in tests
-        self.max_infer_iters = getattr(self.settings, "max_infer_iters", 10)
+        self.max_infer_iters = getattr(self.settings, "max_infer_iters", 15)
 
     async def initialize(self):
         """Initialize all shared components."""

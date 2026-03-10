@@ -256,7 +256,7 @@ class CoreSettings(BaseSettings):
 
     # Execution configuration
     max_infer_iters: int = Field(
-        10,
+        15,
         validation_alias="MAX_INFER_ITERS",
         description="Maximum AI planning iterations for multi-step analysis (minimum: 1)",
     )

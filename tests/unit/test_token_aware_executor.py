@@ -20,7 +20,7 @@ class TestExecutionLimits:
         """Test default ExecutionLimits values."""
         limits = ExecutionLimits()
 
-        assert limits.max_infer_iters == 10
+        assert limits.max_infer_iters == 15
         assert (
             limits.max_tokens_total == 128000
         )  # Conservative fallback for most modern LLMs

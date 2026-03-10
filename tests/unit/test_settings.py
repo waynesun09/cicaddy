@@ -33,7 +33,7 @@ class TestCoreSettings:
         with patch.dict(os.environ, clean_env, clear=True):
             settings = CoreSettings()
             assert settings.ai_provider == "gemini"
-            assert settings.max_infer_iters == 10
+            assert settings.max_infer_iters == 15
             assert settings.max_execution_time == 600
             assert settings.context_safety_factor == 0.85
             assert settings.log_level == "INFO"
