@@ -52,7 +52,7 @@ class ExecutionLimits:
     """Multi-level execution limits following LlamaStack patterns."""
 
     # Iteration limits (LlamaStack max_infer_iters pattern)
-    max_infer_iters: int = 10
+    max_infer_iters: int = 15
 
     # Token limits (LlamaStack out_of_tokens pattern)
     # Defaults are conservative fallbacks - BaseAIAgent dynamically configures these based on model capabilities
