@@ -37,6 +37,11 @@ class TestGetProviderConfigMissingKey:
         with pytest.raises(ValueError, match="Gemini API key not provided"):
             get_provider_config(settings)
 
+    def test_gemini_whitespace_key_raises(self):
+        settings = _make_settings(ai_provider="gemini", gemini_api_key="   ")
+        with pytest.raises(ValueError, match="Gemini API key not provided"):
+            get_provider_config(settings)
+
     def test_openai_missing_key_raises(self):
         settings = _make_settings(ai_provider="openai", openai_api_key=None)
         with pytest.raises(ValueError, match="OpenAI API key not provided"):
