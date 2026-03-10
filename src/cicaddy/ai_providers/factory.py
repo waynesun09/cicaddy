@@ -1,6 +1,6 @@
 """Provider factory following Llama Stack patterns."""
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from cicaddy.utils.logger import get_logger
 
@@ -56,6 +56,17 @@ def create_provider(provider_name: str, config: Dict[str, Any]) -> BaseProvider:
         return GeminiProvider(config)
 
 
+def _require_api_key(raw_key: Optional[str], provider_label: str, env_var: str) -> str:
+    """Validate and return a stripped API key, or raise ValueError."""
+    key = raw_key.strip() if isinstance(raw_key, str) else raw_key
+    if not key:
+        raise ValueError(
+            f"{provider_label} API key not provided. "
+            f"Set the {env_var} environment variable."
+        )
+    return key
+
+
 def get_provider_config(settings) -> Dict[str, Any]:
     """Build provider config from settings following Llama Stack patterns."""
 
@@ -71,21 +82,18 @@ def get_provider_config(settings) -> Dict[str, Any]:
 
     # Provider-specific configurations
     if provider == "gemini":
-        config["api_key"] = settings.gemini_api_key
-        # If no Gemini API key available (e.g., in tests), fall back to OpenAI to avoid external failures
-        if not config.get("api_key"):
-            logger.warning(
-                "GEMINI_API_KEY missing; falling back to OpenAI provider for tests"
-            )
-            provider = "openai"
-            config["ai_provider"] = provider
-            config["model_id"] = get_default_model(provider)
-            config["api_key"] = settings.openai_api_key
+        config["api_key"] = _require_api_key(
+            settings.gemini_api_key, "Gemini", "GEMINI_API_KEY"
+        )
     elif provider == "openai":
-        config["api_key"] = settings.openai_api_key
+        config["api_key"] = _require_api_key(
+            settings.openai_api_key, "OpenAI", "OPENAI_API_KEY"
+        )
         config["base_url"] = None  # Use default OpenAI endpoint
     elif provider in ["claude", "anthropic"]:
-        config["api_key"] = settings.anthropic_api_key
+        config["api_key"] = _require_api_key(
+            settings.anthropic_api_key, "Anthropic", "ANTHROPIC_API_KEY"
+        )
 
     logger.info(
         f"Created provider config for {provider} with model {config['model_id']}"
