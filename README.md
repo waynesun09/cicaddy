@@ -119,7 +119,14 @@ pip install cicaddy my-cicaddy-plugin
 cicaddy run --env-file .env
 ```
 
-Available plugin groups: `cicaddy.agents`, `cicaddy.cli_args`, `cicaddy.env_vars`, `cicaddy.config_sections`, `cicaddy.validators`, `cicaddy.settings_loader`. See [cicaddy-gitlab](https://gitlab.cee.redhat.com/ccit/agents/gitlab-agent-task) for a complete plugin implementation.
+Available plugin groups: `cicaddy.agents`, `cicaddy.cli_args`, `cicaddy.env_vars`, `cicaddy.config_sections`, `cicaddy.validators`, `cicaddy.settings_loader`.
+
+### Official Plugins
+
+| Plugin | Platform | Description |
+|--------|----------|-------------|
+| [cicaddy-gitlab](https://github.com/redhat-community-ai-tools/cicaddy-gitlab) | GitLab | AI-powered merge request reviews and branch analysis for GitLab CI |
+| [cicaddy-action](https://github.com/redhat-community-ai-tools/cicaddy-action) | GitHub | GitHub Action for AI PR reviews and changelog generation |
 
 ## License
 
