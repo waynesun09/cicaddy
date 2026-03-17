@@ -21,9 +21,9 @@ graph TB
     end
 
     subgraph "AI Integration"
-        H[AI Provider Factory] --> I[Gemini]
-        H --> J[OpenAI]
-        H --> M[Claude]
+        K[AI Provider Factory] --> I[Gemini]
+        K --> J[OpenAI]
+        K --> M[Claude]
     end
 
     subgraph "External Tools"
@@ -39,8 +39,8 @@ graph TB
     end
 
     A --> D
-    H --> N
-    H --> T
+    K --> N
+    K --> T
     T --> R[Reports + Notifications]
 ```
 

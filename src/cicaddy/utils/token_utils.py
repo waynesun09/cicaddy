@@ -202,13 +202,13 @@ class TokenLimitManager:
             },
         },
         "claude": {
-            "input": 1048576,  # 1M tokens (Claude 4 family default)
-            "output": 65536,  # 64K tokens
+            "input": 200000,  # 200K standard; 1M requires beta header
+            "output": 8192,
             "models": {
-                "claude-opus-4-6": {"input": 1048576, "output": 65536},
-                "claude-sonnet-4-6": {"input": 1048576, "output": 65536},
-                "claude-sonnet-4-5-20250514": {"input": 1048576, "output": 65536},
-                "claude-haiku-4-5-20251001": {"input": 1048576, "output": 65536},
+                "claude-opus-4-6": {"input": 200000, "output": 65536},
+                "claude-sonnet-4-6": {"input": 200000, "output": 65536},
+                "claude-sonnet-4-5-20250514": {"input": 200000, "output": 65536},
+                "claude-haiku-4-5-20251001": {"input": 200000, "output": 65536},
                 "claude-3-5-sonnet-latest": {"input": 200000, "output": 8192},
                 "claude-3-5-haiku-latest": {"input": 200000, "output": 8192},
                 "claude-3-opus-latest": {"input": 200000, "output": 4096},
