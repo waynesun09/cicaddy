@@ -26,6 +26,7 @@ Examples:
   cicaddy run --env-file .env
   cicaddy run --agent-type task --ai-provider gemini --log-level DEBUG
   cicaddy config show --env-file .env
+  cicaddy graph-context --base-ref origin/main --output workspace/graph_context.json
   cicaddy version
 
 For more information, visit:
@@ -96,6 +97,45 @@ For more information, visit:
         "-e",
         metavar="FILE",
         help="Load environment from a .env file",
+    )
+
+    # 'graph-context' subcommand
+    graph_parser = subparsers.add_parser(
+        "graph-context",
+        help="Extract code knowledge graph context for review",
+        description=(
+            "Build or update a code knowledge graph and extract blast-radius "
+            "context for changed files. Requires code-review-graph "
+            "(pip install cicaddy[graph])."
+        ),
+    )
+    graph_parser.add_argument(
+        "--base-ref",
+        default="origin/main",
+        help="Base git ref for diff (default: origin/main)",
+    )
+    graph_parser.add_argument(
+        "--output",
+        "-o",
+        metavar="FILE",
+        help="Output file for JSON context (default: stdout)",
+    )
+    graph_parser.add_argument(
+        "--repo",
+        default=".",
+        help="Repository path (default: current directory)",
+    )
+    graph_parser.add_argument(
+        "--max-depth",
+        type=int,
+        default=2,
+        help="BFS traversal depth for blast radius (default: 2)",
+    )
+    graph_parser.add_argument(
+        "--max-lines",
+        type=int,
+        default=200,
+        help="Max source lines per file in snippets (default: 200)",
     )
 
     return parser
@@ -188,6 +228,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         return cmd_version(args)
     elif args.command == "validate":
         return cmd_validate(args)
+    elif args.command == "graph-context":
+        from cicaddy.cli.graph_context import cmd_graph_context
+        return cmd_graph_context(args)
 
     return 0
 
