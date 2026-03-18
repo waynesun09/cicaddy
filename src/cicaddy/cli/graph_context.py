@@ -2,14 +2,14 @@
 
 import argparse
 import json
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
 
 def get_changed_files(base_ref: str) -> list[str]:
     """Get changed files from git diff against base ref."""
-    result = subprocess.run(
+    result = subprocess.run(  # nosec B603 B607
         ["git", "diff", "--name-only", f"{base_ref}...HEAD"],
         capture_output=True,
         text=True,

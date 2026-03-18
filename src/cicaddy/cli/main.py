@@ -230,6 +230,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return cmd_validate(args)
     elif args.command == "graph-context":
         from cicaddy.cli.graph_context import cmd_graph_context
+
         return cmd_graph_context(args)
 
     return 0
