@@ -55,7 +55,7 @@ def cmd_graph_context(args: argparse.Namespace) -> int:
         _write_output(result, output_file)
         return 0
     except Exception as e:
-        print(f"Graph analysis failed: {e}", file=sys.stderr)
+        print(f"Graph analysis failed ({type(e).__name__}): {e}", file=sys.stderr)
         result = {"status": "error", "error": str(e), "changed_files": changed_files}
         _write_output(result, output_file)
         return 1
@@ -71,3 +71,4 @@ def _write_output(data: dict, output_file: str | None) -> None:
         print(f"Graph context written to {output_file}", file=sys.stderr)
     else:
         json.dump(data, sys.stdout, indent=2)
+        print()
