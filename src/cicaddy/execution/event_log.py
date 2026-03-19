@@ -30,13 +30,13 @@ class EventLog:
     - Thread-safe appends (each write is atomic)
     """
 
-    def __init__(self, report_id: str, log_dir: str = ".."):
+    def __init__(self, report_id: str, log_dir: str = "."):
         """
         Initialize event log for a specific job.
 
         Args:
             report_id: Unique report identifier (e.g., "cron_custom_20251105_084748")
-            log_dir: Base directory for logs (default: ".." for parent directory, same as HTML reports)
+            log_dir: Base directory for logs (default: "." for current working directory)
         """
         self.report_id = report_id
         # Resolve to absolute path to avoid context dependency issues

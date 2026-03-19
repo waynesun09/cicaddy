@@ -476,15 +476,9 @@ class BaseAIAgent(ABC):
         # Use report_id directly since it already contains normalized agent type
         filename = f"{report['report_id']}.json"
 
-        # Determine the correct path for saving reports
-        if os.getenv("CI_PROJECT_DIR"):
-            # In CI: Agent runs from cicaddy/, but artifacts collected from parent directory
-            report_path = os.path.join("..", filename)
-            logger.info(f"CI mode: saving report to parent directory: {report_path}")
-        else:
-            # Local development: save to parent directory
-            report_path = os.path.join("..", filename)
-            logger.info(f"Local mode: saving report to parent directory: {report_path}")
+        # Save reports to current working directory (project root)
+        report_path = filename
+        logger.info(f"Saving report to: {os.path.abspath(report_path)}")
 
         try:
             # Ensure the parent directory exists
@@ -578,10 +572,7 @@ class BaseAIAgent(ABC):
         # Use report_id directly since it already contains normalized agent type
         log_filename = f"{report_id}.log"
 
-        if fallback:
-            log_path = log_filename
-        else:
-            log_path = os.path.join("..", log_filename)
+        log_path = log_filename
 
         try:
             # Create execution log header
