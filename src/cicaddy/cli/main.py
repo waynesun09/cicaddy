@@ -137,11 +137,6 @@ For more information, visit:
         default=200,
         help="Max source lines per file in snippets (default: 200)",
     )
-    graph_parser.add_argument(
-        "--update",
-        action="store_true",
-        help="Run incremental graph update before extracting context",
-    )
 
     return parser
 
