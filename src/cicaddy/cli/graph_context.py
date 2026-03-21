@@ -25,10 +25,10 @@ def cmd_graph_context(args: argparse.Namespace) -> int:
     max_depth = args.max_depth
     max_lines = args.max_lines
     output_file = args.output
-    repo_path = args.repo
+    repo_path = Path(args.repo)
 
     try:
-        changed_files = get_changed_files(base_ref, repo_path)
+        changed_files = get_changed_files(base_ref, str(repo_path))
     except (RuntimeError, OSError) as e:
         print(f"Git diff failed: {e}", file=sys.stderr)
         _write_output(
@@ -54,6 +54,26 @@ def cmd_graph_context(args: argparse.Namespace) -> int:
 
     try:
         store = GraphStore(repo_path)
+
+        if args.update:
+            try:
+                from code_review_graph.incremental import incremental_update
+            except ImportError:
+                print(
+                    "--update requires a newer version of code-review-graph. "
+                    "Update with: pip install -U cicaddy[graph]",
+                    file=sys.stderr,
+                )
+                return 1
+
+            update_result = incremental_update(
+                repo_path, store, base=base_ref, changed_files=changed_files
+            )
+            print(
+                f"Graph updated: {update_result.get('files_updated', 0)} files",
+                file=sys.stderr,
+            )
+
         context = store.get_review_context(
             changed_files,
             max_depth=max_depth,
