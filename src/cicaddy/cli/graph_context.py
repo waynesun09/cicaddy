@@ -78,5 +78,5 @@ def _write_output(data: dict, output_file: str | None) -> None:
             json.dump(data, f, indent=2, ensure_ascii=False)
         print(f"Graph context written to {output_file}", file=sys.stderr)
     else:
-        json.dump(data, sys.stdout, indent=2)
+        json.dump(data, sys.stdout, indent=2, ensure_ascii=False)
         print()
