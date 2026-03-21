@@ -53,7 +53,20 @@ def cmd_graph_context(args: argparse.Namespace) -> int:
         return 0
 
     try:
-        store = GraphStore(repo_path)
+        if args.update:
+            from code_review_graph.incremental import incremental_update
+
+            store = GraphStore(repo_path)
+            update_result = incremental_update(
+                Path(repo_path), store, base=base_ref, changed_files=changed_files
+            )
+            print(
+                f"Graph updated: {update_result.get('files_updated', 0)} files",
+                file=sys.stderr,
+            )
+        else:
+            store = GraphStore(repo_path)
+
         context = store.get_review_context(
             changed_files,
             max_depth=max_depth,
