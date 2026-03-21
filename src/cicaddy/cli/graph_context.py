@@ -10,14 +10,13 @@ from pathlib import Path
 def get_changed_files(base_ref: str, repo_path: str) -> list[str]:
     """Get changed files from git diff against base ref."""
     result = subprocess.run(  # nosec B603 B607
-        ["git", "diff", "--name-only", f"{base_ref}...HEAD"],
+        ["git", "diff", "-z", "--name-only", f"{base_ref}...HEAD", "--"],
         capture_output=True,
-        text=True,
         cwd=repo_path,
     )
     if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip() or "git diff failed")
-    return [f for f in result.stdout.strip().split("\n") if f]
+        raise RuntimeError(result.stderr.decode().strip() or "git diff failed")
+    return [f.decode() for f in result.stdout.split(b"\0") if f]
 
 
 def cmd_graph_context(args: argparse.Namespace) -> int:
@@ -30,7 +29,7 @@ def cmd_graph_context(args: argparse.Namespace) -> int:
 
     try:
         changed_files = get_changed_files(base_ref, repo_path)
-    except RuntimeError as e:
+    except (RuntimeError, OSError) as e:
         print(f"Git diff failed: {e}", file=sys.stderr)
         _write_output(
             {"status": "error", "error": str(e), "changed_files": []}, output_file
@@ -75,8 +74,8 @@ def _write_output(data: dict, output_file: str | None) -> None:
     if output_file:
         path = Path(output_file)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w") as f:
-            json.dump(data, f, indent=2)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
         print(f"Graph context written to {output_file}", file=sys.stderr)
     else:
         json.dump(data, sys.stdout, indent=2)
