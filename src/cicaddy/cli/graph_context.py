@@ -7,16 +7,16 @@ import sys
 from pathlib import Path
 
 
-def get_changed_files(base_ref: str) -> list[str]:
+def get_changed_files(base_ref: str, repo_path: str) -> list[str]:
     """Get changed files from git diff against base ref."""
     result = subprocess.run(  # nosec B603 B607
         ["git", "diff", "--name-only", f"{base_ref}...HEAD"],
         capture_output=True,
         text=True,
+        cwd=repo_path,
     )
     if result.returncode != 0:
-        print(f"Git diff failed: {result.stderr}", file=sys.stderr)
-        return []
+        raise RuntimeError(result.stderr.strip() or "git diff failed")
     return [f for f in result.stdout.strip().split("\n") if f]
 
 
@@ -28,7 +28,15 @@ def cmd_graph_context(args: argparse.Namespace) -> int:
     output_file = args.output
     repo_path = args.repo
 
-    changed_files = get_changed_files(base_ref)
+    try:
+        changed_files = get_changed_files(base_ref, repo_path)
+    except RuntimeError as e:
+        print(f"Git diff failed: {e}", file=sys.stderr)
+        _write_output(
+            {"status": "error", "error": str(e), "changed_files": []}, output_file
+        )
+        return 1
+
     if not changed_files:
         result = {"status": "no_changes", "changed_files": []}
         _write_output(result, output_file)
@@ -36,7 +44,16 @@ def cmd_graph_context(args: argparse.Namespace) -> int:
 
     try:
         from code_review_graph.graph import GraphStore
+    except ImportError:
+        print(
+            "code-review-graph not installed. Install with: pip install cicaddy[graph]",
+            file=sys.stderr,
+        )
+        result = {"status": "no_graph", "changed_files": changed_files}
+        _write_output(result, output_file)
+        return 0
 
+    try:
         store = GraphStore(repo_path)
         context = store.get_review_context(
             changed_files,
@@ -45,14 +62,6 @@ def cmd_graph_context(args: argparse.Namespace) -> int:
             max_lines_per_file=max_lines,
         )
         _write_output(context, output_file)
-        return 0
-    except ImportError:
-        print(
-            "code-review-graph not installed. Install with: pip install cicaddy[graph]",
-            file=sys.stderr,
-        )
-        result = {"status": "no_graph", "changed_files": changed_files}
-        _write_output(result, output_file)
         return 0
     except Exception as e:
         print(f"Graph analysis failed ({type(e).__name__}): {e}", file=sys.stderr)
