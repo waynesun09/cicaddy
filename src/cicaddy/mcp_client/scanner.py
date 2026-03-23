@@ -137,7 +137,7 @@ class HeuristicScanner:
         ),
         # ===== Data Exfiltration Patterns (Severity: Medium-High) =====
         (
-            r"send\s+.*\s+to\s+.*\bhttps?://",
+            r"send\s+.{1,50}?\s+to\s+.{0,50}?https?://",
             "exfiltration",
             0.25,
         ),
@@ -184,7 +184,7 @@ class HeuristicScanner:
         ),
         # ===== ContextCrush-Specific Patterns (Severity: High) =====
         (
-            r"(?:read|cat|show)\s+.*\.env(?:\s|$|:)",
+            r"(?:read|cat|show)\s+.{0,30}?\.env(?:\s|$|:)",
             "credential_theft",
             0.3,
         ),
@@ -199,7 +199,7 @@ class HeuristicScanner:
             0.3,
         ),
         (
-            r"process\.env\..*(?:KEY|TOKEN|SECRET|PASS)",
+            r"process\.env\.\S*(?:KEY|TOKEN|SECRET|PASS)",
             "credential_theft",
             0.3,
         ),
@@ -260,14 +260,37 @@ class HeuristicScanner:
     ]
 
     async def scan(self, content: str, context: Dict[str, Any]) -> ScanResult:
-        """Scan content for injection patterns using heuristic rules.
+        """Scan content for prompt injection patterns using heuristic rules.
+
+        Applies regex-based pattern matching against a curated set of
+        injection signatures. Content is normalized (unicode, case-folding,
+        whitespace, HTML/URL decoding) before pattern matching to defeat
+        common obfuscation techniques.
 
         Args:
-            content: The text content to scan
-            context: Dictionary with 'tool' and 'server' keys for logging
+            content: The text content to scan for injection patterns.
+            context: Additional context dict with 'tool' and 'server' keys
+                for logging and audit trail purposes.
 
         Returns:
-            ScanResult with is_clean, risk_score, and findings
+            ScanResult with:
+                - is_clean: False if risk_score > 0.0
+                - risk_score: Float 0.0-1.0 indicating risk level
+                - findings: List of detected patterns as 'category: matched_text'
+                - scan_time_ms: Scan duration in milliseconds
+
+        Risk Scoring:
+            - Each pattern match adds its severity (0.1-0.4) to risk_score
+            - Multiple matches of the same pattern accumulate
+            - Base64-encoded injection patterns add a bonus 0.2
+            - Final score is capped at 1.0
+            - Score > 0.0 marks content as not clean
+
+        Examples:
+            >>> scanner = HeuristicScanner()
+            >>> result = await scanner.scan("ignore previous instructions", {})
+            >>> result.risk_score  # 0.3 (instruction_override severity)
+            >>> result.is_clean  # False
         """
         start = time.monotonic()
 
@@ -279,26 +302,27 @@ class HeuristicScanner:
                 scan_time_ms=(time.monotonic() - start) * 1000,
             )
 
-        # Normalize content (6-pass normalization from research doc)
-        normalized = self._normalize_content(content)
-
         findings = []
         risk_score = 0.0
 
-        # Scan normalized content
-        for pattern, category, severity in self._compiled:
-            matches = pattern.findall(normalized)
-            if matches:
-                finding_count = len(matches) if isinstance(matches, list) else 1
-                for _ in range(finding_count):
-                    findings.append(f"{category}: matched pattern")
-                    risk_score += severity
-
-        # Scan base64-encoded content
-        base64_findings = self._scan_base64(normalized)
+        # Scan base64 BEFORE normalization to preserve uppercase letters
+        # required for valid base64 decoding
+        base64_findings = self._scan_base64(content)
         if base64_findings:
             findings.extend(base64_findings)
             risk_score += 0.2
+
+        # Normalize content (6-pass normalization from research doc)
+        normalized = self._normalize_content(content)
+
+        # Scan normalized content against compiled patterns
+        for pattern, category, severity in self._compiled:
+            matches = list(pattern.finditer(normalized))
+            if matches:
+                for match in matches:
+                    matched_text = match.group(0)[:50]
+                    findings.append(f"{category}: {matched_text}")
+                    risk_score += severity
 
         # Cap risk score at 1.0
         risk_score = min(1.0, risk_score)
@@ -317,13 +341,29 @@ class HeuristicScanner:
     def _normalize_content(content: str) -> str:
         """Apply 6-pass normalization to detect obfuscated attacks.
 
-        Based on Pipelock's normalization approach:
-        1. Unicode normalization (NFC)
-        2. Case folding
-        3. Whitespace normalization
-        4. Zero-width character removal
-        5. HTML entity decoding
-        6. URL decoding
+        Transforms content through a series of normalization steps to defeat
+        common obfuscation techniques used in prompt injection attacks. Each
+        pass targets a specific evasion strategy.
+
+        Args:
+            content: Raw text content to normalize.
+
+        Returns:
+            Normalized string with obfuscation removed. Returns the original
+            content if normalization fails for any reason.
+
+        Normalization passes (based on Pipelock's approach):
+            1. Unicode normalization (NFC) - combines decomposed characters
+            2. Case folding - lowercases for case-insensitive matching
+            3. Whitespace normalization - collapses multiple spaces/tabs/newlines
+            4. Zero-width character removal - strips invisible Unicode chars
+            5. HTML entity decoding - decodes &#32; &#x20; etc.
+            6. URL decoding - decodes %xx percent-encoded characters
+
+        Note:
+            Case folding (pass 2) converts uppercase to lowercase, which
+            invalidates base64 strings. Base64 scanning must be performed
+            on the original content before calling this method.
         """
         try:
             # Pass 1: Unicode normalization (NFC)
@@ -363,9 +403,20 @@ class HeuristicScanner:
 
     @staticmethod
     def _scan_base64(content: str) -> List[str]:
-        """Detect and decode base64-encoded payloads.
+        """Detect and decode base64-encoded payloads in content.
 
-        Attempts to decode base64 strings and scan the decoded content.
+        Searches for base64-like strings (20+ characters from the base64
+        alphabet), attempts to decode them, and scans the decoded text for
+        known injection keywords.
+
+        Args:
+            content: Raw (pre-normalization) text to scan for base64 payloads.
+                Must not be case-folded, as base64 relies on uppercase letters.
+
+        Returns:
+            List of finding strings. Contains at most one entry
+            ('base64_encoded_injection_detected') since scanning stops after
+            the first confirmed finding.
         """
         findings = []
 
@@ -410,12 +461,25 @@ class LLMGuardScanner:
     """
 
     def __init__(self, threshold: float = 0.7, use_onnx: bool = True):
+        """Initialize the LLM Guard scanner.
+
+        Args:
+            threshold: Confidence threshold for injection detection (0.0-1.0).
+                Scores above this threshold are flagged as injection.
+            use_onnx: Whether to use ONNX runtime for faster inference.
+                Requires llm-guard[onnx] to be installed.
+        """
         self.threshold = threshold
         self.use_onnx = use_onnx
         self._scanner = None
 
     def _get_scanner(self):
-        """Lazy-load llm-guard scanner on first use."""
+        """Lazy-load the llm-guard PromptInjection scanner on first use.
+
+        Returns:
+            PromptInjection scanner instance, or None if llm-guard is not
+            installed.
+        """
         if self._scanner is None:
             try:
                 from llm_guard.input_scanners import PromptInjection
@@ -434,7 +498,20 @@ class LLMGuardScanner:
         return self._scanner
 
     async def scan(self, content: str, context: Dict[str, Any]) -> ScanResult:
-        """Scan content using ML classifier."""
+        """Scan content for prompt injection using the ML-based classifier.
+
+        Runs the llm-guard PromptInjection model in a thread executor to
+        avoid blocking the async event loop. Returns a clean result if the
+        scanner is unavailable (llm-guard not installed).
+
+        Args:
+            content: The text content to classify.
+            context: Additional context dict (unused by ML scanner but
+                required by ContentScanner protocol).
+
+        Returns:
+            ScanResult with ML classifier confidence as risk_score.
+        """
         import asyncio
 
         start = time.monotonic()
@@ -496,11 +573,34 @@ class CompositeScanner:
         scanners: List[ContentScanner],
         require_consensus: bool = False,
     ):
+        """Initialize the composite scanner with a list of sub-scanners.
+
+        Args:
+            scanners: List of ContentScanner instances to run. Typically
+                the fast HeuristicScanner is first, with LLMGuardScanner
+                as an optional second pass.
+            require_consensus: If False (default), any scanner flagging
+                content marks it as malicious. If True, all scanners must
+                agree to flag content.
+        """
         self.scanners = scanners
         self.require_consensus = require_consensus
 
     async def scan(self, content: str, context: Dict[str, Any]) -> ScanResult:
-        """Run all scanners and aggregate results."""
+        """Run all sub-scanners and aggregate their results.
+
+        In default mode (require_consensus=False), stops early if the first
+        scanner finds clean content. Aggregates findings and uses the maximum
+        risk score across all scanners.
+
+        Args:
+            content: The text content to scan.
+            context: Additional context dict passed to each sub-scanner.
+
+        Returns:
+            ScanResult with aggregated findings, max risk_score, and
+            scanner_name set to 'composite'.
+        """
         start = time.monotonic()
 
         results = []
