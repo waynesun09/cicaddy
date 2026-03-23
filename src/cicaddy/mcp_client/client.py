@@ -1,6 +1,6 @@
 """Unified MCP client implementation with transport abstraction."""
 
-from typing import Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from cicaddy.config.settings import MCPServerConfig
 from cicaddy.utils.logger import get_logger
@@ -12,6 +12,9 @@ from .transports import (
     StdioMCPTransport,
     WebSocketMCPTransport,
 )
+
+if TYPE_CHECKING:
+    from .scanner import ContentScanner
 
 logger = get_logger(__name__)
 
@@ -42,12 +45,20 @@ class OfficialMCPClientSession:  # pragma: no cover - patched in tests
 
 
 class MCPClient:
-    """Transport-agnostic MCP client."""
+    """Transport-agnostic MCP client with optional prompt injection scanning."""
 
-    def __init__(self, config: MCPServerConfig, ssl_verify: bool = True):
+    def __init__(
+        self,
+        config: MCPServerConfig,
+        ssl_verify: bool = True,
+        scanner: Optional["ContentScanner"] = None,
+        scan_mode: str = "disabled",
+    ):
         self.config = config
         self.ssl_verify = ssl_verify
         self.transport = self._create_transport()
+        self.scanner = scanner
+        self.scan_mode = scan_mode  # "disabled" | "audit" | "enforce"
         # Official client compatibility attributes expected by tests
         self.session: Optional[Any] = None
         self.streams: Optional[Any] = None
@@ -184,7 +195,16 @@ class MCPClient:
     async def call_tool(
         self, tool_name: str, arguments: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Call a tool on the MCP server."""
+        """Call a tool on the MCP server with optional prompt injection scanning.
+
+        Args:
+            tool_name: Name of the tool to call
+            arguments: Arguments to pass to the tool
+
+        Returns:
+            Result dict with keys: content, tool, server, status
+            May include scan_result or scan_warning if scanning is enabled
+        """
         # HTTP protocol compatibility path for tests
         if self.config.protocol == "http" and self.session is not None:
             # Provide a progress callback placeholder
@@ -208,14 +228,53 @@ class MCPClient:
             if texts:
                 content_text = "\n".join(texts)
 
-            return {
+            result_dict = {
                 "content": content_text,
                 "tool": tool_name,
                 "server": self.config.name,
                 "status": "success",
             }
+        else:
+            result_dict = await self.transport.call_tool(tool_name, arguments)
 
-        return await self.transport.call_tool(tool_name, arguments)
+        # Scan response if scanner is configured
+        if self.scanner and self.scan_mode != "disabled":
+            scan_result = await self.scanner.scan(
+                result_dict.get("content", ""),
+                {"tool": tool_name, "server": self.config.name},
+            )
+
+            if not scan_result.is_clean:
+                logger.warning(
+                    f"Prompt injection detected in {self.config.name}/{tool_name}: "
+                    f"{scan_result.findings} (risk_score: {scan_result.risk_score:.2f})"
+                )
+
+                if self.scan_mode == "enforce":
+                    # Block the response
+                    result_dict["content"] = (
+                        f"[BLOCKED] Content from {tool_name} was blocked by "
+                        f"security scanner: {', '.join(scan_result.findings)}"
+                    )
+                    result_dict["status"] = "blocked"
+                    result_dict["scan_result"] = {
+                        "is_clean": scan_result.is_clean,
+                        "risk_score": scan_result.risk_score,
+                        "findings": scan_result.findings,
+                        "scanner_name": scan_result.scanner_name,
+                        "scan_time_ms": scan_result.scan_time_ms,
+                    }
+                else:  # audit mode
+                    # Attach warning but pass content through
+                    result_dict["scan_warning"] = {
+                        "is_clean": scan_result.is_clean,
+                        "risk_score": scan_result.risk_score,
+                        "findings": scan_result.findings,
+                        "scanner_name": scan_result.scanner_name,
+                        "scan_time_ms": scan_result.scan_time_ms,
+                    }
+
+        return result_dict
 
     @property
     def connected(self) -> bool:
@@ -230,15 +289,21 @@ class MCPClient:
 
 
 class MCPClientManager:
-    """Manager for multiple MCP clients with unified transport support."""
+    """Manager for multiple MCP clients with unified transport support and optional scanning."""
 
-    def __init__(self, server_configs: List[MCPServerConfig], ssl_verify: bool = True):
+    def __init__(
+        self,
+        server_configs: List[MCPServerConfig],
+        ssl_verify: bool = True,
+        scan_config: Optional[Dict[str, Any]] = None,
+    ):
         self.configs = server_configs
         self.ssl_verify = ssl_verify
+        self.scan_config = scan_config or {}
         self.clients: Dict[str, MCPClient] = {}
 
     async def initialize(self) -> None:
-        """Initialize all MCP clients."""
+        """Initialize all MCP clients with per-server scanning configuration."""
         logger.info(f"Initializing {len(self.configs)} MCP servers")
 
         # Choose which client class to instantiate based on what tests may have patched
@@ -258,7 +323,16 @@ class MCPClientManager:
 
         for config in self.configs:
             try:
-                client = client_cls(config, ssl_verify=self.ssl_verify)  # type: ignore
+                # Create scanner for this server if configured
+                scanner = self._create_scanner_for_server(config.name)
+                scan_mode = self._get_scan_mode_for_server(config.name)
+
+                client = client_cls(
+                    config,
+                    ssl_verify=self.ssl_verify,
+                    scanner=scanner,
+                    scan_mode=scan_mode,
+                )  # type: ignore
                 await client.connect()
                 self.clients[config.name] = client
                 logger.info(
@@ -270,6 +344,54 @@ class MCPClientManager:
                 continue
 
         logger.info(f"Initialized {len(self.clients)} MCP clients")
+
+    def _create_scanner_for_server(self, server_name: str) -> Optional["ContentScanner"]:
+        """Create appropriate scanner based on configuration.
+
+        Args:
+            server_name: Name of the MCP server
+
+        Returns:
+            Scanner instance or None if scanning is disabled for this server
+        """
+        server_config = self.scan_config.get("tools", {}).get(server_name, {})
+        should_scan = server_config.get("scan", self.scan_config.get("enabled", False))
+
+        if not should_scan:
+            return None
+
+        from .scanner import CompositeScanner, HeuristicScanner, LLMGuardScanner
+
+        scanner_type = self.scan_config.get("scanner", "heuristic")
+
+        if scanner_type == "heuristic":
+            return HeuristicScanner()
+        elif scanner_type == "llm-guard":
+            llm_config = self.scan_config.get("llm_guard", {})
+            return LLMGuardScanner(
+                threshold=llm_config.get("threshold", 0.7),
+                use_onnx=llm_config.get("use_onnx", True),
+            )
+        elif scanner_type == "composite":
+            return CompositeScanner(
+                [HeuristicScanner(), LLMGuardScanner()],
+                require_consensus=self.scan_config.get("require_consensus", False),
+            )
+        else:
+            logger.warning(f"Unknown scanner type: {scanner_type}, using heuristic")
+            return HeuristicScanner()
+
+    def _get_scan_mode_for_server(self, server_name: str) -> str:
+        """Get scan mode for a specific server.
+
+        Args:
+            server_name: Name of the MCP server
+
+        Returns:
+            Scan mode: "disabled", "audit", or "enforce"
+        """
+        server_config = self.scan_config.get("tools", {}).get(server_name, {})
+        return server_config.get("mode", self.scan_config.get("mode", "disabled"))
 
     async def list_tools(self, server_name: str) -> List[Dict[str, Any]]:
         """List tools from a specific server."""
