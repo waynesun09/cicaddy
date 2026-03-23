@@ -345,7 +345,9 @@ class MCPClientManager:
 
         logger.info(f"Initialized {len(self.clients)} MCP clients")
 
-    def _create_scanner_for_server(self, server_name: str) -> Optional["ContentScanner"]:
+    def _create_scanner_for_server(
+        self, server_name: str
+    ) -> Optional["ContentScanner"]:
         """Create appropriate scanner based on configuration.
 
         Args:

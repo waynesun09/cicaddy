@@ -15,7 +15,7 @@ import re
 import time
 import unicodedata
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, Dict, List, Protocol
 
 from cicaddy.utils.logger import get_logger
 
@@ -376,7 +376,9 @@ class HeuristicScanner:
             b64_str = match.group(0)
             try:
                 # Attempt decode
-                decoded = base64.b64decode(b64_str, validate=True).decode("utf-8", errors="ignore")
+                decoded = base64.b64decode(b64_str, validate=True).decode(
+                    "utf-8", errors="ignore"
+                )
 
                 # Scan decoded content for injection patterns
                 if any(
@@ -465,7 +467,9 @@ class LLMGuardScanner:
 
         findings = []
         if not is_valid:
-            findings.append(f"ML classifier detected injection (score: {risk_score:.3f})")
+            findings.append(
+                f"ML classifier detected injection (score: {risk_score:.3f})"
+            )
 
         return ScanResult(
             is_clean=is_valid,

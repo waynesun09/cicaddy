@@ -433,7 +433,7 @@ wheels = [
 
 [[package]]
 name = "cicaddy"
-version = "0.3.1"
+version = "0.4.1"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
@@ -501,7 +501,7 @@ requires-dist = [
     { name = "aioresponses", marker = "extra == 'test'", specifier = ">=0.7.8" },
     { name = "anthropic", specifier = ">=0.21.0" },
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.0.0" },
-    { name = "code-review-graph", marker = "extra == 'graph'", specifier = ">=0.1.0" },
+    { name = "code-review-graph", marker = "extra == 'graph'", specifier = ">=1.2.0" },
     { name = "dspy-ai", specifier = ">=2.4.0" },
     { name = "fire", specifier = ">=0.7.0" },
     { name = "google-api-python-client", specifier = ">=2.108.0" },
