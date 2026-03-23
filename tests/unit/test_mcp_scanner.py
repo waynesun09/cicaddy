@@ -665,8 +665,12 @@ class TestEdgeCases:
         # Findings should contain the category plus a snippet of matched text
         for finding in result.findings:
             parts = finding.split(": ", 1)
-            assert len(parts) == 2, f"Finding should be 'category: matched_text', got: {finding}"
-            assert parts[1] != "matched pattern", f"Finding should contain actual matched text, got: {finding}"
+            assert len(parts) == 2, (
+                f"Finding should be 'category: matched_text', got: {finding}"
+            )
+            assert parts[1] != "matched pattern", (
+                f"Finding should contain actual matched text, got: {finding}"
+            )
 
     async def test_encoded_payload_pattern(self, scanner, context):
         """Encoded payload patterns in eval() calls should be detected.
