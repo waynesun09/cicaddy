@@ -1,9 +1,39 @@
 """LLM Guard-based semantic prompt injection scanner.
 
-Uses transformer models to detect sophisticated attacks that regex patterns miss.
-Requires llm-guard optional dependency: pip install cicaddy[security]
+Uses transformer models (ProtectAI deberta-v3) to detect sophisticated prompt
+injection attacks that regex heuristic patterns miss. Complements the
+HeuristicScanner by catching semantically complex or novel attack vectors.
 
-Performance: ~50-200ms per scan depending on model size.
+Requires the llm-guard optional dependency: ``pip install cicaddy[security]``
+
+Performance:
+    - ~50-200ms per scan depending on model size and hardware
+    - ONNX runtime reduces latency by ~40% compared to PyTorch inference
+    - Model is lazy-loaded on first scan call to avoid startup overhead
+
+Integration:
+    Typically used as the second scanner in a CompositeScanner pipeline:
+
+    >>> from cicaddy.mcp_client.scanner import HeuristicScanner, CompositeScanner
+    >>> from cicaddy.mcp_client.llm_guard_scanner import LLMGuardScanner
+    >>> composite = CompositeScanner(
+    ...     scanners=[HeuristicScanner(), LLMGuardScanner(threshold=0.7)],
+    ...     require_consensus=False,
+    ... )
+    >>> result = await composite.scan("suspicious content", {})
+
+Configuration:
+    - threshold (float): Confidence threshold 0.0-1.0 (default: 0.7).
+      Lower values increase sensitivity but may produce false positives.
+    - use_onnx (bool): Use ONNX runtime for inference (default: True).
+      Requires ``llm-guard[onnx]`` extra.
+    - model_name (str): Hugging Face model ID (default:
+      ``protectai/deberta-v3-base-prompt-injection-v2``).
+
+Graceful Degradation:
+    If llm-guard is not installed, the scanner returns is_clean=True with a
+    'scanner unavailable' finding, allowing the system to operate with
+    heuristic-only scanning.
 """
 
 import time

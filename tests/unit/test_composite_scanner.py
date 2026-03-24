@@ -120,7 +120,7 @@ class TestConsensusMode:
         assert not result.is_clean
 
     async def test_consensus_only_one_flags(self, context):
-        """If only one scanner flags, consensus mode marks as clean."""
+        """If any scanner flags, content is not clean even in consensus mode."""
         scanner1 = make_mock_scanner("heuristic", False, 0.5, ["pattern: suspicious"])
         scanner2 = make_mock_scanner("llm-guard", True, 0.1, [])
 
@@ -128,8 +128,8 @@ class TestConsensusMode:
 
         result = await composite.scan("borderline content", context)
 
-        # One scanner says clean, so consensus says clean
-        assert result.is_clean
+        # One scanner flagged, so content is not clean (security-first)
+        assert not result.is_clean
 
     async def test_consensus_both_clean(self, context):
         """Both scanners clean means clean."""

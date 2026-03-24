@@ -1,13 +1,70 @@
-"""Heuristic prompt injection scanner for MCP tool responses.
+"""MCP prompt injection detection.
 
-Detects common prompt injection patterns with <1ms latency using pure Python regex.
-Based on Pipelock's pattern list and ContextCrush attack signatures.
+This module provides multi-layer security scanning for MCP tool responses
+to detect and block prompt injection attacks before they reach the LLM.
+
+Pattern Categories (30+ patterns across 7 categories):
+    - Instruction Override (severity 0.2-0.3): "ignore previous instructions",
+      "disregard above", "new instructions:", system prompt injection, prompt
+      format injection ([INST], <|im_start|>)
+    - Role Manipulation (severity 0.2-0.25): "act as administrator",
+      "you are now", "pretend you are", "your new role is"
+    - Data Exfiltration (severity 0.15-0.25): credential theft via webhooks,
+      POST requests, curl, fetch(), suspicious URLs with callback/exfil paths,
+      GitHub/GitLab issue creation for data exfil
+    - Encoded Payloads (severity 0.15-0.2): base64-encoded injection payloads,
+      eval/exec with encoded strings
+    - ContextCrush (severity 0.3): environment variable access patterns
+      (.env, process.env, os.environ), credential file reads (/etc/passwd,
+      /etc/shadow), process.env.SECRET/TOKEN/KEY access
+    - Destructive Operations (severity 0.3-0.4): rm -rf /, delete/destroy/wipe
+      system files
+    - Privilege Escalation (severity 0.2): sudo, admin mode, bypass safety,
+      disable restrictions
+    - Hidden Instructions (severity 0.15): zero-width Unicode characters
+      (U+200B, U+200C, U+200D, U+2060, U+FEFF)
+
+Risk Scoring Methodology:
+    - Each pattern match adds its severity score (0.1-0.4)
+    - Base64 payloads containing injection keywords add +0.2 bonus
+    - Multiple pattern matches compound (cumulative scoring)
+    - Final score capped at 1.0
+    - is_clean = (total_risk_score == 0.0)
+
+Content Normalization (6-pass):
+    Before pattern matching, content is normalized to defeat obfuscation:
+    1. Unicode NFC normalization
+    2. Case folding (lowercase)
+    3. Whitespace collapse
+    4. Zero-width character removal
+    5. HTML entity decoding
+    6. URL percent-decoding
+
+Scanner Architecture:
+    - HeuristicScanner: Fast regex-based detection (<1ms latency)
+    - LLMGuardScanner: ML-based classification (~50-200ms, optional)
+    - CompositeScanner: Aggregates multiple scanners with early-exit optimization
 
 Configuration via environment variables:
-  - MCP_SCAN_ENABLED: Enable scanning (default: false)
-  - MCP_SCAN_MODE: audit|enforce|disabled (default: disabled)
-  - MCP_SCAN_SCANNER: heuristic|llm-guard|composite (default: heuristic)
-  - MCP_SCAN_TOOLS: JSON dict of per-server configs
+    - MCP_SCAN_ENABLED: Enable scanning (default: false)
+    - MCP_SCAN_MODE: audit|enforce|disabled (default: disabled)
+    - MCP_SCAN_SCANNER: heuristic|llm-guard|composite (default: heuristic)
+    - MCP_SCAN_TOOLS: JSON dict of per-server configs
+
+Examples:
+    >>> scanner = HeuristicScanner()
+    >>> result = await scanner.scan("ignore all previous instructions", {})
+    >>> result.is_clean
+    False
+    >>> result.risk_score
+    0.3
+
+    >>> scanner = HeuristicScanner()
+    >>> result = await scanner.scan("Normal API documentation", {})
+    >>> result.is_clean
+    True
+    >>> result.risk_score
+    0.0
 """
 
 import base64
@@ -461,182 +518,6 @@ class HeuristicScanner:
         return findings
 
 
-class LLMGuardScanner:
-    """ML-based scanner using llm-guard library (Phase 2).
-
-    Higher accuracy but higher latency (~50-200ms). Optional dependency.
-    Falls back gracefully if llm-guard is not installed.
-    """
-
-    def __init__(self, threshold: float = 0.7, use_onnx: bool = True):
-        """Initialize the LLM Guard scanner.
-
-        Args:
-            threshold: Confidence threshold for injection detection (0.0-1.0).
-                Scores above this threshold are flagged as injection.
-            use_onnx: Whether to use ONNX runtime for faster inference.
-                Requires llm-guard[onnx] to be installed.
-        """
-        self.threshold = threshold
-        self.use_onnx = use_onnx
-        self._scanner = None
-
-    def _get_scanner(self):
-        """Lazy-load the llm-guard PromptInjection scanner on first use.
-
-        Returns:
-            PromptInjection scanner instance, or None if llm-guard is not
-            installed.
-        """
-        if self._scanner is None:
-            try:
-                from llm_guard.input_scanners import PromptInjection
-                from llm_guard.input_scanners.prompt_injection import MatchType
-
-                self._scanner = PromptInjection(
-                    threshold=self.threshold,
-                    match_type=MatchType.FULL,
-                    use_onnx=self.use_onnx,
-                )
-            except ImportError:
-                logger.warning(
-                    "llm-guard not installed. Install with: pip install llm-guard[onnx]"
-                )
-                return None
-        return self._scanner
-
-    async def scan(self, content: str, context: Dict[str, Any]) -> ScanResult:
-        """Scan content for prompt injection using the ML-based classifier.
-
-        Runs the llm-guard PromptInjection model in a thread executor to
-        avoid blocking the async event loop. Returns a clean result if the
-        scanner is unavailable (llm-guard not installed).
-
-        Args:
-            content: The text content to classify.
-            context: Additional context dict (unused by ML scanner but
-                required by ContentScanner protocol).
-
-        Returns:
-            ScanResult with ML classifier confidence as risk_score.
-        """
-        import asyncio
-
-        start = time.monotonic()
-
-        scanner = self._get_scanner()
-        if scanner is None:
-            return ScanResult(
-                is_clean=True,
-                scanner_name="llm-guard",
-                findings=["scanner unavailable"],
-                scan_time_ms=(time.monotonic() - start) * 1000,
-            )
-
-        # Run ML scanner in executor to avoid blocking event loop
-        loop = asyncio.get_event_loop()
-        try:
-            sanitized, is_valid, risk_score = await loop.run_in_executor(
-                None, scanner.scan, content
-            )
-        except Exception as e:
-            logger.error(f"Error in llm-guard scanning: {e}")
-            return ScanResult(
-                is_clean=True,
-                scanner_name="llm-guard",
-                findings=[f"scanner error: {str(e)}"],
-                scan_time_ms=(time.monotonic() - start) * 1000,
-            )
-
-        scan_time = (time.monotonic() - start) * 1000
-
-        findings = []
-        if not is_valid:
-            findings.append(
-                f"ML classifier detected injection (score: {risk_score:.3f})"
-            )
-
-        return ScanResult(
-            is_clean=is_valid,
-            risk_score=risk_score,
-            findings=findings,
-            scanner_name="llm-guard",
-            scan_time_ms=scan_time,
-        )
-
-
-class CompositeScanner:
-    """Runs multiple scanners and aggregates results.
-
-    Fast heuristic scanner runs first. If it flags content,
-    optionally runs ML scanner for confirmation.
-
-    Two modes:
-    1. require_consensus=False (default): Any scanner flagging means malicious
-    2. require_consensus=True: All scanners must agree to flag
-    """
-
-    def __init__(
-        self,
-        scanners: List[ContentScanner],
-        require_consensus: bool = False,
-    ):
-        """Initialize the composite scanner with a list of sub-scanners.
-
-        Args:
-            scanners: List of ContentScanner instances to run. Typically
-                the fast HeuristicScanner is first, with LLMGuardScanner
-                as an optional second pass.
-            require_consensus: If False (default), any scanner flagging
-                content marks it as malicious. If True, all scanners must
-                agree to flag content.
-        """
-        self.scanners = scanners
-        self.require_consensus = require_consensus
-
-    async def scan(self, content: str, context: Dict[str, Any]) -> ScanResult:
-        """Run all sub-scanners and aggregate their results.
-
-        In default mode (require_consensus=False), stops early if the first
-        scanner finds clean content. Aggregates findings and uses the maximum
-        risk score across all scanners.
-
-        Args:
-            content: The text content to scan.
-            context: Additional context dict passed to each sub-scanner.
-
-        Returns:
-            ScanResult with aggregated findings, max risk_score, and
-            scanner_name set to 'composite'.
-        """
-        start = time.monotonic()
-
-        results = []
-        for scanner in self.scanners:
-            result = await scanner.scan(content, context)
-            results.append(result)
-
-            # Fast path: if heuristic scanner finds nothing, skip ML scanner
-            if result.is_clean and not self.require_consensus:
-                break
-
-        all_findings = []
-        max_risk = 0.0
-        for r in results:
-            all_findings.extend(r.findings)
-            max_risk = max(max_risk, r.risk_score)
-
-        if self.require_consensus:
-            # All scanners must flag for it to be considered injection
-            is_clean = any(r.is_clean for r in results)
-        else:
-            # Any scanner flagging is sufficient
-            is_clean = all(r.is_clean for r in results)
-
-        return ScanResult(
-            is_clean=is_clean,
-            risk_score=max_risk,
-            findings=all_findings,
-            scanner_name="composite",
-            scan_time_ms=(time.monotonic() - start) * 1000,
-        )
+# Re-export from dedicated modules for backward compatibility
+from .composite_scanner import CompositeScanner  # noqa: E402
+from .llm_guard_scanner import LLMGuardScanner  # noqa: E402

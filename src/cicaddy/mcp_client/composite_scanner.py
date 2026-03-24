@@ -1,7 +1,46 @@
 """Composite scanner combining multiple detection strategies.
 
-Runs multiple scanners and aggregates results. Fast heuristic scanner
-runs first. If it flags content, optionally runs ML scanner for confirmation.
+Runs multiple ContentScanner instances in sequence and aggregates their
+results. Designed for a layered security approach where a fast heuristic
+scanner runs first, and a slower ML-based scanner provides confirmation.
+
+Aggregation Strategy:
+    - Early exit: In standard mode, if the first scanner returns clean, skip
+      remaining scanners (optimizes latency for clean content to <1ms).
+    - Risk score: Uses the maximum risk_score from all scanners that ran.
+    - Findings: Collects findings from all scanners that ran.
+    - Clean status: Content is clean only if ALL scanners that ran agree
+      it is clean. A single scanner flagging content blocks it.
+
+Consensus Mode (require_consensus=True):
+    Forces all scanners to run regardless of intermediate results. This is
+    useful when you want ML confirmation of heuristic findings. Note that
+    even in consensus mode, if any scanner flags the content, it is blocked
+    (security-first approach).
+
+Performance:
+    - Clean content: <1ms (heuristic only, ML skipped via early exit)
+    - Suspicious content: ~50-200ms (both heuristic and ML run)
+
+Examples:
+    Standard mode (any flag blocks):
+
+    >>> composite = CompositeScanner(
+    ...     scanners=[HeuristicScanner(), LLMGuardScanner()],
+    ...     require_consensus=False,
+    ... )
+    >>> result = await composite.scan("normal docs", {})
+    >>> result.is_clean  # True, only heuristic ran (early exit)
+    True
+
+    Consensus mode (all scanners run):
+
+    >>> composite = CompositeScanner(
+    ...     scanners=[HeuristicScanner(), LLMGuardScanner()],
+    ...     require_consensus=True,
+    ... )
+    >>> result = await composite.scan("borderline content", {})
+    >>> # Both scanners ran; blocked if either flagged it
 """
 
 import time
@@ -83,12 +122,10 @@ class CompositeScanner:
             all_findings.extend(r.findings)
             max_risk = max(max_risk, r.risk_score)
 
-        if self.require_consensus:
-            # All scanners must flag for it to be considered injection
-            is_clean = any(r.is_clean for r in results)
-        else:
-            # Any scanner flagging is sufficient
-            is_clean = all(r.is_clean for r in results)
+        # Any scanner flagging issues means content is not clean.
+        # In consensus mode all must agree it's clean; in standard mode same
+        # behavior applies — a single flag blocks the content.
+        is_clean = all(r.is_clean for r in results)
 
         return ScanResult(
             is_clean=is_clean,
