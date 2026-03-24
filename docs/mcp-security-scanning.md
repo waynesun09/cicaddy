@@ -76,8 +76,84 @@ mcp_scan_config:
 | Type | Description | Latency | False Positives | Status |
 |------|-------------|---------|-----------------|--------|
 | `heuristic` | 19+ regex patterns, 6-pass normalization | <1ms | Low (well-tuned) | **Phase 1 (Available)** |
-| `llm-guard` | ML-based semantic detection | ~50-200ms | Very low | Phase 2 (Planned) |
-| `composite` | Heuristic first, LLM on high-risk matches | Adaptive | Lowest | Phase 2 (Planned) |
+| `llm-guard` | ML-based semantic detection (deberta-v3) | ~50-200ms | Very low | **Phase 2 (Available)** |
+| `composite` | Heuristic first, LLM on suspicious content | Adaptive | Lowest | **Phase 2 (Available)** |
+
+## Installing ML-Based Scanner (Phase 2)
+
+The `llm-guard` scanner requires an optional dependency:
+
+```bash
+# Install with security extras
+pip install cicaddy[security]
+
+# Or with uv
+uv pip install cicaddy[security]
+```
+
+This installs `llm-guard` which provides ML-based prompt injection detection using
+the `protectai/deberta-v3-base-prompt-injection-v2` transformer model.
+
+### LLM Guard Configuration
+
+```python
+from cicaddy.mcp_client.scanner import LLMGuardScanner
+
+# Default settings (threshold=0.7, ONNX enabled)
+scanner = LLMGuardScanner()
+
+# Custom threshold (lower = more sensitive, higher = fewer false positives)
+scanner = LLMGuardScanner(threshold=0.5)
+
+# Disable ONNX (slower but no ONNX runtime dependency)
+scanner = LLMGuardScanner(use_onnx=False)
+```
+
+### Composite Scanner Configuration
+
+```python
+from cicaddy.mcp_client.scanner import CompositeScanner, HeuristicScanner, LLMGuardScanner
+
+# Adaptive latency: heuristic first, ML only for suspicious content
+composite = CompositeScanner(
+    scanners=[HeuristicScanner(), LLMGuardScanner()],
+    require_consensus=False,  # Any scanner flagging = blocked
+)
+
+# Consensus mode: both scanners must agree to flag (fewer false positives)
+composite = CompositeScanner(
+    scanners=[HeuristicScanner(), LLMGuardScanner()],
+    require_consensus=True,
+)
+```
+
+### Task YAML Configuration
+
+```yaml
+mcp_scan_config:
+  enabled: true
+  scanner: "composite"    # Use composite scanner
+  default_mode: "enforce"
+```
+
+### Performance Benchmarks
+
+| Scanner | Clean Content | Suspicious Content | Notes |
+|---------|--------------|-------------------|-------|
+| Heuristic only | <1ms | <1ms | Regex-based, no model loading |
+| LLM Guard only | ~50-200ms | ~50-200ms | First call includes model load |
+| Composite (clean) | <1ms | N/A | Early exit skips ML |
+| Composite (suspicious) | ~50-200ms | ~50-200ms | Both scanners run |
+
+### Graceful Degradation
+
+If `llm-guard` is not installed:
+
+- `LLMGuardScanner` returns clean results with a `"scanner unavailable"` finding
+- `CompositeScanner` with `LLMGuardScanner` falls back to heuristic-only behavior
+- A warning is logged: `"llm-guard not installed. Install with: pip install cicaddy[security]"`
+
+No crashes or exceptions are raised.
 
 ## Complete Example
 
@@ -366,9 +442,9 @@ mcp_scan_config:
 
 **Rationale**: Skip scanning for trusted internal APIs to minimize latency.
 
-## Limitations (Phase 1)
+## Limitations
 
-**What Phase 1 catches:**
+**What Phase 1 (Heuristic) catches:**
 - ContextCrush patterns
 - Instruction override
 - Role manipulation
@@ -376,14 +452,18 @@ mcp_scan_config:
 - Hidden instructions (base64, zero-width)
 - System access patterns
 
-**What Phase 1 misses:**
-- Sophisticated LLM jailbreaks
-- Novel attack patterns not in the 19 patterns
-- Semantic manipulation (requires LLM-based detection)
-- Context-aware attacks
+**What Phase 2 (LLM Guard) adds:**
+- Semantic prompt injection detection via ML classifier
+- Sophisticated LLM jailbreak detection
+- Novel attack patterns beyond the 19 heuristic patterns
+- Composite scanning with adaptive latency
+
+**What current scanners may miss:**
+- Context-aware attacks that require understanding the full conversation
+- Zero-day attack patterns not in training data
+- Attacks that closely mimic legitimate content
 
 **Future phases:**
-- **Phase 2**: llm-guard integration (ML-based detection)
 - **Phase 3**: Pipelock CI pipeline scanning
 - **Phase 4**: Kuadrant gateway for infrastructure-level filtering
 
