@@ -320,12 +320,14 @@ class MCPClientManager:
 
         Args:
             server_configs: List of server configurations to connect to.
+                Each server can specify scan_mode in its config.
             ssl_verify: Whether to verify SSL certificates for all clients.
-            scan_config: Optional scanning configuration dict with keys:
+            scan_config: Optional global scanning configuration dict with keys:
                 - enabled: bool, global enable/disable for scanning
-                - mode: str, default scan mode ('disabled'|'audit'|'enforce')
                 - scanner: str, scanner type ('heuristic'|'llm-guard'|'composite')
-                - tools: dict, per-server overrides keyed by server name
+                - default_mode: str, default scan mode for servers without explicit scan_mode ('disabled'|'audit'|'enforce')
+                - llm_guard: dict, optional config for llm-guard scanner
+                - require_consensus: bool, optional config for composite scanner
         """
         self.configs = server_configs
         self.ssl_verify = ssl_verify
@@ -354,8 +356,8 @@ class MCPClientManager:
         for config in self.configs:
             try:
                 # Create scanner for this server if configured
-                scanner = self._create_scanner_for_server(config.name)
-                scan_mode = self._get_scan_mode_for_server(config.name)
+                scanner = self._create_scanner_for_server(config)
+                scan_mode = self._get_scan_mode_for_server(config)
 
                 client = client_cls(
                     config,
@@ -376,22 +378,21 @@ class MCPClientManager:
         logger.info(f"Initialized {len(self.clients)} MCP clients")
 
     def _create_scanner_for_server(
-        self, server_name: str
+        self, config: MCPServerConfig
     ) -> Optional["ContentScanner"]:
         """Create appropriate scanner based on configuration.
 
         Args:
-            server_name: Name of the MCP server
+            config: MCP server configuration
 
         Returns:
-            Scanner instance or None if scanning is disabled for this server
+            Scanner instance or None if scanning is disabled globally
         """
-        server_config = self.scan_config.get("tools", {}).get(server_name, {})
-        should_scan = server_config.get("scan", self.scan_config.get("enabled", False))
-
-        if not should_scan:
+        # Check if scanning is enabled globally
+        if not self.scan_config.get("enabled", False):
             return None
 
+        # Determine scanner type from global config
         from .scanner import CompositeScanner, HeuristicScanner, LLMGuardScanner
 
         scanner_type = self.scan_config.get("scanner", "heuristic")
@@ -413,17 +414,21 @@ class MCPClientManager:
             logger.warning(f"Unknown scanner type: {scanner_type}, using heuristic")
             return HeuristicScanner()
 
-    def _get_scan_mode_for_server(self, server_name: str) -> str:
+    def _get_scan_mode_for_server(self, config: MCPServerConfig) -> str:
         """Get scan mode for a specific server.
 
         Args:
-            server_name: Name of the MCP server
+            config: MCP server configuration
 
         Returns:
             Scan mode: "disabled", "audit", or "enforce"
         """
-        server_config = self.scan_config.get("tools", {}).get(server_name, {})
-        return server_config.get("mode", self.scan_config.get("mode", "disabled"))
+        # First check server-specific scan_mode in MCP config
+        if config.scan_mode:
+            return config.scan_mode
+
+        # Fall back to global default_mode
+        return self.scan_config.get("default_mode", "disabled")
 
     async def list_tools(self, server_name: str) -> List[Dict[str, Any]]:
         """List available tools from a specific MCP server.

@@ -62,6 +62,11 @@ class MCPServerConfig(BaseModel):
     retry_on_timeout: bool = True  # Retry on timeout errors
     retry_on_server_error: bool = True  # Retry on 5xx HTTP errors (enabled by default)
 
+    # Security scanning
+    scan_mode: Optional[str] = Field(
+        None, pattern="^(disabled|audit|enforce)$"
+    )  # Prompt injection scanning mode
+
     def model_post_init(self, __context) -> None:
         """Validate configuration after initialization."""
         if self.protocol in ["sse", "http", "websocket"] and not self.endpoint:
