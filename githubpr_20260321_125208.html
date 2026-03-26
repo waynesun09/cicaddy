@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Githubpr 20260321 125208 AI Analysis Report</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            border-bottom: 3px solid #007bff;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+        }
+        .header-content {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .header-logo {
+            flex-shrink: 0;
+        }
+        .header-logo img {
+            display: block;
+            height: 48px;
+            width: auto;
+            max-width: 200px;
+            object-fit: contain;
+        }
+        .header-text {
+            flex-grow: 1;
+        }
+        .header h1 {
+            color: #007bff;
+            margin: 0;
+            font-size: 2.2rem;
+        }
+        /* Unified stats section with badges */
+        .unified-stats {
+            margin: 25px 0;
+            padding: 15px 20px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+        .metadata-text {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 12px;
+            font-size: 0.85rem;
+            color: #495057;
+        }
+        .metadata-text span {
+            display: inline-block;
+        }
+        .metadata-text strong {
+            color: #212529;
+            margin-right: 5px;
+        }
+        .stats-row {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 8px;
+            overflow-x: auto;
+        }
+        .stat-badge-item {
+            flex: 0 0 auto;
+        }
+        .stat-badge {
+            display: inline-block;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            white-space: nowrap;
+            text-align: center;
+        }
+        .stat-badge.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .stat-badge.danger {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .stat-badge.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .stat-badge.primary {
+            background: #cfe2ff;
+            color: #084298;
+            border: 1px solid #b6d4fe;
+        }
+        .stat-badge.token {
+            background: #d1f4e0;
+            color: #0f5132;
+            border: 1px solid #badbcc;
+        }
+        .stat-badge.token-detail {
+            background: #e7f3ff;
+            color: #004085;
+            border: 1px solid #b8daff;
+            font-size: 0.75rem;
+        }
+        .stat-badge.inference {
+            background: #e0e7ff;
+            color: #3730a3;
+            border: 1px solid #c7d2fe;
+            font-weight: 500;
+        }
+        .stat-badge.model {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+            font-weight: 600;
+        }
+        .primary-section {
+            border-left: 4px solid #007bff;
+            background: #f8f9fa;
+        }
+        .section {
+            margin: 40px 0;
+            padding: 25px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            background: #fdfdfd;
+        }
+        .section h2 {
+            color: #495057;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        .analysis-section {
+            margin: 20px 0;
+            padding: 20px;
+            border-left: 4px solid #007bff;
+            background: #f8f9fa;
+            border-radius: 0 6px 6px 0;
+        }
+        .analysis-section.error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        .analysis-section.intelligent-summary {
+            border-left-color: #28a745;
+            background: linear-gradient(135deg, #d4edda 0%, #f8f9fa 100%);
+            border: 1px solid #c3e6cb;
+        }
+        .summary-badge {
+            margin: 10px 0 20px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-radius: 12px;
+        }
+        .badge-info {
+            background: linear-gradient(135deg, #17a2b8 0%, #20c997 100%);
+            color: white;
+            box-shadow: 0 2px 4px rgba(23, 162, 184, 0.3);
+        }
+        .summary-badge small {
+            color: #495057;
+            font-style: italic;
+        }
+        .enhanced-summary {
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            border: 1px solid #c3e6cb;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.1);
+        }
+        .analysis-section h3 {
+            margin: 0 0 15px 0;
+            color: #495057;
+        }
+        .execution-time {
+            font-size: 0.9rem;
+            color: #6c757d;
+            font-weight: normal;
+        }
+        .analysis-content {
+            background: white;
+            padding: 20px;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+            line-height: 1.7;
+        }
+        .analysis-content p {
+            margin: 10px 0;
+        }
+        .analysis-content h1 {
+            font-size: 1.8rem;
+            color: #343a40;
+            margin: 20px 0 15px 0;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+        }
+        .analysis-content h2 {
+            font-size: 1.5rem;
+            color: #495057;
+            margin: 18px 0 12px 0;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 3px;
+        }
+        .analysis-content h3 {
+            font-size: 1.3rem;
+            color: #6c757d;
+            margin: 15px 0 10px 0;
+        }
+        .analysis-content h4 {
+            font-size: 1.1rem;
+            color: #868e96;
+            margin: 12px 0 8px 0;
+            font-weight: 600;
+        }
+        .analysis-content ol {
+            padding-left: 20px;
+            margin: 15px 0;
+        }
+        .analysis-content ul {
+            padding-left: 20px;
+            margin: 15px 0;
+        }
+        .analysis-content .analysis-list {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-radius: 4px;
+            border-left: 3px solid #007bff;
+        }
+        .analysis-content .analysis-list li {
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+        .analysis-content li {
+            margin: 8px 0;
+        }
+        .analysis-content strong {
+            color: #495057;
+            font-weight: 600;
+        }
+        .analysis-content em {
+            color: #6c757d;
+            font-style: italic;
+        }
+        .analysis-content code {
+            background: #f1f3f4;
+            color: #d73a49;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        .analysis-content .code-block {
+            background: #f6f8fa;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            padding: 16px;
+            margin: 15px 0;
+            overflow-x: auto;
+        }
+        .analysis-content .code-block code {
+            background: none;
+            color: #24292e;
+            padding: 0;
+            font-size: 0.85rem;
+            line-height: 1.45;
+        }
+        .analysis-content .paragraph-break {
+            margin: 15px 0;
+        }
+        .analysis-content a {
+            color: #007bff;
+            text-decoration: none;
+            border-bottom: 1px dotted #007bff;
+        }
+        .analysis-content a:hover {
+            color: #0056b3;
+            border-bottom: 1px solid #0056b3;
+        }
+        .analysis-content .markdown-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .analysis-content .markdown-table th {
+            background: #f8f9fa;
+            color: #495057;
+            font-weight: 600;
+            padding: 12px 15px;
+            border-bottom: 2px solid #dee2e6;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .analysis-content .markdown-table td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #e9ecef;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .analysis-content .markdown-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        .analysis-content .markdown-table tr:hover {
+            background: #e3f2fd;
+        }
+        .analysis-content .markdown-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        /* Status and threshold-based coloring */
+        .status-success {
+            color: #28a745;
+            font-weight: 600;
+        }
+        .status-warning {
+            color: #ffc107;
+            font-weight: 600;
+        }
+        .status-danger {
+            color: #dc3545;
+            font-weight: 600;
+        }
+        .percentage-perfect {
+            background: #d4edda;
+            color: #155724;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        .percentage-good {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        .percentage-warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        .percentage-danger {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .status-badge.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status-badge.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .status-badge.danger {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .analysis-meta {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #e9ecef;
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        .tool-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #e3f2fd;
+            border-radius: 6px;
+            border: 1px solid #bbdefb;
+        }
+        .inference-group {
+            margin: 15px 0;
+            padding: 15px;
+            background: #ffffff;
+            border-radius: 6px;
+            border-left: 4px solid #1976d2;
+        }
+        .inference-group h5 {
+            margin: 0 0 10px 0;
+            color: #1976d2;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+        .tool-execution-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .tool-execution-table thead {
+            background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+            color: white;
+        }
+        .tool-execution-table th {
+            padding: 12px 10px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #0d47a1;
+        }
+        .tool-execution-table td {
+            padding: 10px;
+            border-bottom: 1px solid #e3f2fd;
+            font-size: 0.9rem;
+            vertical-align: top;
+        }
+        .tool-execution-table tbody tr:hover {
+            background: #f5f5f5;
+        }
+        .tool-execution-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .tool-seq {
+            width: 40px;
+            text-align: center;
+            font-weight: 600;
+            color: #1976d2;
+        }
+        .tool-ref {
+            width: 90px;
+            text-align: center;
+            font-weight: 600;
+            color: #28a745;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+        .tool-iteration {
+            width: 80px;
+            text-align: center;
+            font-weight: 500;
+        }
+        .tool-server {
+            width: 120px;
+            color: #495057;
+            font-weight: 500;
+        }
+        .tool-name {
+            min-width: 150px;
+            color: #1976d2;
+            font-weight: 600;
+        }
+        .tool-args {
+            min-width: 180px;
+            font-size: 0.85rem;
+        }
+        .tool-args code {
+            background: #f8f9fa;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            color: #d73a49;
+        }
+        .tool-result {
+            min-width: 150px;
+        }
+        .tool-time {
+            width: 80px;
+            text-align: right;
+            font-family: 'Monaco', 'Courier New', monospace;
+            color: #495057;
+        }
+        .expand-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .expand-btn:hover {
+            background: linear-gradient(135deg, #218838 0%, #1fa383 100%);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .expand-btn:active {
+            transform: translateY(1px);
+        }
+        .expand-icon {
+            display: inline-block;
+            transition: transform 0.2s ease;
+            font-size: 0.7rem;
+        }
+        .expand-icon.expanded {
+            transform: rotate(90deg);
+        }
+        .result-json {
+            margin-top: 10px;
+            background: #f6f8fa;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            padding: 12px;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.8rem;
+            line-height: 1.5;
+            color: #24292e;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .alert {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 6px;
+            border: 1px solid transparent;
+        }
+        .alert-warning {
+            background-color: #fff3cd;
+            border-color: #ffeaa7;
+            color: #856404;
+        }
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #f5c6cb;
+        }
+        .ci-info {
+            list-style: none;
+            padding: 0;
+        }
+        .ci-info li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .ci-info li:last-child {
+            border-bottom: none;
+        }
+        code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9rem;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-all;
+            white-space: normal;
+        }
+        .json-section {
+            margin-top: 30px;
+        }
+        .json-content {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 20px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.8rem;
+            overflow-x: auto;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .download-link {
+            display: inline-block;
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,123,255,0.3);
+        }
+        .download-link:hover {
+            background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+            box-shadow: 0 4px 8px rgba(0,123,255,0.4);
+            transform: translateY(-1px);
+            color: white;
+            text-decoration: none;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e9ecef;
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+    </style>
+    <!-- Chart.js library for embedded charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                
+                <div class="header-text">
+                    <h1>🤖 AI Agent Analysis Report</h1>
+                    <p>Analysis results from <a href="https://github.com/waynesun09/cicaddy" target="_blank">Cicaddy</a></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="unified-stats"><div class="metadata-text"><span><strong>Report ID:</strong> githubpr_20260321_125208</span><span><strong>Generated:</strong> 2026-03-21 12:52:08 UTC</span></div><div class="stats-row">
+            <div class="stat-badge-item">
+                <span class="stat-badge success">✅ Success</span>
+            </div>
+        
+            <div class="stat-badge-item">
+                <span class="stat-badge info">🔧 2 Tool Calls</span>
+            </div>
+        
+            <div class="stat-badge-item">
+                <span class="stat-badge primary">⏱️ 28.1s Duration</span>
+            </div>
+        
+            <div class="stat-badge-item">
+                <span class="stat-badge token">🤖 10,823 Tokens</span>
+            </div>
+            
+            <div class="stat-badge-item">
+                <span class="stat-badge token-detail">
+                    📊 10,071 input / 752 output
+                </span>
+            </div>
+            
+            <div class="stat-badge-item">
+                <span class="stat-badge inference">🔄 1 Inference Calls</span>
+            </div>
+            
+            <div class="stat-badge-item">
+                <span class="stat-badge model">gemini-3-flash-preview</span>
+            </div>
+            </div></div>
+
+        <div class="section primary-section">
+            <h2>🧠 AI Analysis Results</h2>
+            <p>Detailed analysis insights and findings from the AI agent:</p>
+            
+            <div class="analysis-section">
+                <h3>AI Analysis <span class="execution-time">(0.0s)</span></h3>
+                <div class="analysis-content">
+                    <p>This is a solid improvement that simplifies the user workflow by combining the graph update and context extraction into a single command. The implementation is straightforward and follows the existing patterns in the codebase.</p>
+<div class="paragraph-break"></div>
+<h3>Summary</h3>
+<p>The PR introduces an <code>--update</code> flag to the <code>graph-context</code> command, allowing users to perform an incremental update of the code knowledge graph before extracting review context. This eliminates the need for a separate <code>code-review-graph update</code> call in CI pipelines, reducing boilerplate and potential configuration mismatch.</p>
+<div class="paragraph-break"></div>
+<h3>Issues</h3>
+<div class="paragraph-break"></div>
+<ul class="analysis-list">
+<li><strong>Medium: Redundant Code Execution</strong></li>
+</ul>
+<p>In <code>src/cicaddy/cli/graph_context.py</code>, the <code>GraphStore(repo_path)</code> object is instantiated in both branches of the <code>if args.update</code> block. This leads to unnecessary duplication and makes the code slightly harder to maintain.</p>
+<p><em>Location: <code>src/cicaddy/cli/graph_context.py:59</code> and <code>src/cicaddy/cli/graph_context.py:68</code></em></p>
+<div class="paragraph-break"></div>
+<ul class="analysis-list">
+<li><strong>Low: Potential Import <span class="status-danger">Error</span> for <code>incremental_update</code></strong></li>
+</ul>
+<p>While there is a check for <code>code_review_graph.graph.GraphStore</code> at the beginning of the function, <code>incremental_update</code> is imported from a different module (<code>code_review_graph.incremental</code>). If a user has an older version of the <code>code-review-graph</code> library that doesn't include the <code>incremental</code> module, the command will fail with a generic <code>Exception</code> at line 78.</p>
+<p><em>Location: <code>src/cicaddy/cli/graph_context.py:57</code></em></p>
+<div class="paragraph-break"></div>
+<h3>Recommendations</h3>
+<div class="paragraph-break"></div>
+<ol class="analysis-list">
+<li><strong>Refactor for DRY (Don't Repeat Yourself)</strong></li>
+</ol>
+<p>Move the <code>GraphStore</code> instantiation outside the conditional block to simplify the logic.</p>
+<div class="paragraph-break"></div>
+<pre class="code-block language-python"><code>
+   store = GraphStore(repo_path)
+   if args.update:
+       from code_review_graph.incremental import incremental_update
+       update_result = incremental_update(
+           Path(repo_path), store, base=base_ref, changed_files=changed_files
+       )
+       # ... print update result ...
+</code></pre>
+<div class="paragraph-break"></div>
+<ol class="analysis-list">
+<li><strong>Consolidate Path Handling</strong></li>
+</ol>
+<p>Convert <code>repo_path</code> to a <code>Path</code> object once at the beginning of the function to ensure consistency across all calls.</p>
+<div class="paragraph-break"></div>
+<pre class="code-block language-python"><code>
+   repo_path = Path(args.repo)
+   # ...
+   store = GraphStore(repo_path)
+   # ...
+   update_result = incremental_update(repo_path, store, ...)
+</code></pre>
+<div class="paragraph-break"></div>
+<ol class="analysis-list">
+<li><strong>Improve Dependency <span class="status-danger">Error</span> Messaging</strong></li>
+</ol>
+<p>Consider wrapping the <code>incremental_update</code> import in a try-except block to provide a more helpful <span class="status-danger">error</span> message if the specific module is missing, suggesting a library update.</p>
+<div class="paragraph-break"></div>
+<pre class="code-block language-python"><code>
+   try:
+       from code_review_graph.incremental import incremental_update
+   except ImportError:
+       print(&quot;Incremental update requires a newer version of code-review-graph.&quot;, file=sys.stderr)
+       return 1
+</code></pre>
+<div class="paragraph-break"></div>
+<h3>Code Quality</h3>
+<p>The code is generally well-structured and fits the existing CLI architecture. The use of <code>sys.stderr</code> for progress messages is correct, as it keeps <code>stdout</code> clean for the JSON output. The inclusion of the <code>files_updated</code> count in the output provides <span class="status-success">good</span> feedback for users running the command in interactive or CI environments.</p>
+                </div>
+                <div class="analysis-meta">
+                    <small><strong>Turn ID:</strong> 625697bb-7ea2-4c8d-9239-fb2a0b29b4f4 | <strong>Status:</strong> success</small>
+                </div>
+            </div>
+            
+        </div>
+
+        <div class="section">
+            <h2>🔧 Tool Execution Details</h2>
+            <p>MCP tools executed during the analysis:</p>
+            
+        <div class="tool-section">
+            <h4>Tool Execution - 2 tools across 1 inference(s) (0.0s)</h4>
+        
+            <div class="inference-group">
+                <h5>Initial Inference - 2 tools</h5>
+                <table class="tool-execution-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Ref</th>
+                            <th>Iteration</th>
+                            <th>Server</th>
+                            <th>Tool Name</th>
+                            <th>Arguments</th>
+                            <th>Result</th>
+                            <th>Time (s)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            
+                        <tr>
+                            <td class="tool-seq">1</td>
+                            <td class="tool-ref">inf1_i1</td>
+                            <td class="tool-iteration">1</td>
+                            <td class="tool-server">local</td>
+                            <td class="tool-name">read_file</td>
+                            <td class="tool-args">
+                    <button class="expand-btn" onclick="toggleResult('args_1_1')">
+                        <span class="expand-icon">▶</span> file_path: src/cicaddy/cli/graph_context.py
+                    </button>
+                    <pre id="args_1_1" class="result-json" style="display: none;">{
+  &quot;file_path&quot;: &quot;src/cicaddy/cli/graph_context.py&quot;
+}</pre>
+                </td>
+                            <td class="tool-result">
+                                <button class="expand-btn" onclick="toggleResult('result_1_1')">
+                                    <span class="expand-icon">▶</span> Show Result
+                                </button>
+                                <pre id="result_1_1" class="result-json" style="display: none;">{
+  &quot;content&quot;: &quot;# File: src/cicaddy/cli/graph_context.py (95 lines)\n     1\t\&quot;\&quot;\&quot;CLI command for extracting code knowledge graph review context.\&quot;\&quot;\&quot;\n     2\t\n     3\timport argparse\n     4\timport json\n     5\timport subprocess  # nosec B404\n     6\timport sys\n     7\tfrom pathlib import Path\n     8\t\n     9\t\n    10\tdef get_changed_files(base_ref: str, repo_path: str) -&gt; list[str]:\n    11\t    \&quot;\&quot;\&quot;Get changed files from git diff against base ref.\&quot;\&quot;\&quot;\n    12\t    result = subprocess.run(  # nosec B603 B607\n    13\t        [\&quot;git\&quot;, \&quot;diff\&quot;, \&quot;-z\&quot;, \&quot;--name-only\&quot;, f\&quot;{base_ref}...HEAD\&quot;, \&quot;--\&quot;],\n    14\t        capture_output=True,\n    15\t        cwd=repo_path,\n    16\t    )\n    17\t    if result.returncode != 0:\n    18\t        raise RuntimeError(result.stderr.decode().strip() or \&quot;git diff failed\&quot;)\n    19\t    return [f.decode() for f in result.stdout.split(b\&quot;\\0\&quot;) if f]\n    20\t\n    21\t\n    22\tdef cmd_graph_context(args: argparse.Namespace) -&gt; int:\n    23\t    \&quot;\&quot;\&quot;Handle the &#x27;graph-context&#x27; command.\&quot;\&quot;\&quot;\n    24\t    base_ref = args.base_ref\n    25\t    max_depth = args.max_depth\n    26\t    max_lines = args.max_lines\n    27\t    output_file = args.output\n    28\t    repo_path = args.repo\n    29\t\n    30\t    try:\n    31\t        changed_files = get_changed_files(base_ref, repo_path)\n    32\t    except (RuntimeError, OSError) as e:\n    33\t        print(f\&quot;Git diff failed: {e}\&quot;, file=sys.stderr)\n    34\t        _write_output(\n    35\t            {\&quot;status\&quot;: \&quot;error\&quot;, \&quot;error\&quot;: str(e), \&quot;changed_files\&quot;: []}, output_file\n    36\t        )\n    37\t        return 1\n    38\t\n    39\t    if not changed_files:\n    40\t        result = {\&quot;status\&quot;: \&quot;no_changes\&quot;, \&quot;changed_files\&quot;: []}\n    41\t        _write_output(result, output_file)\n    42\t        return 0\n    43\t\n    44\t    try:\n    45\t        from code_review_graph.graph import GraphStore\n    46\t    except ImportError:\n    47\t        print(\n    48\t            \&quot;code-review-graph not installed. Install with: pip install cicaddy[graph]\&quot;,\n    49\t            file=sys.stderr,\n    50\t        )\n    51\t        result = {\&quot;status\&quot;: \&quot;no_graph\&quot;, \&quot;changed_files\&quot;: changed_files}\n    52\t        _write_output(result, output_file)\n    53\t        return 0\n    54\t\n    55\t    try:\n    56\t        if args.update:\n    57\t            from code_review_graph.incremental import incremental_update\n    58\t\n    59\t            store = GraphStore(repo_path)\n    60\t            update_result = incremental_update(\n    61\t                Path(repo_path), store, base=base_ref, changed_files=changed_files\n    62\t            )\n    63\t            print(\n    64\t                f\&quot;Graph updated: {update_result.get(&#x27;files_updated&#x27;, 0)} files\&quot;,\n    65\t                file=sys.stderr,\n    66\t            )\n    67\t        else:\n    68\t            store = GraphStore(repo_path)\n    69\t\n    70\t        context = store.get_review_context(\n    71\t            changed_files,\n    72\t            max_depth=max_depth,\n    73\t            include_source=True,\n    74\t            max_lines_per_file=max_lines,\n    75\t        )\n    76\t        _write_output(context, output_file)\n    77\t        return 0\n    78\t    except Exception as e:\n    79\t        print(f\&quot;Graph analysis failed ({type(e).__name__}): {e}\&quot;, file=sys.stderr)\n    80\t        result = {\&quot;status\&quot;: \&quot;error\&quot;, \&quot;error\&quot;: str(e), \&quot;changed_files\&quot;: changed_files}\n    81\t        _write_output(result, output_file)\n    82\t        return 1\n    83\t\n    84\t\n    85\tdef _write_output(data: dict, output_file: str | None) -&gt; None:\n    86\t    \&quot;\&quot;\&quot;Write JSON output to file or stdout.\&quot;\&quot;\&quot;\n    87\t    if output_file:\n    88\t        path = Path(output_file)\n    89\t        path.parent.mkdir(parents=True, exist_ok=True)\n    90\t        with open(path, \&quot;w\&quot;, encoding=\&quot;utf-8\&quot;) as f:\n    91\t            json.dump(data, f, indent=2, ensure_ascii=False)\n    92\t        print(f\&quot;Graph context written to {output_file}\&quot;, file=sys.stderr)\n    93\t    else:\n    94\t        json.dump(data, sys.stdout, indent=2, ensure_ascii=False)\n    95\t        print()&quot;,
+  &quot;server&quot;: &quot;local&quot;,
+  &quot;status&quot;: &quot;success&quot;,
+  &quot;tool&quot;: &quot;read_file&quot;
+}</pre>
+                            </td>
+                            <td class="tool-time">0.00</td>
+                        </tr>
+                
+                        <tr>
+                            <td class="tool-seq">2</td>
+                            <td class="tool-ref">inf1_i2</td>
+                            <td class="tool-iteration">2</td>
+                            <td class="tool-server">local</td>
+                            <td class="tool-name">read_file</td>
+                            <td class="tool-args">
+                    <button class="expand-btn" onclick="toggleResult('args_1_2')">
+                        <span class="expand-icon">▶</span> file_path: src/cicaddy/cli/main.py
+                    </button>
+                    <pre id="args_1_2" class="result-json" style="display: none;">{
+  &quot;file_path&quot;: &quot;src/cicaddy/cli/main.py&quot;
+}</pre>
+                </td>
+                            <td class="tool-result">
+                                <button class="expand-btn" onclick="toggleResult('result_1_2')">
+                                    <span class="expand-icon">▶</span> Show Result
+                                </button>
+                                <pre id="result_1_2" class="result-json" style="display: none;">{
+  &quot;content&quot;: &quot;# File: src/cicaddy/cli/main.py (245 lines)\n     1\t#!/usr/bin/env python3\n     2\t\&quot;\&quot;\&quot;Main CLI entry point for Cicaddy.\&quot;\&quot;\&quot;\n     3\t\n     4\timport argparse\n     5\timport sys\n     6\tfrom typing import Any, Dict, List, Optional\n     7\t\n     8\tfrom cicaddy.cli.arg_mapping import get_run_arg_mappings\n     9\tfrom cicaddy.cli.commands import (\n    10\t    cmd_config_show,\n    11\t    cmd_run,\n    12\t    cmd_validate,\n    13\t    cmd_version,\n    14\t    get_version,\n    15\t)\n    16\t\n    17\t\n    18\tdef create_parser() -&gt; argparse.ArgumentParser:\n    19\t    \&quot;\&quot;\&quot;Create the argument parser with subcommands.\&quot;\&quot;\&quot;\n    20\t    parser = argparse.ArgumentParser(\n    21\t        prog=\&quot;cicaddy\&quot;,\n    22\t        description=\&quot;Cicaddy - Platform-agnostic pipeline AI agent\&quot;,\n    23\t        formatter_class=argparse.RawDescriptionHelpFormatter,\n    24\t        epilog=\&quot;\&quot;\&quot;\n    25\tExamples:\n    26\t  cicaddy run --env-file .env\n    27\t  cicaddy run --agent-type task --ai-provider gemini --log-level DEBUG\n    28\t  cicaddy config show --env-file .env\n    29\t  cicaddy graph-context --base-ref origin/main --output workspace/graph_context.json\n    30\t  cicaddy version\n    31\t\n    32\tFor more information, visit:\n    33\t  https://github.com/waynesun09/cicaddy\n    34\t\&quot;\&quot;\&quot;,\n    35\t    )\n    36\t\n    37\t    parser.add_argument(\n    38\t        \&quot;--version\&quot;,\n    39\t        action=\&quot;version\&quot;,\n    40\t        version=f\&quot;%(prog)s {get_version()}\&quot;,\n    41\t    )\n    42\t\n    43\t    subparsers = parser.add_subparsers(\n    44\t        dest=\&quot;command\&quot;,\n    45\t        title=\&quot;commands\&quot;,\n    46\t        description=\&quot;Available commands\&quot;,\n    47\t        metavar=\&quot;COMMAND\&quot;,\n    48\t    )\n    49\t\n    50\t    # &#x27;run&#x27; subcommand\n    51\t    run_parser = subparsers.add_parser(\n    52\t        \&quot;run\&quot;,\n    53\t        help=\&quot;Run the AI agent\&quot;,\n    54\t        description=\&quot;Run the Cicaddy agent with specified configuration\&quot;,\n    55\t    )\n    56\t    _add_run_arguments(run_parser)\n    57\t\n    58\t    # &#x27;config&#x27; subcommand with &#x27;show&#x27; subsubcommand\n    59\t    config_parser = subparsers.add_parser(\n    60\t        \&quot;config\&quot;,\n    61\t        help=\&quot;Configuration management\&quot;,\n    62\t        description=\&quot;View and manage agent configuration\&quot;,\n    63\t    )\n    64\t    config_subparsers = config_parser.add_subparsers(\n    65\t        dest=\&quot;config_command\&quot;,\n    66\t        title=\&quot;config commands\&quot;,\n    67\t        metavar=\&quot;SUBCOMMAND\&quot;,\n    68\t    )\n    69\t\n    70\t    config_show_parser = config_subparsers.add_parser(\n    71\t        \&quot;show\&quot;,\n    72\t        help=\&quot;Show current configuration\&quot;,\n    73\t        description=\&quot;Display the effective agent configuration\&quot;,\n    74\t    )\n    75\t    config_show_parser.add_argument(\n    76\t        \&quot;--env-file\&quot;,\n    77\t        \&quot;-e\&quot;,\n    78\t        metavar=\&quot;FILE\&quot;,\n    79\t        help=\&quot;Load environment from a .env file\&quot;,\n    80\t    )\n    81\t\n    82\t    # &#x27;version&#x27; subcommand\n    83\t    subparsers.add_parser(\n    84\t        \&quot;version\&quot;,\n    85\t        help=\&quot;Show version information\&quot;,\n    86\t        description=\&quot;Display the cicaddy version\&quot;,\n    87\t    )\n    88\t\n    89\t    # &#x27;validate&#x27; subcommand\n    90\t    validate_parser = subparsers.add_parser(\n    91\t        \&quot;validate\&quot;,\n    92\t        help=\&quot;Validate configuration before running\&quot;,\n    93\t        description=\&quot;Perform pre-flight checks on agent configuration\&quot;,\n    94\t    )\n    95\t    validate_parser.add_argument(\n    96\t        \&quot;--env-file\&quot;,\n    97\t        \&quot;-e\&quot;,\n    98\t        metavar=\&quot;FILE\&quot;,\n    99\t        help=\&quot;Load environment from a .env file\&quot;,\n   100\t    )\n   101\t\n   102\t    # &#x27;graph-context&#x27; subcommand\n   103\t    graph_parser = subparsers.add_parser(\n   104\t        \&quot;graph-context\&quot;,\n   105\t        help=\&quot;Extract code knowledge graph context for review\&quot;,\n   106\t        description=(\n   107\t            \&quot;Build or update a code knowledge graph and extract blast-radius \&quot;\n   108\t            \&quot;context for changed files. Requires code-review-graph \&quot;\n   109\t            \&quot;(pip install cicaddy[graph]).\&quot;\n   110\t        ),\n   111\t    )\n   112\t    graph_parser.add_argument(\n   113\t        \&quot;--base-ref\&quot;,\n   114\t        default=\&quot;origin/main\&quot;,\n   115\t        help=\&quot;Base git ref for diff (default: origin/main)\&quot;,\n   116\t    )\n   117\t    graph_parser.add_argument(\n   118\t        \&quot;--output\&quot;,\n   119\t        \&quot;-o\&quot;,\n   120\t        metavar=\&quot;FILE\&quot;,\n   121\t        help=\&quot;Output file for JSON context (default: stdout)\&quot;,\n   122\t    )\n   123\t    graph_parser.add_argument(\n   124\t        \&quot;--repo\&quot;,\n   125\t        default=\&quot;.\&quot;,\n   126\t        help=\&quot;Repository path (default: current directory)\&quot;,\n   127\t    )\n   128\t    graph_parser.add_argument(\n   129\t        \&quot;--max-depth\&quot;,\n   130\t        type=int,\n   131\t        default=2,\n   132\t        help=\&quot;BFS traversal depth for blast radius (default: 2)\&quot;,\n   133\t    )\n   134\t    graph_parser.add_argument(\n   135\t        \&quot;--max-lines\&quot;,\n   136\t        type=int,\n   137\t        default=200,\n   138\t        help=\&quot;Max source lines per file in snippets (default: 200)\&quot;,\n   139\t    )\n   140\t    graph_parser.add_argument(\n   141\t        \&quot;--update\&quot;,\n   142\t        action=\&quot;store_true\&quot;,\n   143\t        help=\&quot;Run incremental graph update before extracting context\&quot;,\n   144\t    )\n   145\t\n   146\t    return parser\n   147\t\n   148\t\n   149\tdef _add_run_arguments(parser: argparse.ArgumentParser) -&gt; None:\n   150\t    \&quot;\&quot;\&quot;Add arguments for the &#x27;run&#x27; subcommand.\&quot;\&quot;\&quot;\n   151\t    from cicaddy.agent.factory import AgentFactory\n   152\t    from cicaddy.plugin import discover_plugins\n   153\t\n   154\t    # Ensure plugins are loaded so agent types are registered\n   155\t    discover_plugins()\n   156\t\n   157\t    # Environment file option\n   158\t    parser.add_argument(\n   159\t        \&quot;--env-file\&quot;,\n   160\t        \&quot;-e\&quot;,\n   161\t        metavar=\&quot;FILE\&quot;,\n   162\t        help=\&quot;Load environment from a .env file (lowest priority, CLI args override)\&quot;,\n   163\t    )\n   164\t\n   165\t    # Build dynamic agent-type choices from registry + standard aliases\n   166\t    registered = AgentFactory.get_available_agent_types()\n   167\t    agent_type_choices = sorted(set(registered) | {\&quot;mr\&quot;, \&quot;task\&quot;, \&quot;cron\&quot;, \&quot;branch\&quot;})\n   168\t\n   169\t    # Add all mapped arguments (base + plugin)\n   170\t    for mapping in get_run_arg_mappings():\n   171\t        kwargs: Dict[str, Any] = {\n   172\t            \&quot;help\&quot;: mapping.help_text or f\&quot;Set {mapping.env_var}\&quot;,\n   173\t            \&quot;dest\&quot;: mapping.cli_arg.lstrip(\&quot;-\&quot;).replace(\&quot;-\&quot;, \&quot;_\&quot;),\n   174\t        }\n   175\t\n   176\t        if mapping.env_var == \&quot;AGENT_TYPE\&quot;:\n   177\t            # Use dynamically built choices for --agent-type\n   178\t            kwargs[\&quot;choices\&quot;] = agent_type_choices\n   179\t            kwargs[\&quot;metavar\&quot;] = \&quot;AGENT_TYPE\&quot;\n   180\t        elif mapping.choices:\n   181\t            kwargs[\&quot;choices\&quot;] = mapping.choices\n   182\t            kwargs[\&quot;metavar\&quot;] = mapping.cli_arg.lstrip(\&quot;-\&quot;).upper().replace(\&quot;-\&quot;, \&quot;_\&quot;)\n   183\t\n   184\t        if mapping.arg_type is int:\n   185\t            kwargs[\&quot;type\&quot;] = int\n   186\t\n   187\t        if mapping.default is not None:\n   188\t            kwargs[\&quot;default\&quot;] = None  # Don&#x27;t set default, let env/settings handle it\n   189\t\n   190\t        args = [mapping.cli_arg]\n   191\t        if mapping.short_arg:\n   192\t            args.insert(0, mapping.short_arg)\n   193\t\n   194\t        parser.add_argument(*args, **kwargs)\n   195\t\n   196\t    # Verbose flag\n   197\t    parser.add_argument(\n   198\t        \&quot;--verbose\&quot;,\n   199\t        \&quot;-v\&quot;,\n   200\t        action=\&quot;store_true\&quot;,\n   201\t        help=\&quot;Enable verbose output (sets LOG_LEVEL=DEBUG)\&quot;,\n   202\t    )\n   203\t\n   204\t    # Dry-run flag\n   205\t    parser.add_argument(\n   206\t        \&quot;--dry-run\&quot;,\n   207\t        action=\&quot;store_true\&quot;,\n   208\t        help=\&quot;Show configuration without running the agent\&quot;,\n   209\t    )\n   210\t\n   211\t\n   212\tdef main(argv: Optional[List[str]] = None) -&gt; int:\n   213\t    \&quot;\&quot;\&quot;Main entry point.\&quot;\&quot;\&quot;\n   214\t    parser = create_parser()\n   215\t    args = parser.parse_args(argv)\n   216\t\n   217\t    # No command specified - show help\n   218\t    if args.command is None:\n   219\t        parser.print_help()\n   220\t        return 0\n   221\t\n   222\t    # Route to appropriate command handler\n   223\t    if args.command == \&quot;run\&quot;:\n   224\t        return cmd_run(args)\n   225\t    elif args.command == \&quot;config\&quot;:\n   226\t        if args.config_command == \&quot;show\&quot;:\n   227\t            return cmd_config_show(args)\n   228\t        else:\n   229\t            # No config subcommand - show config help\n   230\t            parser.parse_args([\&quot;config\&quot;, \&quot;--help\&quot;])\n   231\t            return 0\n   232\t    elif args.command == \&quot;version\&quot;:\n   233\t        return cmd_version(args)\n   234\t    elif args.command == \&quot;validate\&quot;:\n   235\t        return cmd_validate(args)\n   236\t    elif args.command == \&quot;graph-context\&quot;:\n   237\t        from cicaddy.cli.graph_context import cmd_graph_context\n   238\t\n   239\t        return cmd_graph_context(args)\n   240\t\n   241\t    return 0\n   242\t\n   243\t\n   244\tif __name__ == \&quot;__main__\&quot;:\n   245\t    sys.exit(main())&quot;,
+  &quot;server&quot;: &quot;local&quot;,
+  &quot;status&quot;: &quot;success&quot;,
+  &quot;tool&quot;: &quot;read_file&quot;
+}</pre>
+                            </td>
+                            <td class="tool-time">0.00</td>
+                        </tr>
+                
+                    </tbody>
+                </table>
+            </div>
+            
+        </div>
+        
+        </div>
+
+        <div class="section">
+            <h2>🏗️ CI Environment</h2>
+            <p><em>No CI environment information available.</em></p>
+        </div>
+
+        <div class="section json-section">
+            <h2>📄 Raw JSON Data</h2>
+            <p>Complete report data is available in JSON format:</p>
+            <div style="padding: 20px; background: #f8f9fa; border-radius: 6px; border: 1px solid #e9ecef;">
+                <p><strong>JSON Report File:</strong> <code>githubpr_20260321_125208.json</code></p>
+                <p style="margin-top: 10px;">
+                    <a href="githubpr_20260321_125208.json" class="download-link" download="githubpr_20260321_125208.json">
+                        📥 Download JSON Report (81.91 KB)
+                    </a>
+                </p>
+                <p style="margin-top: 10px; font-size: 0.9rem; color: #6c757d;">
+                    <em>The JSON file contains the complete analysis data including all tool results and accumulated knowledge.</em>
+                </p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Generated by <strong><a href="https://github.com/waynesun09/cicaddy" target="_blank">Cicaddy</a></strong> | Report ID: <code>githubpr_20260321_125208</code></p>
+        </div>
+    </div>
+
+    <script>
+        function toggleResult(resultId) {
+            const resultElement = document.getElementById(resultId);
+            const button = resultElement.previousElementSibling;
+            const icon = button.querySelector('.expand-icon');
+
+            if (resultElement.style.display === 'none') {
+                resultElement.style.display = 'block';
+                button.innerHTML = '<span class="expand-icon expanded">▶</span> Hide Result';
+                icon.classList.add('expanded');
+            } else {
+                resultElement.style.display = 'none';
+                button.innerHTML = '<span class="expand-icon">▶</span> Show Result';
+                icon.classList.remove('expanded');
+            }
+        }
+    </script>
+</body>
+</html>

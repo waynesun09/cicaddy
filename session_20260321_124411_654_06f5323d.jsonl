@@ -1,0 +1,1 @@
+{"event_type": "ai_inference", "input_tokens": 2, "iteration": 0, "output_tokens": 0, "report_id": "session_20260321_124411_654", "response": "", "timestamp": "2026-03-21T12:44:11.655093", "tool_calls_count": 1, "tool_names": [null], "total_tokens": 2}

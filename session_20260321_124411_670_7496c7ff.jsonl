@@ -1,0 +1,2 @@
+{"event_type": "ai_inference", "input_tokens": 3, "iteration": 1, "output_tokens": 4, "report_id": "session_20260321_124411_670", "response": "I need more tools", "timestamp": "2026-03-21T12:44:11.670612", "tool_calls_count": 1, "tool_names": [null], "total_tokens": 7}
+{"event_type": "ai_inference", "input_tokens": 26, "iteration": 2, "output_tokens": 4, "report_id": "session_20260321_124411_670", "response": "I need more tools", "timestamp": "2026-03-21T12:44:11.670723", "tool_calls_count": 1, "tool_names": [null], "total_tokens": 30}

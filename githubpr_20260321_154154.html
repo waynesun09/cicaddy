@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Githubpr 20260321 154154 AI Analysis Report</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            border-bottom: 3px solid #007bff;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+        }
+        .header-content {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .header-logo {
+            flex-shrink: 0;
+        }
+        .header-logo img {
+            display: block;
+            height: 48px;
+            width: auto;
+            max-width: 200px;
+            object-fit: contain;
+        }
+        .header-text {
+            flex-grow: 1;
+        }
+        .header h1 {
+            color: #007bff;
+            margin: 0;
+            font-size: 2.2rem;
+        }
+        /* Unified stats section with badges */
+        .unified-stats {
+            margin: 25px 0;
+            padding: 15px 20px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+        .metadata-text {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 12px;
+            font-size: 0.85rem;
+            color: #495057;
+        }
+        .metadata-text span {
+            display: inline-block;
+        }
+        .metadata-text strong {
+            color: #212529;
+            margin-right: 5px;
+        }
+        .stats-row {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 8px;
+            overflow-x: auto;
+        }
+        .stat-badge-item {
+            flex: 0 0 auto;
+        }
+        .stat-badge {
+            display: inline-block;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            white-space: nowrap;
+            text-align: center;
+        }
+        .stat-badge.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .stat-badge.danger {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .stat-badge.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .stat-badge.primary {
+            background: #cfe2ff;
+            color: #084298;
+            border: 1px solid #b6d4fe;
+        }
+        .stat-badge.token {
+            background: #d1f4e0;
+            color: #0f5132;
+            border: 1px solid #badbcc;
+        }
+        .stat-badge.token-detail {
+            background: #e7f3ff;
+            color: #004085;
+            border: 1px solid #b8daff;
+            font-size: 0.75rem;
+        }
+        .stat-badge.inference {
+            background: #e0e7ff;
+            color: #3730a3;
+            border: 1px solid #c7d2fe;
+            font-weight: 500;
+        }
+        .stat-badge.model {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+            font-weight: 600;
+        }
+        .primary-section {
+            border-left: 4px solid #007bff;
+            background: #f8f9fa;
+        }
+        .section {
+            margin: 40px 0;
+            padding: 25px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            background: #fdfdfd;
+        }
+        .section h2 {
+            color: #495057;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        .analysis-section {
+            margin: 20px 0;
+            padding: 20px;
+            border-left: 4px solid #007bff;
+            background: #f8f9fa;
+            border-radius: 0 6px 6px 0;
+        }
+        .analysis-section.error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        .analysis-section.intelligent-summary {
+            border-left-color: #28a745;
+            background: linear-gradient(135deg, #d4edda 0%, #f8f9fa 100%);
+            border: 1px solid #c3e6cb;
+        }
+        .summary-badge {
+            margin: 10px 0 20px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-radius: 12px;
+        }
+        .badge-info {
+            background: linear-gradient(135deg, #17a2b8 0%, #20c997 100%);
+            color: white;
+            box-shadow: 0 2px 4px rgba(23, 162, 184, 0.3);
+        }
+        .summary-badge small {
+            color: #495057;
+            font-style: italic;
+        }
+        .enhanced-summary {
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            border: 1px solid #c3e6cb;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.1);
+        }
+        .analysis-section h3 {
+            margin: 0 0 15px 0;
+            color: #495057;
+        }
+        .execution-time {
+            font-size: 0.9rem;
+            color: #6c757d;
+            font-weight: normal;
+        }
+        .analysis-content {
+            background: white;
+            padding: 20px;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+            line-height: 1.7;
+        }
+        .analysis-content p {
+            margin: 10px 0;
+        }
+        .analysis-content h1 {
+            font-size: 1.8rem;
+            color: #343a40;
+            margin: 20px 0 15px 0;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+        }
+        .analysis-content h2 {
+            font-size: 1.5rem;
+            color: #495057;
+            margin: 18px 0 12px 0;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 3px;
+        }
+        .analysis-content h3 {
+            font-size: 1.3rem;
+            color: #6c757d;
+            margin: 15px 0 10px 0;
+        }
+        .analysis-content h4 {
+            font-size: 1.1rem;
+            color: #868e96;
+            margin: 12px 0 8px 0;
+            font-weight: 600;
+        }
+        .analysis-content ol {
+            padding-left: 20px;
+            margin: 15px 0;
+        }
+        .analysis-content ul {
+            padding-left: 20px;
+            margin: 15px 0;
+        }
+        .analysis-content .analysis-list {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-radius: 4px;
+            border-left: 3px solid #007bff;
+        }
+        .analysis-content .analysis-list li {
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+        .analysis-content li {
+            margin: 8px 0;
+        }
+        .analysis-content strong {
+            color: #495057;
+            font-weight: 600;
+        }
+        .analysis-content em {
+            color: #6c757d;
+            font-style: italic;
+        }
+        .analysis-content code {
+            background: #f1f3f4;
+            color: #d73a49;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        .analysis-content .code-block {
+            background: #f6f8fa;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            padding: 16px;
+            margin: 15px 0;
+            overflow-x: auto;
+        }
+        .analysis-content .code-block code {
+            background: none;
+            color: #24292e;
+            padding: 0;
+            font-size: 0.85rem;
+            line-height: 1.45;
+        }
+        .analysis-content .paragraph-break {
+            margin: 15px 0;
+        }
+        .analysis-content a {
+            color: #007bff;
+            text-decoration: none;
+            border-bottom: 1px dotted #007bff;
+        }
+        .analysis-content a:hover {
+            color: #0056b3;
+            border-bottom: 1px solid #0056b3;
+        }
+        .analysis-content .markdown-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .analysis-content .markdown-table th {
+            background: #f8f9fa;
+            color: #495057;
+            font-weight: 600;
+            padding: 12px 15px;
+            border-bottom: 2px solid #dee2e6;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .analysis-content .markdown-table td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #e9ecef;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .analysis-content .markdown-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        .analysis-content .markdown-table tr:hover {
+            background: #e3f2fd;
+        }
+        .analysis-content .markdown-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        /* Status and threshold-based coloring */
+        .status-success {
+            color: #28a745;
+            font-weight: 600;
+        }
+        .status-warning {
+            color: #ffc107;
+            font-weight: 600;
+        }
+        .status-danger {
+            color: #dc3545;
+            font-weight: 600;
+        }
+        .percentage-perfect {
+            background: #d4edda;
+            color: #155724;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        .percentage-good {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        .percentage-warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        .percentage-danger {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .status-badge.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status-badge.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .status-badge.danger {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .analysis-meta {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #e9ecef;
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        .tool-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #e3f2fd;
+            border-radius: 6px;
+            border: 1px solid #bbdefb;
+        }
+        .inference-group {
+            margin: 15px 0;
+            padding: 15px;
+            background: #ffffff;
+            border-radius: 6px;
+            border-left: 4px solid #1976d2;
+        }
+        .inference-group h5 {
+            margin: 0 0 10px 0;
+            color: #1976d2;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+        .tool-execution-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .tool-execution-table thead {
+            background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+            color: white;
+        }
+        .tool-execution-table th {
+            padding: 12px 10px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #0d47a1;
+        }
+        .tool-execution-table td {
+            padding: 10px;
+            border-bottom: 1px solid #e3f2fd;
+            font-size: 0.9rem;
+            vertical-align: top;
+        }
+        .tool-execution-table tbody tr:hover {
+            background: #f5f5f5;
+        }
+        .tool-execution-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .tool-seq {
+            width: 40px;
+            text-align: center;
+            font-weight: 600;
+            color: #1976d2;
+        }
+        .tool-ref {
+            width: 90px;
+            text-align: center;
+            font-weight: 600;
+            color: #28a745;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+        .tool-iteration {
+            width: 80px;
+            text-align: center;
+            font-weight: 500;
+        }
+        .tool-server {
+            width: 120px;
+            color: #495057;
+            font-weight: 500;
+        }
+        .tool-name {
+            min-width: 150px;
+            color: #1976d2;
+            font-weight: 600;
+        }
+        .tool-args {
+            min-width: 180px;
+            font-size: 0.85rem;
+        }
+        .tool-args code {
+            background: #f8f9fa;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            color: #d73a49;
+        }
+        .tool-result {
+            min-width: 150px;
+        }
+        .tool-time {
+            width: 80px;
+            text-align: right;
+            font-family: 'Monaco', 'Courier New', monospace;
+            color: #495057;
+        }
+        .expand-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .expand-btn:hover {
+            background: linear-gradient(135deg, #218838 0%, #1fa383 100%);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .expand-btn:active {
+            transform: translateY(1px);
+        }
+        .expand-icon {
+            display: inline-block;
+            transition: transform 0.2s ease;
+            font-size: 0.7rem;
+        }
+        .expand-icon.expanded {
+            transform: rotate(90deg);
+        }
+        .result-json {
+            margin-top: 10px;
+            background: #f6f8fa;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            padding: 12px;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.8rem;
+            line-height: 1.5;
+            color: #24292e;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .alert {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 6px;
+            border: 1px solid transparent;
+        }
+        .alert-warning {
+            background-color: #fff3cd;
+            border-color: #ffeaa7;
+            color: #856404;
+        }
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #f5c6cb;
+        }
+        .ci-info {
+            list-style: none;
+            padding: 0;
+        }
+        .ci-info li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .ci-info li:last-child {
+            border-bottom: none;
+        }
+        code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9rem;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-all;
+            white-space: normal;
+        }
+        .json-section {
+            margin-top: 30px;
+        }
+        .json-content {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 20px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.8rem;
+            overflow-x: auto;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .download-link {
+            display: inline-block;
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,123,255,0.3);
+        }
+        .download-link:hover {
+            background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+            box-shadow: 0 4px 8px rgba(0,123,255,0.4);
+            transform: translateY(-1px);
+            color: white;
+            text-decoration: none;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e9ecef;
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+    </style>
+    <!-- Chart.js library for embedded charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                
+                <div class="header-text">
+                    <h1>🤖 AI Agent Analysis Report</h1>
+                    <p>Analysis results from <a href="https://github.com/waynesun09/cicaddy" target="_blank">Cicaddy</a></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="unified-stats"><div class="metadata-text"><span><strong>Report ID:</strong> githubpr_20260321_154154</span><span><strong>Generated:</strong> 2026-03-21 15:41:54 UTC</span></div><div class="stats-row">
+            <div class="stat-badge-item">
+                <span class="stat-badge success">✅ Success</span>
+            </div>
+        
+            <div class="stat-badge-item">
+                <span class="stat-badge info">🔧 2 Tool Calls</span>
+            </div>
+        
+            <div class="stat-badge-item">
+                <span class="stat-badge primary">⏱️ 18.3s Duration</span>
+            </div>
+        
+            <div class="stat-badge-item">
+                <span class="stat-badge token">🤖 5,244 Tokens</span>
+            </div>
+            
+            <div class="stat-badge-item">
+                <span class="stat-badge token-detail">
+                    📊 4,420 input / 824 output
+                </span>
+            </div>
+            
+            <div class="stat-badge-item">
+                <span class="stat-badge inference">🔄 1 Inference Calls</span>
+            </div>
+            
+            <div class="stat-badge-item">
+                <span class="stat-badge model">gemini-3-flash-preview</span>
+            </div>
+            </div></div>
+
+        <div class="section primary-section">
+            <h2>🧠 AI Analysis Results</h2>
+            <p>Detailed analysis insights and findings from the AI agent:</p>
+            
+            <div class="analysis-section">
+                <h3>AI Analysis <span class="execution-time">(0.0s)</span></h3>
+                <div class="analysis-content">
+                    <h3>Summary</h3>
+<div class="paragraph-break"></div>
+<p>This pull request introduces a convenient <code>--update</code> flag to the <code>cicaddy graph-context</code> command. This change streamlines the developer workflow by allowing an incremental update of the code-review graph directly before context extraction, eliminating the need for a separate <code>code-review-graph update</code> call. The implementation includes a version check for the <code>code-review-graph</code> library and provides clear feedback on the number of files updated.</p>
+<div class="paragraph-break"></div>
+<p>Overall, the changes are well-integrated and follow the existing CLI structure. The use of a conditional import for the new functionality is a <span class="status-success">good</span> practice to maintain compatibility and provide helpful <span class="status-danger">error</span> messages for users with outdated dependencies.</p>
+<div class="paragraph-break"></div>
+<h3>Issues</h3>
+<div class="paragraph-break"></div>
+<ul class="analysis-list">
+<li><strong>Medium: Potential for Unhandled Exceptions in <code>incremental_update</code></strong></li>
+</ul>
+<p>The call to <code>incremental_update</code> (lines 71-73 in <code>src/cicaddy/cli/graph_context.py</code>) is not wrapped in a specific <code>try...except</code> block for operational failures (e.g., git errors, file system issues during indexing). While there is a broad <code>try...except</code> around the <code>GraphStore</code> initialization, failures during the update process itself might result in a generic crash or unhelpful <span class="status-danger">error</span> message.</p>
+<ul class="analysis-list">
+<li><strong>Low: Type Consistency for <code>repo_path</code></strong></li>
+</ul>
+<p>In <code>src/cicaddy/cli/graph_context.py</code>, <code>repo_path</code> is converted to a <code>Path</code> object at line 28, but then immediately cast back to <code>str</code> for <code>get_changed_files</code> at line 31. While not a bug, it's slightly redundant. More importantly, ensure that <code>incremental_update</code> and <code>GraphStore</code> explicitly support <code>Path</code> objects, as some older library versions might expect strings.</p>
+<div class="paragraph-break"></div>
+<h3>Recommendations</h3>
+<div class="paragraph-break"></div>
+<ul class="analysis-list">
+<li><strong>Improve <span class="status-danger">Error</span> Handling for Graph Updates</strong></li>
+</ul>
+<p>Wrap the <code>incremental_update</code> call in a <code>try...except</code> block to catch potential errors from the underlying library (like <code>GitError</code> or <code>IOError</code>) and provide a user-friendly message.</p>
+<pre class="code-block language-python"><code>
+    try:
+        update_result = incremental_update(
+            repo_path, store, base=base_ref, changed_files=changed_files
+        )
+    except Exception as e:
+        print(f&quot;Incremental update failed: {e}&quot;, file=sys.stderr)
+        return 1
+</code></pre>
+<ul class="analysis-list">
+<li><strong>Verify <code>incremental_update</code> Return Type</strong></li>
+</ul>
+<p>The code assumes <code>incremental_update</code> returns a dictionary with a <code>files_updated</code> key. Ensure that the <code>code-review-graph</code> library (v1.2.0+) consistently returns this structure, even if no files were updated (e.g., returns <code>0</code> or an empty dict rather than <code>None</code>).</p>
+<ul class="analysis-list">
+<li><strong>Consistent Path Usage</strong></li>
+</ul>
+<p>If <code>get_changed_files</code> supports <code>Path</code> objects, <span class="status-success">pass</span> <code>repo_path</code> directly. If not, consider if <code>repo_path</code> should remain a string until specifically needed as a <code>Path</code> object to avoid repeated conversions.</p>
+<div class="paragraph-break"></div>
+<h3>Code Quality</h3>
+<div class="paragraph-break"></div>
+<p>The code is clean and follows the existing patterns in the <code>cicaddy</code> codebase. The decision to put the <code>import</code> statement inside the <code>if args.update</code> block is excellent for performance (avoiding unnecessary imports when the flag isn't used) and for providing a specific, actionable <span class="status-danger">error</span> message if the dependency is missing or outdated. The CLI help text is clear and concise.</p>
+<div class="paragraph-break"></div>
+<p>One minor suggestion for maintainability: consider moving the version check/import logic to a utility function if you plan to use <code>incremental_update</code> in other parts of the CLI in the future.</p>
+                </div>
+                <div class="analysis-meta">
+                    <small><strong>Turn ID:</strong> cbae82ce-e7a6-4995-87d9-c131ece13460 | <strong>Status:</strong> success</small>
+                </div>
+            </div>
+            
+        </div>
+
+        <div class="section">
+            <h2>🔧 Tool Execution Details</h2>
+            <p>MCP tools executed during the analysis:</p>
+            
+        <div class="tool-section">
+            <h4>Tool Execution - 2 tools across 1 inference(s) (0.2s)</h4>
+        
+            <div class="inference-group">
+                <h5>Initial Inference - 2 tools</h5>
+                <table class="tool-execution-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Ref</th>
+                            <th>Iteration</th>
+                            <th>Server</th>
+                            <th>Tool Name</th>
+                            <th>Arguments</th>
+                            <th>Result</th>
+                            <th>Time (s)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            
+                        <tr>
+                            <td class="tool-seq">1</td>
+                            <td class="tool-ref">inf1_i1</td>
+                            <td class="tool-iteration">1</td>
+                            <td class="tool-server">local</td>
+                            <td class="tool-name">glob_files</td>
+                            <td class="tool-args">
+                    <button class="expand-btn" onclick="toggleResult('args_1_1')">
+                        <span class="expand-icon">▶</span> pattern: **/graph_context.py
+                    </button>
+                    <pre id="args_1_1" class="result-json" style="display: none;">{
+  &quot;pattern&quot;: &quot;**/graph_context.py&quot;
+}</pre>
+                </td>
+                            <td class="tool-result">
+                                <button class="expand-btn" onclick="toggleResult('result_1_1')">
+                                    <span class="expand-icon">▶</span> Show Result
+                                </button>
+                                <pre id="result_1_1" class="result-json" style="display: none;">{
+  &quot;content&quot;: &quot;Found 1 file(s):\nsrc/cicaddy/cli/graph_context.py&quot;,
+  &quot;server&quot;: &quot;local&quot;,
+  &quot;status&quot;: &quot;success&quot;,
+  &quot;tool&quot;: &quot;glob_files&quot;
+}</pre>
+                            </td>
+                            <td class="tool-time">0.15</td>
+                        </tr>
+                
+                        <tr>
+                            <td class="tool-seq">2</td>
+                            <td class="tool-ref">inf1_i1</td>
+                            <td class="tool-iteration">1</td>
+                            <td class="tool-server">local</td>
+                            <td class="tool-name">glob_files</td>
+                            <td class="tool-args">
+                    <button class="expand-btn" onclick="toggleResult('args_1_2')">
+                        <span class="expand-icon">▶</span> pattern: **/incremental.py
+                    </button>
+                    <pre id="args_1_2" class="result-json" style="display: none;">{
+  &quot;pattern&quot;: &quot;**/incremental.py&quot;
+}</pre>
+                </td>
+                            <td class="tool-result">
+                                <button class="expand-btn" onclick="toggleResult('result_1_2')">
+                                    <span class="expand-icon">▶</span> Show Result
+                                </button>
+                                <pre id="result_1_2" class="result-json" style="display: none;">{
+  &quot;content&quot;: &quot;No files found matching pattern: **/incremental.py&quot;,
+  &quot;server&quot;: &quot;local&quot;,
+  &quot;status&quot;: &quot;success&quot;,
+  &quot;tool&quot;: &quot;glob_files&quot;
+}</pre>
+                            </td>
+                            <td class="tool-time">0.04</td>
+                        </tr>
+                
+                    </tbody>
+                </table>
+            </div>
+            
+        </div>
+        
+        </div>
+
+        <div class="section">
+            <h2>🏗️ CI Environment</h2>
+            <p><em>No CI environment information available.</em></p>
+        </div>
+
+        <div class="section json-section">
+            <h2>📄 Raw JSON Data</h2>
+            <p>Complete report data is available in JSON format:</p>
+            <div style="padding: 20px; background: #f8f9fa; border-radius: 6px; border: 1px solid #e9ecef;">
+                <p><strong>JSON Report File:</strong> <code>githubpr_20260321_154154.json</code></p>
+                <p style="margin-top: 10px;">
+                    <a href="githubpr_20260321_154154.json" class="download-link" download="githubpr_20260321_154154.json">
+                        📥 Download JSON Report (15.41 KB)
+                    </a>
+                </p>
+                <p style="margin-top: 10px; font-size: 0.9rem; color: #6c757d;">
+                    <em>The JSON file contains the complete analysis data including all tool results and accumulated knowledge.</em>
+                </p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Generated by <strong><a href="https://github.com/waynesun09/cicaddy" target="_blank">Cicaddy</a></strong> | Report ID: <code>githubpr_20260321_154154</code></p>
+        </div>
+    </div>
+
+    <script>
+        function toggleResult(resultId) {
+            const resultElement = document.getElementById(resultId);
+            const button = resultElement.previousElementSibling;
+            const icon = button.querySelector('.expand-icon');
+
+            if (resultElement.style.display === 'none') {
+                resultElement.style.display = 'block';
+                button.innerHTML = '<span class="expand-icon expanded">▶</span> Hide Result';
+                icon.classList.add('expanded');
+            } else {
+                resultElement.style.display = 'none';
+                button.innerHTML = '<span class="expand-icon">▶</span> Show Result';
+                icon.classList.remove('expanded');
+            }
+        }
+    </script>
+</body>
+</html>
