@@ -155,39 +155,60 @@ CI/CD agents inherently have all three → must mitigate with scanning, least-pr
 
 ## Implementation Roadmap
 
-### Phase 1: General Tool-Level Scanning
+### ✅ Phase 1: General Tool-Level Scanning (COMPLETE)
 **Priority:** P0
-**Effort:** 2-3 days
+**Status:** ✅ **Implemented**
 **Impact:** Closes MCP-only gap
 
-**Tasks:**
-- Create `tools/scanner.py` with `ToolScanner` interface
-- Add scanning to `ToolRegistry.call_tool()`
-- Add `LOCAL_TOOLS_SCAN_MODE` env var
-- Tests for local file tool scanning
+**Completed:**
+- ✅ Create `tools/scanner.py` with `ToolScanner` interface
+- ✅ Add scanning to `ToolRegistry.call_tool()`
+- ✅ Add `LOCAL_TOOLS_SCAN_MODE` and `LOCAL_TOOLS_BLOCKING_THRESHOLD` env vars
+- ✅ Tests for local file tool scanning (17 tests passing)
+- ✅ Separate detection and blocking thresholds
 
-### Phase 2: Rules and Skills Scanning
+**Files Added:**
+- `src/cicaddy/tools/scanner.py` - ToolScanner wrapper
+- `tests/unit/test_tool_scanner.py` - 10 tests
+- `tests/unit/test_tool_registry_scanning.py` - 7 tests
+
+**Commit:** `259d921`
+
+### ✅ Phase 2: Rules and Skills Scanning (COMPLETE)
 **Priority:** P1
-**Effort:** 3-4 days
+**Status:** ✅ **Implemented**
 **Impact:** Blocks supply chain attacks
 
-**Tasks:**
-- Add provenance detection (`_is_external_source()`)
-- Scan external rule files in `rules.py`
-- Scan external skills in `skills.py`
-- Add `RULES_SCAN_MODE` and `SKILLS_SCAN_MODE` env vars
-- Tests for malicious rule/skill detection
+**Completed:**
+- ✅ Add provenance detection (`is_external_source()`, `get_provenance_label()`)
+- ✅ Scan external rule files in `rules.py`
+- ✅ Scan external skills in `skills.py`
+- ✅ Add `RULES_SCAN_MODE`, `RULES_BLOCKING_THRESHOLD` env vars
+- ✅ Add `SKILLS_SCAN_MODE`, `SKILLS_BLOCKING_THRESHOLD` env vars
+- ✅ Tests for malicious rule/skill detection (32 tests passing)
+- ✅ Git-based provenance (submodules, tracking status)
 
-### Phase 3: Blocking Threshold
+**Files Added:**
+- `src/cicaddy/security/__init__.py` - Security package
+- `src/cicaddy/security/provenance.py` - Provenance detection
+- `tests/unit/test_provenance.py` - 9 tests
+- `tests/unit/test_rules_scanning.py` - 8 tests
+- `tests/unit/test_skills_scanning.py` - 15 tests
+
+**Commit:** `113de6a`
+
+### Phase 3: MCP Blocking Threshold (Optional)
 **Priority:** P2
 **Effort:** 1-2 days
-**Impact:** Reduces false positives
+**Impact:** Reduces false positives for MCP tools
 
 **Tasks:**
-- Add `blocking_threshold` to `ScanConfig`
-- Check threshold before blocking in MCP and local tools
-- Add `scan_warning.blocked` boolean
-- Tests for threshold behavior
+- Apply blocking threshold separation to MCP scanning (currently blocks on any detection)
+- Unify threshold logic across all scanners
+- Add `MCP_SCAN_BLOCKING_THRESHOLD` env var
+- Tests for MCP threshold behavior
+
+**Note:** Local tools, rules, and skills already have blocking threshold separation (Phase 1 & 2). This phase would extend the same pattern to MCP tools for consistency.
 
 ### Phase 4: Source-Aware Policies (Optional)
 **Priority:** P3
@@ -198,6 +219,15 @@ CI/CD agents inherently have all three → must mitigate with scanning, least-pr
 - Add `SourceScanPolicy` model
 - Per-source threshold overrides
 - Policy lookup logic
+
+**Example:**
+```yaml
+source_policies:
+  context7:
+    blocking_threshold: 0.2  # Strict for external docs
+  internal-devlake:
+    scan_mode: disabled      # Trust internal APIs
+```
 
 ---
 
