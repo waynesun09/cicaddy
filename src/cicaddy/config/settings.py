@@ -343,6 +343,18 @@ class CoreSettings(BaseSettings):
         description="Emoji prefix for HTML report header. Set to empty string to disable. Ignored when logo is present.",
     )
 
+    # Agent rules settings
+    agent_rules_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("AGENT_RULES_ENABLED", "agent_rules_enabled"),
+        description="Enable auto-loading of agent rule files (AGENT.md, CLAUDE.md, etc.)",
+    )
+    agent_rules_workspace: str = Field(
+        default="",
+        validation_alias=AliasChoices("AGENT_RULES_WORKSPACE", "agent_rules_workspace"),
+        description="Override workspace path for agent rules discovery",
+    )
+
     @field_validator(
         "use_gmail_api",
         "email_enabled",
@@ -351,6 +363,7 @@ class CoreSettings(BaseSettings):
         "ssl_verify",
         "dynamic_token_limits",
         "enable_local_tools",
+        "agent_rules_enabled",
         mode="before",
     )
     @classmethod
