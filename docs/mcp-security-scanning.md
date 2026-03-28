@@ -446,7 +446,7 @@ mcp_scan_config:
 
 ## Beyond MCP: Comprehensive Scanning
 
-Starting with v0.7.0, Cicaddy extends prompt injection scanning beyond MCP tools to cover all external content sources.
+Starting with v0.6.1, Cicaddy extends prompt injection scanning beyond MCP tools to cover all external content sources.
 
 ### Local File Tools Scanning
 

@@ -58,14 +58,15 @@ AgentFactory.register("my_platform", MyPlatformAgent)
 |---------|---------|
 | `ai_providers/` | Provider abstraction (Gemini, Claude, OpenAI) |
 | `execution/` | Token-aware multi-step executor, recovery, context compaction |
-| `mcp_client/` | MCP client with SSE, HTTP, stdio, WebSocket transports |
-| `tools/` | Local file tool registry with decorator-based registration |
+| `mcp_client/` | MCP client with SSE, HTTP, stdio, WebSocket transports + security scanning |
+| `tools/` | Local file tool registry with decorator-based registration + scanning |
+| `security/` | Provenance detection and security utilities |
 | `dspy/` | DSPy task loading and prompt building |
 | `notifications/` | Slack (webhook + rich blocks) and email notifiers |
 | `reports/` | HTML report generation |
 | `config/` | Settings and advanced configuration |
-| `rules.py` | Agent rules auto-loading (AGENT.md, CLAUDE.md, GEMINI.md, etc.) |
-| `skills.py` | Skills discovery from `.agents/skills/` and provider-specific directories |
+| `rules.py` | Agent rules auto-loading with external content scanning |
+| `skills.py` | Skills discovery with supply chain protection |
 
 ### Agent Rules & Skills (v0.6.0+)
 
@@ -74,6 +75,44 @@ Cicaddy automatically loads:
 - **Skills**: From `.agents/skills/` (cross-tool), `.claude/skills/`, `.gemini/skills/`, `.github/skills/` (provider-specific)
 
 Rules and skills are injected into agent prompts during initialization. See `src/cicaddy/rules.py` and `src/cicaddy/skills.py`.
+
+### Security Scanning (v0.6.1+)
+
+Cicaddy provides comprehensive prompt injection protection across all content sources:
+
+**What gets scanned:**
+- **MCP tool responses** — External API responses (enforce mode by default)
+- **Local file tools** — File reads that could access external content (audit mode by default)
+- **External rules** — Rule files from git submodules or untracked sources (audit mode)
+- **External skills** — Skills from dependencies or global directories (enforce mode)
+
+**Provenance-based policies:**
+- **Local/git-tracked content** — Trusted via code review, skips scanning
+- **Submodule content** — Detected via `.gitmodules`, scanned as external
+- **Untracked content** — Detected via `git ls-files`, scanned as external
+- **Global skills** — Always treated as external (supply chain risk)
+
+**Configuration:**
+```bash
+# Local file tools
+LOCAL_TOOLS_SCAN_MODE=audit                    # disabled|audit|enforce
+LOCAL_TOOLS_BLOCKING_THRESHOLD=0.3             # 0.0-1.0
+
+# Rules (AGENT.md, CLAUDE.md from submodules)
+RULES_SCAN_MODE=audit
+RULES_BLOCKING_THRESHOLD=0.3
+
+# Skills (.agents/skills/ from dependencies)
+SKILLS_SCAN_MODE=enforce                       # Stricter for supply chain
+SKILLS_BLOCKING_THRESHOLD=0.2
+```
+
+**Scan modes:**
+- `disabled` — No scanning
+- `audit` — Log warnings, don't block
+- `enforce` — Block content above threshold
+
+See `docs/mcp-security-scanning.md` and `docs/SCANNING-REVIEW.md` for details.
 
 ## Code Quality
 
@@ -121,13 +160,25 @@ cicaddy version
 cicaddy graph-context --base-ref origin/main --update -o graph_context.json
 ```
 
-## Testing MCP Integration
+## Testing
+
+### MCP Integration
 
 When working with MCP servers:
 - Test with both stdio and HTTP transports
 - Verify prompt injection scanner modes: `disabled`, `audit`, `enforce`
 - Check MCP_SERVERS_CONFIG parsing in DSPy task files
 - Test graceful degradation when MCP servers are unavailable
+
+### Security Scanning
+
+When testing security features:
+- Test local tools scanning with external files (should be scanned in audit mode)
+- Test git submodule rule files (should be detected as external and scanned)
+- Test external skills from `.agents/skills/` (should be scanned in enforce mode)
+- Verify provenance detection: git-tracked files should skip scanning
+- Test threshold behavior: content below threshold should not be blocked
+- Run tests: `uv run pytest tests/unit/test_*scanning*.py tests/unit/test_provenance.py -v`
 
 ## Release Process
 
