@@ -1,0 +1,44 @@
+name: Snyk Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  snyk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+
+      - name: Export and install requirements for Snyk
+        run: |
+          uv export --no-hashes --no-dev --no-editable | grep -v '^\.$' > requirements.txt
+          uv pip install --system -r requirements.txt
+
+      - name: Install Snyk CLI
+        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04 # v1
+
+      - name: Run Snyk to check for vulnerabilities
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk test --file=requirements.txt --package-manager=pip --sarif-file-output=snyk.sarif --severity-threshold=high
+
+      - name: Upload Snyk results to GitHub Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@d4b3ca9fa7f69d38bfcd667bdc45bc373d16277e # v4
+        with:
+          sarif_file: snyk.sarif
