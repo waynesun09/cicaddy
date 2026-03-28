@@ -56,9 +56,7 @@ def detect_quota_error(content: str) -> Optional[str]:
         match = pattern.search(check_content)
         if match:
             matched_text = match.group(0)
-            logger.info(
-                f"Quota/rate limit detected in tool response: '{matched_text}'"
-            )
+            logger.info(f"Quota/rate limit detected in tool response: '{matched_text}'")
             return matched_text
 
     return None

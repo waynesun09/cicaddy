@@ -2,7 +2,10 @@
 
 import pytest
 
-from cicaddy.mcp_client.quota_detector import detect_quota_error, is_temporary_rate_limit
+from cicaddy.mcp_client.quota_detector import (
+    detect_quota_error,
+    is_temporary_rate_limit,
+)
 
 
 class TestQuotaDetector:

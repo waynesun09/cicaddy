@@ -473,7 +473,11 @@ class TestQuotaErrorHandling:
     @pytest.mark.asyncio
     async def test_quota_error_not_retried(self, test_config):
         """Test that quota errors bypass retry logic (should_retry returns False)."""
-        from cicaddy.mcp_client.retry import QuotaExceededError, should_retry, RetryConfig
+        from cicaddy.mcp_client.retry import (
+            QuotaExceededError,
+            should_retry,
+            RetryConfig,
+        )
 
         # Create a RetryConfig that would normally retry
         config = RetryConfig(
