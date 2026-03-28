@@ -39,12 +39,25 @@ class SkillMetadata:
 
     def body(self) -> str:
         """Read the skill body content (everything after frontmatter)."""
-        front_matter_pattern = re.compile(r"^---\s*\n.*?\n---\s*\n", re.DOTALL)
         try:
             content = self.location.read_text(encoding="utf-8").strip()
         except OSError:
             return ""
-        return front_matter_pattern.sub("", content, count=1).strip()
+        return _strip_frontmatter(content)
+
+
+def _strip_frontmatter(content: str) -> str:
+    """Remove YAML frontmatter from content, returning the body.
+
+    Uses line-by-line scanning instead of regex to avoid ReDoS risk.
+    """
+    lines = content.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return content.strip()
+    for idx, line in enumerate(lines[1:], start=1):
+        if line.strip() == "---":
+            return "".join(lines[idx + 1 :]).strip()
+    return content.strip()
 
 
 def discover_skills(
