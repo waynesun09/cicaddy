@@ -151,6 +151,9 @@ ignore = ["E501"]
 exclude_dirs = ["tests"]
 skips = ["B101"]
 
+[tool.uv]
+exclude-newer = "7 days"
+
 [dependency-groups]
 dev = [
     "ty>=0.0.8",
