@@ -1,10 +1,12 @@
-# MCP Security Scanning
+# Security Scanning
 
-Cicaddy includes built-in prompt injection detection for MCP tool responses. When enabled, all content returned by MCP servers is scanned before being passed to the AI model.
+Cicaddy includes built-in prompt injection detection for all external content sources. When enabled, content from MCP tools, local file operations, external rules, and skills is scanned before being passed to the AI model.
+
+> **📖 For implementation details and roadmap**, see [SCANNING-REVIEW.md](./SCANNING-REVIEW.md)
 
 ## Overview
 
-MCP security scanning protects against:
+Security scanning protects against:
 
 - **ContextCrush attacks** — malicious documentation injecting instructions via environment variable access
 - **Instruction override** — "ignore previous instructions" patterns
@@ -442,6 +444,91 @@ mcp_scan_config:
 
 **Rationale**: Skip scanning for trusted internal APIs to minimize latency.
 
+## Beyond MCP: Comprehensive Scanning
+
+Starting with v0.7.0, Cicaddy extends prompt injection scanning beyond MCP tools to cover all external content sources.
+
+### Local File Tools Scanning
+
+Configuration for local file operations (`read_file`, `glob_files`):
+
+```bash
+# Enable scanning for local file tools
+ENABLE_LOCAL_TOOLS=true
+LOCAL_TOOLS_SCAN_MODE=audit                    # disabled|audit|enforce
+LOCAL_TOOLS_BLOCKING_THRESHOLD=0.3             # 0.0-1.0
+```
+
+**Use case:** Protect against reading malicious files from external sources (downloaded dependencies, user-provided paths).
+
+### Rules and Skills Scanning
+
+Configuration for agent rules and skills loading:
+
+```bash
+# Rules scanning (AGENT.md, CLAUDE.md from submodules)
+RULES_SCAN_MODE=audit                          # disabled|audit|enforce
+RULES_BLOCKING_THRESHOLD=0.3                   # 0.0-1.0
+
+# Skills scanning (.agents/skills/ from dependencies)
+SKILLS_SCAN_MODE=enforce                       # disabled|audit|enforce
+SKILLS_BLOCKING_THRESHOLD=0.2                  # 0.0-1.0 (stricter for supply chain)
+```
+
+**Provenance-based scanning:**
+- **Local files** (git-tracked in project): Skips scanning (trusted via code review)
+- **External files** (submodules, untracked, dependencies): Scans with configured mode
+- **Global skills** (`~/.agents/skills/`): Always scanned (supply chain risk)
+
+**Attack vectors mitigated:**
+- **ToxicSkills** — Malicious skills from package registries
+- **Submodule injection** — Compromised rule files in external repos
+- **Supply chain attacks** — Untrusted dependencies with embedded prompts
+
+### Threshold Separation
+
+Unlike MCP scanning (which blocks on any detection), local tools/rules/skills use separate **detection** and **blocking** thresholds:
+
+- **Detection threshold:** `0.0` (log any suspicious patterns)
+- **Blocking threshold:** Configurable (default `0.2-0.3`)
+
+**Example:**
+```python
+# Risk score 0.15: Detected, logged, but not blocked (below 0.3 threshold)
+# Risk score 0.45: Detected, logged, AND blocked (above 0.3 threshold)
+```
+
+This reduces false positives while maintaining visibility.
+
+### Configuration Examples
+
+**Development (audit everything):**
+```bash
+LOCAL_TOOLS_SCAN_MODE=audit
+RULES_SCAN_MODE=audit
+SKILLS_SCAN_MODE=audit
+```
+
+**Production (enforce external, audit internal):**
+```bash
+LOCAL_TOOLS_SCAN_MODE=audit                    # Log suspicious file reads
+RULES_SCAN_MODE=audit                          # Log suspicious submodule rules
+SKILLS_SCAN_MODE=enforce                       # Block malicious skills
+SKILLS_BLOCKING_THRESHOLD=0.2                  # Strict threshold for supply chain
+```
+
+**Maximum security:**
+```bash
+LOCAL_TOOLS_SCAN_MODE=enforce
+LOCAL_TOOLS_BLOCKING_THRESHOLD=0.2
+RULES_SCAN_MODE=enforce
+RULES_BLOCKING_THRESHOLD=0.2
+SKILLS_SCAN_MODE=enforce
+SKILLS_BLOCKING_THRESHOLD=0.15
+```
+
+For implementation details, see [SCANNING-REVIEW.md](./SCANNING-REVIEW.md).
+
 ## Limitations
 
 **What Phase 1 (Heuristic) catches:**
@@ -469,6 +556,7 @@ mcp_scan_config:
 
 ## Related Documentation
 
+- **[Scanning Implementation Review](SCANNING-REVIEW.md)** — Phase 1 & 2 implementation details and roadmap
 - [MCP Integration Guide](mcp-integration.md) — General MCP server configuration
 - [Research: MCP Security Gateways Comparison](../../../ai-docs/Research/mcp-security-gateways-comparison.md) — Detailed analysis of Pipelock and alternatives
 - [Research: Context7 Replacement Security Analysis](../../../ai-docs/Research/context7-replacement-security-analysis.md) — ContextCrush vulnerability and mitigation

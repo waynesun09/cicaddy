@@ -5,11 +5,14 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import yaml
 
 from cicaddy.utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from cicaddy.tools.scanner import ToolScanner
 
 logger = get_logger(__name__)
 
@@ -63,6 +66,8 @@ def _strip_frontmatter(content: str) -> str:
 def discover_skills(
     workspace_path: Path,
     provider: Optional[str] = None,
+    scanner: Optional["ToolScanner"] = None,
+    scan_mode: str = "disabled",
 ) -> list[SkillMetadata]:
     """Discover skills from project, provider-specific, and global directories.
 
@@ -75,9 +80,12 @@ def discover_skills(
         workspace_path: Path to the project workspace directory.
         provider: AI provider name (e.g., "gemini", "claude") for
             scanning provider-specific skill directories.
+        scanner: Optional ToolScanner for scanning external skill files.
+        scan_mode: Scanning mode (disabled/audit/enforce) if scanner provided.
 
     Returns:
-        Sorted list of discovered skills.
+        Sorted list of discovered skills. Skills that fail security scan
+        (in enforce mode) are excluded.
     """
     skills_by_name: dict[str, SkillMetadata] = {}
     for root, source in _iter_skill_roots(workspace_path, provider=provider):
@@ -86,7 +94,13 @@ def discover_skills(
         for skill_dir in sorted(root.iterdir()):
             if not skill_dir.is_dir():
                 continue
-            metadata = _read_skill(skill_dir, source=source)
+            metadata = _read_skill(
+                skill_dir,
+                source=source,
+                workspace_root=workspace_path,
+                scanner=scanner,
+                scan_mode=scan_mode,
+            )
             if metadata is None:
                 continue
             key = metadata.name.casefold()
@@ -118,8 +132,97 @@ def render_skills_prompt(skills: list[SkillMetadata]) -> str:
     return "\n".join(lines)
 
 
-def _read_skill(skill_dir: Path, *, source: str) -> Optional[SkillMetadata]:
-    """Read and validate a single skill directory."""
+def _scan_skill_content(
+    skill_dir: Path,
+    skill_file: Path,
+    content: str,
+    source: str,
+    workspace_root: Optional[Path],
+    scanner: "ToolScanner",
+) -> bool:
+    """Scan skill content for prompt injection.
+
+    Args:
+        skill_dir: Path to the skill directory.
+        skill_file: Path to the skill file.
+        content: Full skill content.
+        source: Source type ("project" or "global").
+        workspace_root: Root of the workspace for provenance detection.
+        scanner: ToolScanner for prompt injection detection.
+
+    Returns:
+        True if skill should be included, False if blocked.
+    """
+    import asyncio
+
+    from cicaddy.security.provenance import get_provenance_label, is_external_source
+
+    skill_body = _strip_frontmatter(content)
+
+    # Determine if skill is from external source
+    is_external = source == "global" or (
+        source == "project"
+        and workspace_root
+        and is_external_source(skill_file, workspace_root)
+    )
+
+    # Get provenance label
+    if source == "project" and workspace_root:
+        provenance = get_provenance_label(skill_file, workspace_root)
+    else:
+        provenance = "global"
+
+    # Scan external skills
+    if is_external:
+        logger.debug(f"Scanning external skill ({provenance}): {skill_file}")
+
+        scan_result = asyncio.run(
+            scanner.scan_tool_result(
+                content=skill_body,
+                tool_name=f"skill:{skill_dir.name}",
+                source=provenance,
+            )
+        )
+
+        if scan_result.blocked:
+            logger.error(
+                f"Skill {skill_dir.name} blocked by security scanner "
+                f"(risk: {scan_result.risk_score:.2f}): "
+                f"{', '.join(scan_result.findings)}"
+            )
+            return False
+        elif not scan_result.is_clean:
+            logger.warning(
+                f"Skill {skill_dir.name} flagged by security scanner "
+                f"(risk: {scan_result.risk_score:.2f}): "
+                f"{', '.join(scan_result.findings)}"
+            )
+    else:
+        logger.debug(f"Skipping scan for local skill ({provenance}): {skill_file}")
+
+    return True
+
+
+def _read_skill(
+    skill_dir: Path,
+    *,
+    source: str,
+    workspace_root: Optional[Path] = None,
+    scanner: Optional["ToolScanner"] = None,
+    scan_mode: str = "disabled",
+) -> Optional[SkillMetadata]:
+    """Read, validate, and optionally scan a single skill directory.
+
+    Args:
+        skill_dir: Path to the skill directory.
+        source: Source type ("project" or "global").
+        workspace_root: Root of the workspace for provenance detection.
+        scanner: Optional ToolScanner for prompt injection detection.
+        scan_mode: Scanning mode (disabled/audit/enforce).
+
+    Returns:
+        SkillMetadata if skill is valid and passes security scan, None otherwise.
+    """
     skill_file = skill_dir / SKILL_FILE_NAME
     if not skill_file.is_file():
         return None
@@ -132,6 +235,13 @@ def _read_skill(skill_dir: Path, *, source: str) -> Optional[SkillMetadata]:
     frontmatter = _parse_frontmatter(content)
     if not _is_valid_frontmatter(skill_dir=skill_dir, frontmatter=frontmatter):
         return None
+
+    # Scan skill body if scanner provided
+    if scanner and scan_mode != "disabled":
+        if not _scan_skill_content(
+            skill_dir, skill_file, content, source, workspace_root, scanner
+        ):
+            return None
 
     name = str(frontmatter["name"]).strip()
     description = str(frontmatter["description"]).strip()

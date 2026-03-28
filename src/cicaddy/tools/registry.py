@@ -4,11 +4,14 @@ Provides a central registry for tool registration, discovery,
 and execution with MCP-compatible interfaces.
 """
 
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 from cicaddy.utils.logger import get_logger
 
 from .decorator import Tool, tool
+
+if TYPE_CHECKING:
+    from .scanner import ToolScanner
 
 logger = get_logger(__name__)
 
@@ -21,16 +24,28 @@ class ToolRegistry:
     - MCP-compatible tool listing
     - Tool execution by name
     - Integration with existing MCP tool infrastructure
+    - Optional prompt injection scanning for tool results
     """
 
-    def __init__(self, server_name: str = "local"):
+    def __init__(
+        self,
+        server_name: str = "local",
+        scanner: Optional["ToolScanner"] = None,
+        source_type: str = "local",
+    ):
         """Initialize the tool registry.
 
         Args:
             server_name: Name to use as the 'server' field in MCP format.
                         Defaults to 'local' for built-in tools.
+            scanner: Optional ToolScanner for prompt injection detection.
+                    If provided, all tool results will be scanned.
+            source_type: Source type for this registry (e.g., "local", "mcp",
+                        "external"). Used for logging and scan policies.
         """
         self.server_name = server_name
+        self.scanner = scanner
+        self.source_type = source_type
         self._tools: Dict[str, Tool] = {}
 
     def register(self, tool_or_func: Union[Tool, Callable], **kwargs) -> Tool:
@@ -131,8 +146,12 @@ class ToolRegistry:
                 "content": <result string>,
                 "tool": <tool_name>,
                 "server": <server_name>,
-                "status": "success" | "error"
+                "status": "success" | "error" | "blocked"
             }
+
+            If scanning is enabled, may include additional fields:
+            - "scan_warning": Dict with scan metadata (audit mode)
+            - "scan_result": Dict with scan metadata (enforce mode, if blocked)
         """
         tool_instance = self._tools.get(tool_name)
         if not tool_instance:
@@ -161,12 +180,36 @@ class ToolRegistry:
                 content = str(result)
 
             logger.info(f"Tool {tool_name} executed successfully")
-            return {
+            result_dict = {
                 "content": content,
                 "tool": tool_name,
                 "server": self.server_name,
                 "status": "success",
             }
+
+            # Scan result if scanner is configured
+            if self.scanner:
+                scan_result = await self.scanner.scan_tool_result(
+                    content=content,
+                    tool_name=tool_name,
+                    source=self.source_type,
+                )
+
+                # Handle scan result based on blocking decision
+                if scan_result.blocked:
+                    # Blocked in enforce mode
+                    result_dict["content"] = (
+                        f"[BLOCKED] Content from {tool_name} was blocked by "
+                        f"security scanner (risk: {scan_result.risk_score:.2f}): "
+                        f"{', '.join(scan_result.findings)}"
+                    )
+                    result_dict["status"] = "blocked"
+                    result_dict["scan_result"] = scan_result.to_dict()
+                elif not scan_result.is_clean:
+                    # Flagged but not blocked (audit mode or below threshold)
+                    result_dict["scan_warning"] = scan_result.to_dict()
+
+            return result_dict
 
         except Exception as e:
             logger.error(f"Tool execution failed: {tool_name}: {e}", exc_info=True)

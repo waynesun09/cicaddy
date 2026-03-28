@@ -12,6 +12,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # This logger will be reconfigured by setup_logging() in CLI commands
 logger = logging.getLogger(__name__)
 
+# Scan mode pattern constant
+SCAN_MODE_PATTERN = "^(disabled|audit|enforce)$"
+
 
 class MCPServerConfig(BaseModel):
     """Configuration for a single MCP server."""
@@ -64,7 +67,7 @@ class MCPServerConfig(BaseModel):
 
     # Security scanning
     scan_mode: Optional[str] = Field(
-        None, pattern="^(disabled|audit|enforce)$"
+        None, pattern=SCAN_MODE_PATTERN
     )  # Prompt injection scanning mode
 
     def model_post_init(self, __context) -> None:
@@ -258,6 +261,19 @@ class CoreSettings(BaseSettings):
         validation_alias="LOCAL_TOOLS_WORKING_DIR",
         description="Working directory for local file tools. Defaults to GIT_WORKING_DIRECTORY or current directory.",
     )
+    local_tools_scan_mode: str = Field(
+        default="audit",
+        validation_alias="LOCAL_TOOLS_SCAN_MODE",
+        pattern=SCAN_MODE_PATTERN,
+        description="Prompt injection scanning mode for local file tools (disabled|audit|enforce). Default: audit.",
+    )
+    local_tools_blocking_threshold: float = Field(
+        default=0.3,
+        validation_alias="LOCAL_TOOLS_BLOCKING_THRESHOLD",
+        ge=0.0,
+        le=1.0,
+        description="Risk score threshold for blocking local tool results (0.0-1.0). Only applies in enforce mode. Default: 0.3.",
+    )
 
     # Execution configuration
     max_infer_iters: int = Field(
@@ -353,6 +369,32 @@ class CoreSettings(BaseSettings):
         default="",
         validation_alias=AliasChoices("AGENT_RULES_WORKSPACE", "agent_rules_workspace"),
         description="Override workspace path for agent rules discovery",
+    )
+    rules_scan_mode: str = Field(
+        default="audit",
+        validation_alias="RULES_SCAN_MODE",
+        pattern=SCAN_MODE_PATTERN,
+        description="Prompt injection scanning mode for external agent rule files (disabled|audit|enforce). Default: audit.",
+    )
+    rules_blocking_threshold: float = Field(
+        default=0.3,
+        validation_alias="RULES_BLOCKING_THRESHOLD",
+        ge=0.0,
+        le=1.0,
+        description="Risk score threshold for blocking external rule files (0.0-1.0). Only applies in enforce mode. Default: 0.3.",
+    )
+    skills_scan_mode: str = Field(
+        default="enforce",
+        validation_alias="SKILLS_SCAN_MODE",
+        pattern=SCAN_MODE_PATTERN,
+        description="Prompt injection scanning mode for external skill files (disabled|audit|enforce). Default: enforce.",
+    )
+    skills_blocking_threshold: float = Field(
+        default=0.2,
+        validation_alias="SKILLS_BLOCKING_THRESHOLD",
+        ge=0.0,
+        le=1.0,
+        description="Risk score threshold for blocking external skills (0.0-1.0). Only applies in enforce mode. Default: 0.2 (stricter).",
     )
 
     @field_validator(

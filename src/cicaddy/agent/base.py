@@ -218,16 +218,52 @@ class BaseAIAgent(ABC):
             # Fall back to git_working_directory if set
             working_dir = getattr(self.settings, "git_working_directory", None)
 
+        # Create scanner for local tools if configured
+        scanner = self._create_local_tools_scanner()
+
         try:
-            self.local_tool_registry = create_local_file_registry(working_dir)
+            scan_mode = getattr(self.settings, "local_tools_scan_mode", "audit")
+            self.local_tool_registry = create_local_file_registry(
+                working_dir,
+                scanner=scanner,
+                scan_mode=scan_mode,
+            )
             tool_names = self.local_tool_registry.list_tool_names()
             logger.info(
                 f"Local tools enabled: {tool_names} "
-                f"(working_dir={working_dir or 'cwd'})"
+                f"(working_dir={working_dir or 'cwd'}, scan_mode={scan_mode})"
             )
         except Exception as e:
             logger.error(f"Failed to initialize local tools: {e}", exc_info=True)
             self.local_tool_registry = None
+
+    def _create_local_tools_scanner(self) -> Optional[Any]:
+        """Create scanner for local file tools.
+
+        Returns:
+            ToolScanner instance if scanning is enabled, None otherwise.
+        """
+        from cicaddy.mcp_client.scanner import HeuristicScanner
+        from cicaddy.tools.scanner import ToolScanner
+
+        scan_mode = getattr(self.settings, "local_tools_scan_mode", "audit")
+        if scan_mode == "disabled":
+            return None
+
+        # Create heuristic scanner (lightweight, no ML dependency)
+        content_scanner = HeuristicScanner()
+
+        # Wrap in tool scanner with threshold
+        blocking_threshold = getattr(
+            self.settings, "local_tools_blocking_threshold", 0.3
+        )
+
+        return ToolScanner(
+            scanner=content_scanner,
+            scan_mode=scan_mode,
+            blocking_threshold=blocking_threshold,
+            detection_threshold=0.0,  # Log all detections
+        )
 
     async def _setup_platform_integration(self):
         """Setup platform-specific integration (e.g., GitLab, GitHub).
@@ -305,7 +341,7 @@ class BaseAIAgent(ABC):
     # Agent rules and skills loading
 
     def _load_agent_rules(self) -> str:
-        """Load agent rules from workspace."""
+        """Load agent rules from workspace with optional scanning."""
         from cicaddy.rules import load_agent_rules
 
         if not getattr(self.settings, "agent_rules_enabled", True):
@@ -313,10 +349,20 @@ class BaseAIAgent(ABC):
 
         workspace = self._get_rules_workspace()
         provider = self.settings.ai_provider
-        return load_agent_rules(workspace, provider=provider)
+
+        # Create scanner for rules if configured
+        scanner = self._create_rules_scanner()
+        scan_mode = getattr(self.settings, "rules_scan_mode", "audit")
+
+        return load_agent_rules(
+            workspace,
+            provider=provider,
+            scanner=scanner,
+            scan_mode=scan_mode,
+        )
 
     def _discover_skills(self) -> list:
-        """Discover available skills from workspace."""
+        """Discover available skills from workspace with optional scanning."""
         from cicaddy.skills import discover_skills
 
         if not getattr(self.settings, "agent_rules_enabled", True):
@@ -324,7 +370,69 @@ class BaseAIAgent(ABC):
 
         workspace = self._get_rules_workspace()
         provider = self.settings.ai_provider
-        return discover_skills(workspace, provider=provider)
+
+        # Create scanner for skills if configured
+        scanner = self._create_skills_scanner()
+        scan_mode = getattr(self.settings, "skills_scan_mode", "enforce")
+
+        return discover_skills(
+            workspace,
+            provider=provider,
+            scanner=scanner,
+            scan_mode=scan_mode,
+        )
+
+    def _create_rules_scanner(self) -> Optional[Any]:
+        """Create scanner for agent rule files.
+
+        Returns:
+            ToolScanner instance if scanning is enabled, None otherwise.
+        """
+        from cicaddy.mcp_client.scanner import HeuristicScanner
+        from cicaddy.tools.scanner import ToolScanner
+
+        scan_mode = getattr(self.settings, "rules_scan_mode", "audit")
+        if scan_mode == "disabled":
+            return None
+
+        # Create heuristic scanner (lightweight, no ML dependency)
+        content_scanner = HeuristicScanner()
+
+        # Wrap in tool scanner with threshold
+        blocking_threshold = getattr(self.settings, "rules_blocking_threshold", 0.3)
+
+        return ToolScanner(
+            scanner=content_scanner,
+            scan_mode=scan_mode,
+            blocking_threshold=blocking_threshold,
+            detection_threshold=0.0,  # Log all detections
+        )
+
+    def _create_skills_scanner(self) -> Optional[Any]:
+        """Create scanner for skill files.
+
+        Returns:
+            ToolScanner instance if scanning is enabled, None otherwise.
+        """
+        from cicaddy.mcp_client.scanner import HeuristicScanner
+        from cicaddy.tools.scanner import ToolScanner
+
+        scan_mode = getattr(self.settings, "skills_scan_mode", "enforce")
+        if scan_mode == "disabled":
+            return None
+
+        # Create heuristic scanner (lightweight, no ML dependency)
+        content_scanner = HeuristicScanner()
+
+        # Wrap in tool scanner with threshold (stricter for skills)
+        blocking_threshold = getattr(self.settings, "skills_blocking_threshold", 0.2)
+
+        return ToolScanner(
+            scanner=content_scanner,
+            scan_mode=scan_mode,
+            blocking_threshold=blocking_threshold,
+            detection_threshold=0.0,  # Log all detections
+        )
 
     def _get_rules_workspace(self) -> Path:
         """Get workspace path for rules/skills discovery."""
