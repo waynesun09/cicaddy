@@ -475,8 +475,8 @@ class TestQuotaErrorHandling:
         """Test that quota errors bypass retry logic (should_retry returns False)."""
         from cicaddy.mcp_client.retry import (
             QuotaExceededError,
-            should_retry,
             RetryConfig,
+            should_retry,
         )
 
         # Create a RetryConfig that would normally retry

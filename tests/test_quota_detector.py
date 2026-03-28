@@ -1,7 +1,5 @@
 """Tests for quota and rate limit detection in MCP tool responses."""
 
-import pytest
-
 from cicaddy.mcp_client.quota_detector import (
     detect_quota_error,
     is_temporary_rate_limit,
