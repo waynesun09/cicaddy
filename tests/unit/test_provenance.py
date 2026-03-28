@@ -7,7 +7,6 @@ import pytest
 
 from cicaddy.security.provenance import (
     _find_git_root,
-    _is_git_tracked,
     _is_in_submodule,
     get_provenance_label,
     is_external_source,
@@ -72,9 +71,8 @@ class TestProvenanceDetection:
 
     def test_provenance_labels(self):
         """Test provenance label generation."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Non-existent file
-            assert get_provenance_label(Path("/nonexistent.md")) == "unknown"
+        # Non-existent file
+        assert get_provenance_label(Path("/nonexistent.md")) == "unknown"
 
 
 class TestGitIntegration:

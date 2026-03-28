@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 from cicaddy.utils.logger import get_logger
 
 if TYPE_CHECKING:
-    from cicaddy.mcp_client.scanner import ContentScanner, ScanResult
+    from cicaddy.mcp_client.scanner import ContentScanner
 
 logger = get_logger(__name__)
 
@@ -111,7 +111,10 @@ class ToolScanner:
         )
 
         # Log if detection threshold exceeded
-        if not scan_result.is_clean and scan_result.risk_score >= self.detection_threshold:
+        if (
+            not scan_result.is_clean
+            and scan_result.risk_score >= self.detection_threshold
+        ):
             severity = "BLOCKED" if should_block else "DETECTED"
             logger.warning(
                 f"[{severity}] Prompt injection in {source}/{tool_name}: "
@@ -178,7 +181,9 @@ class ToolScanResult:
         }
 
     def __repr__(self) -> str:
-        status = "BLOCKED" if self.blocked else ("CLEAN" if self.is_clean else "FLAGGED")
+        status = (
+            "BLOCKED" if self.blocked else ("CLEAN" if self.is_clean else "FLAGGED")
+        )
         return (
             f"ToolScanResult(status={status}, risk={self.risk_score:.2f}, "
             f"findings={len(self.findings)})"

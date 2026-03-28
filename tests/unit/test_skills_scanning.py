@@ -1,9 +1,5 @@
 """Tests for skill scanning."""
 
-from pathlib import Path
-
-import pytest
-
 from cicaddy.mcp_client.scanner import HeuristicScanner
 from cicaddy.skills import discover_skills
 from cicaddy.tools.scanner import ToolScanner

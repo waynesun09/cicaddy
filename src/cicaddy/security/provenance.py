@@ -8,7 +8,7 @@ Used by scanning system to apply appropriate security policies:
 - External files: Enforce scan (supply chain risk)
 """
 
-import subprocess
+import subprocess  # nosec B404 - needed for git operations
 from pathlib import Path
 from typing import Optional
 
@@ -91,7 +91,7 @@ def _find_git_root(path: Path) -> Optional[Path]:
         Path to git root, or None if not in a git repository.
     """
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603, B607 - git command with hardcoded args
             ["git", "rev-parse", "--show-toplevel"],
             cwd=path if path.is_dir() else path.parent,
             capture_output=True,
@@ -162,7 +162,7 @@ def _is_git_tracked(path: Path, workspace_root: Path) -> bool:
         # Make path relative to workspace for git ls-files
         rel_path = path.resolve().relative_to(workspace_root.resolve())
 
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603, B607 - git command with hardcoded args
             ["git", "ls-files", "--error-unmatch", str(rel_path)],
             cwd=workspace_root,
             capture_output=True,
