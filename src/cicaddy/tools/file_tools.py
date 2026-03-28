@@ -6,7 +6,7 @@ constrained to a working directory for security.
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from cicaddy.utils.logger import get_logger
 
@@ -257,12 +257,20 @@ def read_file(file_path: str, offset: int = 1, limit: int = DEFAULT_LINE_LIMIT) 
         return f"Error: {e}"
 
 
-def create_local_file_registry(working_directory: Optional[str] = None) -> ToolRegistry:
+def create_local_file_registry(
+    working_directory: Optional[str] = None,
+    scanner: Optional[Any] = None,
+    scan_mode: str = "audit",
+) -> ToolRegistry:
     """Create a tool registry with local file tools.
 
     Args:
         working_directory: Optional path to use as working directory.
             If None, uses current working directory.
+        scanner: Optional ToolScanner instance for prompt injection detection.
+            If provided, all tool results will be scanned.
+        scan_mode: Scanning mode (disabled/audit/enforce) if scanner not provided
+            but scanning should be configured. Default: audit.
 
     Returns:
         ToolRegistry with glob_files and read_file tools registered.
@@ -270,10 +278,17 @@ def create_local_file_registry(working_directory: Optional[str] = None) -> ToolR
     # Set working directory
     set_working_directory(working_directory)
 
-    # Create and populate registry
-    registry = ToolRegistry(server_name="local")
+    # Create and populate registry with optional scanner
+    registry = ToolRegistry(
+        server_name="local",
+        scanner=scanner,
+        source_type="local",
+    )
     registry.register(glob_files)
     registry.register(read_file)
 
-    logger.info(f"Created local file registry with {len(registry)} tools")
+    logger.info(
+        f"Created local file registry with {len(registry)} tools"
+        + (f" (scanning: {scan_mode})" if scanner else "")
+    )
     return registry

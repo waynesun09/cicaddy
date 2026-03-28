@@ -218,16 +218,52 @@ class BaseAIAgent(ABC):
             # Fall back to git_working_directory if set
             working_dir = getattr(self.settings, "git_working_directory", None)
 
+        # Create scanner for local tools if configured
+        scanner = self._create_local_tools_scanner()
+
         try:
-            self.local_tool_registry = create_local_file_registry(working_dir)
+            scan_mode = getattr(self.settings, "local_tools_scan_mode", "audit")
+            self.local_tool_registry = create_local_file_registry(
+                working_dir,
+                scanner=scanner,
+                scan_mode=scan_mode,
+            )
             tool_names = self.local_tool_registry.list_tool_names()
             logger.info(
                 f"Local tools enabled: {tool_names} "
-                f"(working_dir={working_dir or 'cwd'})"
+                f"(working_dir={working_dir or 'cwd'}, scan_mode={scan_mode})"
             )
         except Exception as e:
             logger.error(f"Failed to initialize local tools: {e}", exc_info=True)
             self.local_tool_registry = None
+
+    def _create_local_tools_scanner(self) -> Optional[Any]:
+        """Create scanner for local file tools.
+
+        Returns:
+            ToolScanner instance if scanning is enabled, None otherwise.
+        """
+        from cicaddy.mcp_client.scanner import HeuristicScanner
+        from cicaddy.tools.scanner import ToolScanner
+
+        scan_mode = getattr(self.settings, "local_tools_scan_mode", "audit")
+        if scan_mode == "disabled":
+            return None
+
+        # Create heuristic scanner (lightweight, no ML dependency)
+        content_scanner = HeuristicScanner()
+
+        # Wrap in tool scanner with threshold
+        blocking_threshold = getattr(
+            self.settings, "local_tools_blocking_threshold", 0.3
+        )
+
+        return ToolScanner(
+            scanner=content_scanner,
+            scan_mode=scan_mode,
+            blocking_threshold=blocking_threshold,
+            detection_threshold=0.0,  # Log all detections
+        )
 
     async def _setup_platform_integration(self):
         """Setup platform-specific integration (e.g., GitLab, GitHub).

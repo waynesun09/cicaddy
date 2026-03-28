@@ -258,6 +258,19 @@ class CoreSettings(BaseSettings):
         validation_alias="LOCAL_TOOLS_WORKING_DIR",
         description="Working directory for local file tools. Defaults to GIT_WORKING_DIRECTORY or current directory.",
     )
+    local_tools_scan_mode: str = Field(
+        default="audit",
+        validation_alias="LOCAL_TOOLS_SCAN_MODE",
+        pattern="^(disabled|audit|enforce)$",
+        description="Prompt injection scanning mode for local file tools (disabled|audit|enforce). Default: audit.",
+    )
+    local_tools_blocking_threshold: float = Field(
+        default=0.3,
+        validation_alias="LOCAL_TOOLS_BLOCKING_THRESHOLD",
+        ge=0.0,
+        le=1.0,
+        description="Risk score threshold for blocking local tool results (0.0-1.0). Only applies in enforce mode. Default: 0.3.",
+    )
 
     # Execution configuration
     max_infer_iters: int = Field(
