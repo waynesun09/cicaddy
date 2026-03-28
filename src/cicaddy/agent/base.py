@@ -320,7 +320,8 @@ class BaseAIAgent(ABC):
             return []
 
         workspace = self._get_rules_workspace()
-        return discover_skills(workspace)
+        provider = self.settings.ai_provider
+        return discover_skills(workspace, provider=provider)
 
     def _get_rules_workspace(self) -> Path:
         """Get workspace path for rules/skills discovery."""

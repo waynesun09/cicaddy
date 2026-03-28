@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 
 from cicaddy.skills import (
-    PROJECT_SKILLS_DIR,
+    CROSS_TOOL_SKILLS_DIR,
+    PROVIDER_SKILLS_DIRS,
     SKILL_FILE_NAME,
     SkillMetadata,
     _is_valid_frontmatter,
@@ -23,7 +24,7 @@ def workspace(tmp_path: Path) -> Path:
 
 def _create_skill(base: Path, name: str, description: str, body: str = "") -> Path:
     """Helper to create a skill directory with SKILL.md."""
-    skill_dir = base / PROJECT_SKILLS_DIR / name
+    skill_dir = base / CROSS_TOOL_SKILLS_DIR / name
     skill_dir.mkdir(parents=True, exist_ok=True)
     content = f"---\nname: {name}\ndescription: {description}\n---\n{body}"
     (skill_dir / SKILL_FILE_NAME).write_text(content, encoding="utf-8")
@@ -55,7 +56,7 @@ def test_discover_skills_precedence(workspace: Path, tmp_path: Path, monkeypatch
     fake_home = tmp_path / "fakehome"
     fake_home.mkdir()
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
-    global_skills_dir = fake_home / PROJECT_SKILLS_DIR / "my-skill"
+    global_skills_dir = fake_home / CROSS_TOOL_SKILLS_DIR / "my-skill"
     global_skills_dir.mkdir(parents=True)
     (global_skills_dir / SKILL_FILE_NAME).write_text(
         "---\nname: my-skill\ndescription: Global version\n---\n", encoding="utf-8"
@@ -171,7 +172,7 @@ def test_skill_metadata_fields(workspace: Path):
 
 def test_skill_metadata_with_extra_metadata(workspace: Path):
     """Skills with metadata field in frontmatter are parsed."""
-    skill_dir = workspace / PROJECT_SKILLS_DIR / "my-tool"
+    skill_dir = workspace / CROSS_TOOL_SKILLS_DIR / "my-tool"
     skill_dir.mkdir(parents=True)
     content = (
         "---\n"
@@ -201,7 +202,7 @@ def test_discover_skills_sorted(workspace: Path):
 
 def test_discover_skills_skips_non_directory(workspace: Path):
     """Files (not directories) in skills dir are ignored."""
-    skills_dir = workspace / PROJECT_SKILLS_DIR
+    skills_dir = workspace / CROSS_TOOL_SKILLS_DIR
     skills_dir.mkdir(parents=True)
     (skills_dir / "not-a-dir.txt").write_text("junk", encoding="utf-8")
     result = discover_skills(workspace)
@@ -210,7 +211,7 @@ def test_discover_skills_skips_non_directory(workspace: Path):
 
 def test_discover_skills_skips_missing_skill_file(workspace: Path):
     """Directories without SKILL.md are ignored."""
-    skill_dir = workspace / PROJECT_SKILLS_DIR / "no-skill"
+    skill_dir = workspace / CROSS_TOOL_SKILLS_DIR / "no-skill"
     skill_dir.mkdir(parents=True)
     result = discover_skills(workspace)
     assert result == []
@@ -242,3 +243,96 @@ def test_is_valid_frontmatter_non_string_metadata_values(tmp_path: Path):
     skill_dir.mkdir()
     fm = {"name": "my-skill", "description": "test", "metadata": {"key": 123}}
     assert not _is_valid_frontmatter(skill_dir=skill_dir, frontmatter=fm)
+
+
+# --- Provider-specific skill discovery tests ---
+
+
+def _create_skill_in(
+    base_dir: Path, name: str, description: str, body: str = ""
+) -> Path:
+    """Helper to create a skill in an arbitrary base directory."""
+    skill_dir = base_dir / name
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    content = f"---\nname: {name}\ndescription: {description}\n---\n{body}"
+    (skill_dir / SKILL_FILE_NAME).write_text(content, encoding="utf-8")
+    return skill_dir
+
+
+def test_discover_skills_claude_provider(workspace: Path):
+    """Claude provider scans .claude/skills/ directory."""
+    _create_skill_in(
+        workspace / ".claude/skills", "claude-review", "Claude code review"
+    )
+    result = discover_skills(workspace, provider="claude")
+    assert len(result) == 1
+    assert result[0].name == "claude-review"
+
+
+def test_discover_skills_gemini_provider(workspace: Path):
+    """Gemini provider scans .gemini/skills/ directory."""
+    _create_skill_in(workspace / ".gemini/skills", "gemini-lint", "Gemini linting")
+    result = discover_skills(workspace, provider="gemini")
+    assert len(result) == 1
+    assert result[0].name == "gemini-lint"
+
+
+def test_discover_skills_openai_provider(workspace: Path):
+    """OpenAI provider scans .github/skills/ directory."""
+    _create_skill_in(workspace / ".github/skills", "copilot-test", "Copilot testing")
+    result = discover_skills(workspace, provider="openai")
+    assert len(result) == 1
+    assert result[0].name == "copilot-test"
+
+
+def test_discover_skills_provider_overrides_cross_tool(workspace: Path):
+    """Provider-specific skill takes precedence over cross-tool skill with same name."""
+    # Create same-named skill in both locations
+    _create_skill(workspace, "my-skill", "Cross-tool version")
+    _create_skill_in(workspace / ".claude/skills", "my-skill", "Claude version")
+
+    result = discover_skills(workspace, provider="claude")
+    assert len(result) == 1
+    assert result[0].description == "Claude version"
+
+
+def test_discover_skills_no_provider_skips_provider_dir(workspace: Path):
+    """Without provider, provider-specific dirs are not scanned."""
+    _create_skill_in(workspace / ".claude/skills", "claude-only", "Claude only skill")
+    result = discover_skills(workspace)
+    assert result == []
+
+
+def test_discover_skills_provider_and_cross_tool_merged(workspace: Path):
+    """Different skills from provider and cross-tool dirs are both discovered."""
+    _create_skill(workspace, "shared-skill", "From cross-tool dir")
+    _create_skill_in(workspace / ".gemini/skills", "gemini-only", "Gemini specific")
+
+    result = discover_skills(workspace, provider="gemini")
+    assert len(result) == 2
+    names = [s.name for s in result]
+    assert "gemini-only" in names
+    assert "shared-skill" in names
+
+
+def test_discover_skills_unknown_provider(workspace: Path):
+    """Unknown provider name is handled gracefully (no provider dir scanned)."""
+    _create_skill(workspace, "my-skill", "Cross-tool skill")
+    result = discover_skills(workspace, provider="unknown-provider")
+    assert len(result) == 1
+    assert result[0].name == "my-skill"
+
+
+def test_discover_skills_provider_case_insensitive(workspace: Path):
+    """Provider name matching is case-insensitive."""
+    _create_skill_in(workspace / ".claude/skills", "test-skill", "Test skill")
+    result = discover_skills(workspace, provider="Claude")
+    assert len(result) == 1
+    assert result[0].name == "test-skill"
+
+
+def test_provider_skills_dirs_mapping():
+    """PROVIDER_SKILLS_DIRS contains expected provider mappings."""
+    assert PROVIDER_SKILLS_DIRS["claude"] == ".claude/skills"
+    assert PROVIDER_SKILLS_DIRS["gemini"] == ".gemini/skills"
+    assert PROVIDER_SKILLS_DIRS["openai"] == ".github/skills"

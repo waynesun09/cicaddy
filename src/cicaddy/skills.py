@@ -13,10 +13,18 @@ from cicaddy.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-PROJECT_SKILLS_DIR = ".agents/skills"
+# Cross-tool standard skill directory (agentskills.io)
+CROSS_TOOL_SKILLS_DIR = ".agents/skills"
+
+# Provider-specific skill directories
+PROVIDER_SKILLS_DIRS: dict[str, str] = {
+    "claude": ".claude/skills",
+    "gemini": ".gemini/skills",
+    "openai": ".github/skills",
+}
+
 SKILL_FILE_NAME = "SKILL.md"
 SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-SKILL_SOURCES = ("project", "global")
 
 
 @dataclass(frozen=True)
@@ -39,19 +47,27 @@ class SkillMetadata:
         return front_matter_pattern.sub("", content, count=1).strip()
 
 
-def discover_skills(workspace_path: Path) -> list[SkillMetadata]:
-    """Discover skills from project and global directories.
+def discover_skills(
+    workspace_path: Path,
+    provider: Optional[str] = None,
+) -> list[SkillMetadata]:
+    """Discover skills from project, provider-specific, and global directories.
 
-    Project skills take precedence over global skills with the same name.
+    Precedence order (first match wins for same skill name):
+    1. Provider-specific project dir (e.g., .claude/skills/, .gemini/skills/)
+    2. Cross-tool project dir (.agents/skills/)
+    3. Global user dir (~/.agents/skills/)
 
     Args:
         workspace_path: Path to the project workspace directory.
+        provider: AI provider name (e.g., "gemini", "claude") for
+            scanning provider-specific skill directories.
 
     Returns:
         Sorted list of discovered skills.
     """
     skills_by_name: dict[str, SkillMetadata] = {}
-    for root, source in _iter_skill_roots(workspace_path):
+    for root, source in _iter_skill_roots(workspace_path, provider=provider):
         if not root.is_dir():
             continue
         for skill_dir in sorted(root.iterdir()):
@@ -167,12 +183,26 @@ def _is_valid_frontmatter(*, skill_dir: Path, frontmatter: dict[str, object]) ->
     return True
 
 
-def _iter_skill_roots(workspace_path: Path) -> list[tuple[Path, str]]:
-    """Iterate over skill root directories in precedence order."""
+def _iter_skill_roots(
+    workspace_path: Path,
+    provider: Optional[str] = None,
+) -> list[tuple[Path, str]]:
+    """Iterate over skill root directories in precedence order.
+
+    Order: provider-specific project > cross-tool project > global.
+    """
     roots: list[tuple[Path, str]] = []
-    for source in SKILL_SOURCES:
-        if source == "project":
-            roots.append((workspace_path / PROJECT_SKILLS_DIR, source))
-        elif source == "global":
-            roots.append((Path.home() / PROJECT_SKILLS_DIR, source))
+
+    # 1. Provider-specific project dir (highest precedence)
+    if provider:
+        provider_dir = PROVIDER_SKILLS_DIRS.get(provider.lower())
+        if provider_dir:
+            roots.append((workspace_path / provider_dir, "project"))
+
+    # 2. Cross-tool project dir (.agents/skills/)
+    roots.append((workspace_path / CROSS_TOOL_SKILLS_DIR, "project"))
+
+    # 3. Global user dir
+    roots.append((Path.home() / CROSS_TOOL_SKILLS_DIR, "global"))
+
     return roots
