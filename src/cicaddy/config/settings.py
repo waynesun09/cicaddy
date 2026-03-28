@@ -367,6 +367,32 @@ class CoreSettings(BaseSettings):
         validation_alias=AliasChoices("AGENT_RULES_WORKSPACE", "agent_rules_workspace"),
         description="Override workspace path for agent rules discovery",
     )
+    rules_scan_mode: str = Field(
+        default="audit",
+        validation_alias="RULES_SCAN_MODE",
+        pattern="^(disabled|audit|enforce)$",
+        description="Prompt injection scanning mode for external agent rule files (disabled|audit|enforce). Default: audit.",
+    )
+    rules_blocking_threshold: float = Field(
+        default=0.3,
+        validation_alias="RULES_BLOCKING_THRESHOLD",
+        ge=0.0,
+        le=1.0,
+        description="Risk score threshold for blocking external rule files (0.0-1.0). Only applies in enforce mode. Default: 0.3.",
+    )
+    skills_scan_mode: str = Field(
+        default="enforce",
+        validation_alias="SKILLS_SCAN_MODE",
+        pattern="^(disabled|audit|enforce)$",
+        description="Prompt injection scanning mode for external skill files (disabled|audit|enforce). Default: enforce.",
+    )
+    skills_blocking_threshold: float = Field(
+        default=0.2,
+        validation_alias="SKILLS_BLOCKING_THRESHOLD",
+        ge=0.0,
+        le=1.0,
+        description="Risk score threshold for blocking external skills (0.0-1.0). Only applies in enforce mode. Default: 0.2 (stricter).",
+    )
 
     @field_validator(
         "use_gmail_api",
