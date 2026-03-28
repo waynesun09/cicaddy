@@ -32,6 +32,7 @@ MCP servers are configured via the `MCP_SERVERS_CONFIG` environment variable —
 | `idle_timeout` | No | Max seconds between progress updates (default: 60) |
 | `retry_count` | No | Number of retries on failure |
 | `retry_delay` | No | Initial retry delay in seconds |
+| `scan_mode` | No | Security scanning mode: `disabled`, `audit`, or `enforce` |
 
 ### HTTP Server
 
@@ -65,10 +66,12 @@ MCP_SERVERS_CONFIG: >-
 ```yaml
 MCP_SERVERS_CONFIG: >-
   [
-    {"name": "context7", "protocol": "http", "endpoint": "https://mcp.context7.com/mcp", "timeout": 300},
-    {"name": "devlake", "protocol": "http", "endpoint": "https://devlake-mcp.example.com/mcp", "timeout": 600, "idle_timeout": 300}
+    {"name": "context7", "protocol": "http", "endpoint": "https://mcp.context7.com/mcp", "timeout": 300, "scan_mode": "enforce"},
+    {"name": "devlake", "protocol": "http", "endpoint": "https://devlake-mcp.example.com/mcp", "timeout": 600, "idle_timeout": 300, "scan_mode": "disabled"}
   ]
 ```
+
+**Note**: The `scan_mode` field enables per-server security scanning. See [MCP Security Scanning](mcp-security-scanning.md) for details.
 
 ## Authentication
 

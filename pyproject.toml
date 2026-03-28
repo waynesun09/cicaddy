@@ -77,6 +77,9 @@ test = [
     "pytest-mock>=3.14.0",
     "aioresponses>=0.7.8",
 ]
+security = [
+    "llm-guard>=0.3.0",
+]
 graph = [
     "code-review-graph>=1.2.0",
 ]

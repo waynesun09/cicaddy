@@ -3,6 +3,13 @@
 # DevLake MCP: https://github.com/konflux-ci/konflux-devlake-mcp
 # DORA Reference: https://dora.dev/guides/dora-metrics-four-keys/
 name: dora_metrics_analysis
+
+# MCP Security Scanning - Global Defaults
+mcp_scan_config:
+  enabled: true               # Enable security scanning globally
+  scanner: "heuristic"        # Use heuristic scanner (Phase 1)
+  default_mode: "audit"       # Default mode for servers without explicit scan_mode
+
 description: >
   Analyze DORA 2025 metrics (Deployment Frequency, Lead Time for Changes,
   Failed Deployment Recovery Time, Change Fail Rate, Rework Rate) from
