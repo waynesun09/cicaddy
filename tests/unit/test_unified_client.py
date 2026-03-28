@@ -382,3 +382,111 @@ class TestMCPClientManager:
         mock_client1.disconnect.assert_called_once()
         mock_client2.disconnect.assert_called_once()
         assert manager.clients == {}
+
+
+class TestQuotaErrorHandling:
+    """Test quota error detection and handling in MCP client."""
+
+    @pytest.fixture
+    def test_config(self):
+        """Test server configuration."""
+        return MCPServerConfig(
+            name="test-server",
+            protocol="sse",
+            endpoint="https://test-server.com/mcp",
+            timeout=30,
+        )
+
+    @pytest.mark.asyncio
+    async def test_quota_exceeded_error_raised(self, test_config):
+        """Test that QuotaExceededError is raised when quota error detected."""
+        from cicaddy.mcp_client.retry import QuotaExceededError
+
+        client = MCPClient(test_config)
+
+        # Mock transport to return quota error in content
+        mock_transport = AsyncMock()
+        mock_transport.call_tool = AsyncMock(
+            return_value={
+                "content": "Monthly quota exceeded. Upgrade your plan for more requests.",
+                "tool": "test_tool",
+                "server": "test-server",
+                "status": "success",  # Success status with error in content
+            }
+        )
+        client.transport = mock_transport
+
+        # Should raise QuotaExceededError
+        with pytest.raises(QuotaExceededError) as exc_info:
+            await client.call_tool("test_tool", {})
+
+        assert "quota" in str(exc_info.value).lower()
+        assert "test-server/test_tool" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_error_raised(self, test_config):
+        """Test that QuotaExceededError is raised for rate limit errors."""
+        from cicaddy.mcp_client.retry import QuotaExceededError
+
+        client = MCPClient(test_config)
+
+        # Mock transport to return rate limit error
+        mock_transport = AsyncMock()
+        mock_transport.call_tool = AsyncMock(
+            return_value={
+                "content": "Rate limited or quota exceeded. Create a free API key.",
+                "tool": "query-docs",
+                "server": "test-server",
+                "status": "success",
+            }
+        )
+        client.transport = mock_transport
+
+        with pytest.raises(QuotaExceededError) as exc_info:
+            await client.call_tool("query-docs", {"query": "test"})
+
+        assert "rate limit" in str(exc_info.value).lower()
+
+    @pytest.mark.asyncio
+    async def test_normal_response_not_flagged(self, test_config):
+        """Test that normal responses are not flagged as quota errors."""
+        client = MCPClient(test_config)
+
+        # Mock transport to return normal successful response
+        mock_transport = AsyncMock()
+        mock_transport.call_tool = AsyncMock(
+            return_value={
+                "content": "Here is the documentation for React. It is a popular JavaScript library.",
+                "tool": "query-docs",
+                "server": "test-server",
+                "status": "success",
+            }
+        )
+        client.transport = mock_transport
+
+        # Should NOT raise QuotaExceededError
+        result = await client.call_tool("query-docs", {"query": "react"})
+
+        assert result["status"] == "success"
+        assert "react" in result["content"].lower()
+
+    @pytest.mark.asyncio
+    async def test_quota_error_not_retried(self, test_config):
+        """Test that quota errors bypass retry logic (should_retry returns False)."""
+        from cicaddy.mcp_client.retry import (
+            QuotaExceededError,
+            RetryConfig,
+            should_retry,
+        )
+
+        # Create a RetryConfig that would normally retry
+        config = RetryConfig(
+            max_retries=3,
+            retry_on_timeout=True,
+            retry_on_connection_error=True,
+            retry_on_5xx=True,
+        )
+
+        # QuotaExceededError should NOT be retried
+        quota_error = QuotaExceededError("Monthly quota exceeded")
+        assert should_retry(quota_error, config) is False

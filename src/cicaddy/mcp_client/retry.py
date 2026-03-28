@@ -31,6 +31,7 @@ __all__ = [
     "ConnectionRetryableError",
     "TimeoutRetryableError",
     "ServerRetryableError",
+    "QuotaExceededError",
     "calculate_delay",
     "should_retry",
     "retry_async",
@@ -86,6 +87,18 @@ class ServerRetryableError(RetryableError):
     pass
 
 
+class QuotaExceededError(Exception):
+    """
+    Quota or rate limit exceeded - NOT retryable.
+
+    This is a durable failure (typically monthly quotas) that won't be
+    resolved by retrying. Tools should be skipped for the session when
+    this error occurs.
+    """
+
+    pass
+
+
 def calculate_delay(attempt: int, config: RetryConfig) -> float:
     """Calculate retry delay using centralized implementation.
 
@@ -110,6 +123,10 @@ def should_retry(exception: BaseException, config: RetryConfig) -> bool:
     Returns:
         True if the exception should trigger a retry
     """
+    # Never retry QuotaExceededError - these are durable failures (monthly quotas)
+    if isinstance(exception, QuotaExceededError):
+        return False
+
     # Always retry RetryableError subclasses
     if isinstance(exception, RetryableError):
         return True

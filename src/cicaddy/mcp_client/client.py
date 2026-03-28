@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 from cicaddy.config.settings import MCPServerConfig
 from cicaddy.utils.logger import get_logger
 
+from .quota_detector import detect_quota_error
+from .retry import QuotaExceededError
 from .transports import (
     BaseMCPTransport,
     HTTPMCPTransport,
@@ -255,6 +257,21 @@ class MCPClient:
             }
         else:
             result_dict = await self.transport.call_tool(tool_name, arguments)
+
+        # Check for quota/rate limit errors in response content
+        # MCP tools may return these as successful responses with error text
+        content = result_dict.get("content", "")
+        if content and result_dict.get("status") == "success":
+            quota_error = detect_quota_error(content)
+            if quota_error:
+                logger.warning(
+                    f"Quota/rate limit detected in {self.config.name}/{tool_name}: {quota_error}"
+                )
+                # Raise QuotaExceededError to prevent retries (durable failure)
+                raise QuotaExceededError(
+                    f"Quota/rate limit exceeded for {self.config.name}/{tool_name}: {quota_error}. "
+                    f"Content: {content[:200]}"
+                )
 
         # Scan response if scanner is configured
         if self.scanner and self.scan_mode != "disabled":
