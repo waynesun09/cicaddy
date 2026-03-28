@@ -6,7 +6,10 @@ import tempfile
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from cicaddy.skills import SkillMetadata
 
 from cicaddy.ai_providers.base import BaseProvider, ProviderMessage
 from cicaddy.ai_providers.factory import (
@@ -44,7 +47,7 @@ class BaseAIAgent(ABC):
         self.max_infer_iters = getattr(self.settings, "max_infer_iters", 15)
         # Agent rules and skills (loaded during initialize)
         self.agent_rules: str = ""
-        self.skills: list = []
+        self.skills: list["SkillMetadata"] = []
 
     async def initialize(self):
         """Initialize all shared components."""
