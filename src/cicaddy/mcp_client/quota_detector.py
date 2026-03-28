@@ -36,12 +36,12 @@ QUOTA_PATTERNS = [
 COMPILED_PATTERNS = [re.compile(pattern, re.IGNORECASE) for pattern in QUOTA_PATTERNS]
 
 
-def detect_quota_error(content: str) -> Optional[str]:
+def detect_quota_error(content: Optional[str]) -> Optional[str]:
     """
     Detect if content contains quota or rate limit error messages.
 
     Args:
-        content: Tool result content to check
+        content: Tool result content to check (may be None)
 
     Returns:
         Matched error pattern if quota error detected, None otherwise
@@ -62,7 +62,7 @@ def detect_quota_error(content: str) -> Optional[str]:
     return None
 
 
-def is_temporary_rate_limit(content: str) -> bool:
+def is_temporary_rate_limit(content: Optional[str]) -> bool:
     """
     Distinguish between temporary (hourly/per-IP) and durable (monthly quota) limits.
 
@@ -70,7 +70,7 @@ def is_temporary_rate_limit(content: str) -> bool:
     Durable limits (monthly quotas) should not be retried.
 
     Args:
-        content: Tool result content
+        content: Tool result content (may be None)
 
     Returns:
         True if this appears to be a temporary rate limit, False if durable quota
