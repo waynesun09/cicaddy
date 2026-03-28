@@ -25,7 +25,7 @@ jobs:
 
       - name: Export and install requirements for Snyk
         run: |
-          uv export --no-hashes --no-dev --no-editable -o requirements.txt
+          uv export --no-hashes --no-dev --no-editable | grep -v '^\.$' > requirements.txt
           uv pip install --system -r requirements.txt
 
       - name: Install Snyk CLI
