@@ -5,7 +5,11 @@ import os
 import tempfile
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from cicaddy.skills import SkillMetadata
 
 from cicaddy.ai_providers.base import BaseProvider, ProviderMessage
 from cicaddy.ai_providers.factory import (
@@ -41,6 +45,9 @@ class BaseAIAgent(ABC):
         # Maximum inference iterations for multi-step execution (like Llama Stack)
         # Provide sane default if settings mock omits this attribute in tests
         self.max_infer_iters = getattr(self.settings, "max_infer_iters", 15)
+        # Agent rules and skills (loaded during initialize)
+        self.agent_rules: str = ""
+        self.skills: list["SkillMetadata"] = []
 
     async def initialize(self):
         """Initialize all shared components."""
@@ -63,6 +70,14 @@ class BaseAIAgent(ABC):
 
         # Initialize execution engine
         await self._setup_execution_engine()
+
+        # Load agent rules and discover skills
+        self.agent_rules = self._load_agent_rules()
+        self.skills = self._discover_skills()
+        if self.agent_rules:
+            logger.info("Agent rules loaded from workspace")
+        if self.skills:
+            logger.info(f"Discovered {len(self.skills)} skill(s)")
 
         logger.info(f"{self.__class__.__name__} initialized successfully")
 
@@ -286,6 +301,44 @@ class BaseAIAgent(ABC):
             execution_limits=execution_limits,
             context_safety_factor=self.settings.context_safety_factor,  # Configurable via CONTEXT_SAFETY_FACTOR env var
         )
+
+    # Agent rules and skills loading
+
+    def _load_agent_rules(self) -> str:
+        """Load agent rules from workspace."""
+        from cicaddy.rules import load_agent_rules
+
+        if not getattr(self.settings, "agent_rules_enabled", True):
+            return ""
+
+        workspace = self._get_rules_workspace()
+        provider = self.settings.ai_provider
+        return load_agent_rules(workspace, provider=provider)
+
+    def _discover_skills(self) -> list:
+        """Discover available skills from workspace."""
+        from cicaddy.skills import discover_skills
+
+        if not getattr(self.settings, "agent_rules_enabled", True):
+            return []
+
+        workspace = self._get_rules_workspace()
+        provider = self.settings.ai_provider
+        return discover_skills(workspace, provider=provider)
+
+    def _get_rules_workspace(self) -> Path:
+        """Get workspace path for rules/skills discovery."""
+        # Check for explicit override
+        override = getattr(self.settings, "agent_rules_workspace", "")
+        if override:
+            return Path(override)
+
+        # Fall back to git working directory or cwd
+        git_dir = getattr(self.settings, "git_working_directory", "")
+        if git_dir:
+            return Path(git_dir)
+
+        return Path.cwd()
 
     # Shared analysis methods
 
@@ -724,6 +777,17 @@ Detailed Execution Logs
                 logger.info(
                     f"Set ai_response_format='{task.output_format}' from DSPy task"
                 )
+
+            # Prepend agent rules if loaded
+            if self.agent_rules:
+                prompt = self.agent_rules + "\n\n" + prompt
+            # Append skills if discovered
+            if self.skills:
+                from cicaddy.skills import render_skills_prompt
+
+                skills_section = render_skills_prompt(self.skills)
+                if skills_section:
+                    prompt = prompt + "\n\n" + skills_section
 
             logger.info(
                 f"Built DSPy prompt from {task_file}",

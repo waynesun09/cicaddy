@@ -707,9 +707,21 @@ Execution Context:
 - Platform Available: {context.get("platform_available", False)}
 """
 
-        # Return combined prompt (system + context)
-        # Note: ExecutionEngine will receive this and convert to proper message format
-        return system_prompt + "\n" + execution_context
+        # Combine system prompt and context
+        combined = system_prompt + "\n" + execution_context
+
+        # Prepend agent rules if loaded
+        if self.agent_rules:
+            combined = self.agent_rules + "\n\n" + combined
+        # Append skills if discovered
+        if self.skills:
+            from cicaddy.skills import render_skills_prompt
+
+            skills_section = render_skills_prompt(self.skills)
+            if skills_section:
+                combined = combined + "\n\n" + skills_section
+
+        return combined
 
     async def _generate_summary(self, analysis_result: Dict[str, Any]) -> str:
         """Generate executive summary."""
