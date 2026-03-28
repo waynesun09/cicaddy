@@ -101,7 +101,7 @@ def _find_git_root(path: Path) -> Optional[Path]:
         )
         if result.returncode == 0:
             return Path(result.stdout.strip())
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+    except (subprocess.TimeoutExpired, OSError):
         pass
     return None
 
@@ -170,7 +170,7 @@ def _is_git_tracked(path: Path, workspace_root: Path) -> bool:
             check=False,
         )
         return result.returncode == 0
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError, ValueError):
+    except (subprocess.TimeoutExpired, OSError, ValueError):
         return False
 
 

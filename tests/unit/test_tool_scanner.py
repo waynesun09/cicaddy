@@ -24,7 +24,7 @@ class TestToolScanner:
         )
 
         assert result.is_clean
-        assert result.risk_score == 0.0
+        assert result.risk_score == pytest.approx(0.0)
         assert not result.blocked
         assert result.scan_mode == "disabled"
 
@@ -95,7 +95,7 @@ class TestToolScanner:
 
         # Should pass
         assert result.is_clean
-        assert result.risk_score == 0.0
+        assert result.risk_score == pytest.approx(0.0)
         assert not result.blocked
 
     @pytest.mark.asyncio
@@ -157,12 +157,12 @@ class TestToolScanResult:
         result_dict = result.to_dict()
 
         assert result_dict["is_clean"] is False
-        assert result_dict["risk_score"] == 0.5
+        assert result_dict["risk_score"] == pytest.approx(0.5)
         assert result_dict["findings"] == ["pattern1", "pattern2"]
         assert result_dict["blocked"] is True
         assert result_dict["scan_mode"] == "enforce"
         assert result_dict["scanner_name"] == "heuristic"
-        assert result_dict["scan_time_ms"] == 1.5
+        assert result_dict["scan_time_ms"] == pytest.approx(1.5)
 
     def test_repr(self):
         """Test string representation."""

@@ -132,6 +132,77 @@ def render_skills_prompt(skills: list[SkillMetadata]) -> str:
     return "\n".join(lines)
 
 
+def _scan_skill_content(
+    skill_dir: Path,
+    skill_file: Path,
+    content: str,
+    source: str,
+    workspace_root: Optional[Path],
+    scanner: "ToolScanner",
+) -> bool:
+    """Scan skill content for prompt injection.
+
+    Args:
+        skill_dir: Path to the skill directory.
+        skill_file: Path to the skill file.
+        content: Full skill content.
+        source: Source type ("project" or "global").
+        workspace_root: Root of the workspace for provenance detection.
+        scanner: ToolScanner for prompt injection detection.
+
+    Returns:
+        True if skill should be included, False if blocked.
+    """
+    import asyncio
+
+    from cicaddy.security.provenance import get_provenance_label, is_external_source
+
+    skill_body = _strip_frontmatter(content)
+
+    # Determine if skill is from external source
+    is_external = source == "global" or (
+        source == "project"
+        and workspace_root
+        and is_external_source(skill_file, workspace_root)
+    )
+
+    # Get provenance label
+    if source == "project" and workspace_root:
+        provenance = get_provenance_label(skill_file, workspace_root)
+    else:
+        provenance = "global"
+
+    # Scan external skills
+    if is_external:
+        logger.debug(f"Scanning external skill ({provenance}): {skill_file}")
+
+        scan_result = asyncio.run(
+            scanner.scan_tool_result(
+                content=skill_body,
+                tool_name=f"skill:{skill_dir.name}",
+                source=provenance,
+            )
+        )
+
+        if scan_result.blocked:
+            logger.error(
+                f"Skill {skill_dir.name} blocked by security scanner "
+                f"(risk: {scan_result.risk_score:.2f}): "
+                f"{', '.join(scan_result.findings)}"
+            )
+            return False
+        elif not scan_result.is_clean:
+            logger.warning(
+                f"Skill {skill_dir.name} flagged by security scanner "
+                f"(risk: {scan_result.risk_score:.2f}): "
+                f"{', '.join(scan_result.findings)}"
+            )
+    else:
+        logger.debug(f"Skipping scan for local skill ({provenance}): {skill_file}")
+
+    return True
+
+
 def _read_skill(
     skill_dir: Path,
     *,
@@ -167,57 +238,10 @@ def _read_skill(
 
     # Scan skill body if scanner provided
     if scanner and scan_mode != "disabled":
-        skill_body = _strip_frontmatter(content)
-
-        # Determine if skill is from external source
-        # Global skills are external, project skills checked via provenance
-        is_external = source == "global"
-
-        if source == "project" and workspace_root:
-            import asyncio
-
-            from cicaddy.security.provenance import (
-                get_provenance_label,
-                is_external_source,
-            )
-
-            is_external = is_external_source(skill_file, workspace_root)
-            provenance = get_provenance_label(skill_file, workspace_root)
-        else:
-            provenance = "global"
-
-        # Scan external skills with enforce mode, local skills with audit
-        if is_external:
-            logger.debug(f"Scanning external skill ({provenance}): {skill_file}")
-
-            import asyncio
-
-            scan_result = asyncio.run(
-                scanner.scan_tool_result(
-                    content=skill_body,
-                    tool_name=f"skill:{skill_dir.name}",
-                    source=provenance,
-                )
-            )
-
-            # Handle scan result
-            if scan_result.blocked:
-                # Blocked in enforce mode - skip this skill
-                logger.error(
-                    f"Skill {skill_dir.name} blocked by security scanner "
-                    f"(risk: {scan_result.risk_score:.2f}): "
-                    f"{', '.join(scan_result.findings)}"
-                )
-                return None
-            elif not scan_result.is_clean:
-                # Flagged in audit mode
-                logger.warning(
-                    f"Skill {skill_dir.name} flagged by security scanner "
-                    f"(risk: {scan_result.risk_score:.2f}): "
-                    f"{', '.join(scan_result.findings)}"
-                )
-        else:
-            logger.debug(f"Skipping scan for local skill ({provenance}): {skill_file}")
+        if not _scan_skill_content(
+            skill_dir, skill_file, content, source, workspace_root, scanner
+        ):
+            return None
 
     name = str(frontmatter["name"]).strip()
     description = str(frontmatter["description"]).strip()

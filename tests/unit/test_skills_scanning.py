@@ -263,9 +263,9 @@ This skill uses sudo commands for system administration.
 
         skills = discover_skills(workspace, scanner=scanner, scan_mode="audit")
 
-        # In audit mode, skill should still be included
-        # (might be flagged but not blocked)
-        assert len(skills) >= 0  # May or may not be flagged depending on content
+        # In audit mode, skill should still be included (not blocked)
+        assert len(skills) == 1
+        assert skills[0].name == "suspicious-skill"
 
 
 class TestSkillProviderDirectories:

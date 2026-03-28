@@ -181,9 +181,12 @@ class ToolScanResult:
         }
 
     def __repr__(self) -> str:
-        status = (
-            "BLOCKED" if self.blocked else ("CLEAN" if self.is_clean else "FLAGGED")
-        )
+        if self.blocked:
+            status = "BLOCKED"
+        elif self.is_clean:
+            status = "CLEAN"
+        else:
+            status = "FLAGGED"
         return (
             f"ToolScanResult(status={status}, risk={self.risk_score:.2f}, "
             f"findings={len(self.findings)})"
