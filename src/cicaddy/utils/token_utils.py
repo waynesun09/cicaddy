@@ -296,6 +296,9 @@ class TokenLimitManager:
         if not HTTPX_AVAILABLE:
             return None
 
+        # Normalize provider aliases (e.g., "anthropic-vertex" → "claude")
+        provider = cls._PROVIDER_ALIASES.get(provider, provider)
+
         if provider == "openai":
             return cls._fetch_openai_limits(model)
         elif provider == "claude":
