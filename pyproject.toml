@@ -80,6 +80,9 @@ test = [
 security = [
     "llm-guard>=0.3.0",
 ]
+vertex = [
+    "anthropic[vertex]>=0.21.0",
+]
 graph = [
     "code-review-graph>=1.2.0",
 ]

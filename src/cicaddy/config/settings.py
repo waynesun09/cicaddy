@@ -157,6 +157,12 @@ class CoreSettings(BaseSettings):
     gemini_api_key: Optional[str] = Field(None, validation_alias="GEMINI_API_KEY")
     openai_api_key: Optional[str] = Field(None, validation_alias="OPENAI_API_KEY")
     anthropic_api_key: Optional[str] = Field(None, validation_alias="ANTHROPIC_API_KEY")
+    anthropic_vertex_project_id: Optional[str] = Field(
+        None, validation_alias="ANTHROPIC_VERTEX_PROJECT_ID"
+    )
+    cloud_ml_region: Optional[str] = Field(
+        default="us-east5", validation_alias="CLOUD_ML_REGION"
+    )
     azure_openai_key: Optional[str] = Field(None, validation_alias="AZURE_OPENAI_KEY")
     azure_endpoint: Optional[str] = Field(None, validation_alias="AZURE_ENDPOINT")
 

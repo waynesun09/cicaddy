@@ -16,6 +16,8 @@ def _make_settings(**overrides):
         "gemini_api_key": None,
         "openai_api_key": None,
         "anthropic_api_key": None,
+        "anthropic_vertex_project_id": None,
+        "cloud_ml_region": "us-east5",
     }
     defaults.update(overrides)
     settings = MagicMock()
@@ -78,6 +80,68 @@ class TestGetProviderConfigWithKey:
         config = get_provider_config(settings)
         assert config["ai_provider"] == "claude"
         assert config["api_key"] == "test-key"
+
+
+class TestGetProviderConfigVertex:
+    """Anthropic Vertex AI provider config tests."""
+
+    def test_vertex_with_project_id(self):
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="my-gcp-project",
+        )
+        config = get_provider_config(settings)
+        assert config["ai_provider"] == "anthropic-vertex"
+        assert config["vertex_project_id"] == "my-gcp-project"
+        assert config["region"] == "us-east5"
+        assert "api_key" not in config
+
+    def test_vertex_with_custom_region(self):
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="my-gcp-project",
+            cloud_ml_region="europe-west4",
+        )
+        config = get_provider_config(settings)
+        assert config["region"] == "europe-west4"
+
+    def test_vertex_missing_project_id_raises(self):
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id=None,
+        )
+        with pytest.raises(
+            ValueError, match="Anthropic Vertex project ID not provided"
+        ):
+            get_provider_config(settings)
+
+    def test_vertex_empty_project_id_raises(self):
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="",
+        )
+        with pytest.raises(
+            ValueError, match="Anthropic Vertex project ID not provided"
+        ):
+            get_provider_config(settings)
+
+    def test_vertex_whitespace_project_id_raises(self):
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="   ",
+        )
+        with pytest.raises(
+            ValueError, match="Anthropic Vertex project ID not provided"
+        ):
+            get_provider_config(settings)
+
+    def test_vertex_default_model(self):
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="my-gcp-project",
+        )
+        config = get_provider_config(settings)
+        assert config["model_id"] == "claude-sonnet-4-6"
 
 
 class TestGetProviderConfigNoFallback:
