@@ -139,7 +139,7 @@ class TestClaudeVertexInitialization:
                 {
                     "model_id": "claude-sonnet-4-6",
                     "vertex_project_id": "my-project",
-                    "api_key": "sk-ant-should-be-ignored",
+                    "api_key": "not-a-real-key",  # noqa: S106
                     "region": "us-east5",
                     "temperature": 0.0,
                 }
@@ -162,13 +162,13 @@ class TestClaudeVertexInitialization:
             provider = ClaudeProvider(
                 {
                     "model_id": "claude-sonnet-4-6",
-                    "api_key": "sk-ant-test",
+                    "api_key": "not-a-real-key",  # noqa: S106
                     "temperature": 0.0,
                 }
             )
             await provider.initialize()
 
-            mock_cls.assert_called_once_with(api_key="sk-ant-test")
+            mock_cls.assert_called_once_with(api_key="not-a-real-key")
             assert provider.client is mock_client
 
 

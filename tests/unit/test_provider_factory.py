@@ -149,7 +149,7 @@ class TestGetProviderConfigVertex:
         settings = _make_settings(
             ai_provider="anthropic-vertex",
             anthropic_vertex_project_id="my-gcp-project",
-            anthropic_api_key="sk-ant-should-be-ignored",
+            anthropic_api_key="not-a-real-key",
         )
         config = get_provider_config(settings)
         assert config["vertex_project_id"] == "my-gcp-project"
