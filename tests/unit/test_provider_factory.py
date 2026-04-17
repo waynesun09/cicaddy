@@ -4,7 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cicaddy.ai_providers.factory import get_provider_config
+from cicaddy.ai_providers.claude import ClaudeProvider
+from cicaddy.ai_providers.factory import create_provider, get_provider_config
 
 
 def _make_settings(**overrides):
@@ -16,6 +17,8 @@ def _make_settings(**overrides):
         "gemini_api_key": None,
         "openai_api_key": None,
         "anthropic_api_key": None,
+        "anthropic_vertex_project_id": None,
+        "cloud_ml_region": "us-east5",
     }
     defaults.update(overrides)
     settings = MagicMock()
@@ -78,6 +81,112 @@ class TestGetProviderConfigWithKey:
         config = get_provider_config(settings)
         assert config["ai_provider"] == "claude"
         assert config["api_key"] == "test-key"
+
+
+class TestGetProviderConfigVertex:
+    """Anthropic Vertex AI provider config tests."""
+
+    def test_vertex_with_project_id(self):
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="my-gcp-project",
+        )
+        config = get_provider_config(settings)
+        assert config["ai_provider"] == "anthropic-vertex"
+        assert config["vertex_project_id"] == "my-gcp-project"
+        assert config["region"] == "us-east5"
+        assert "api_key" not in config
+
+    def test_vertex_with_custom_region(self):
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="my-gcp-project",
+            cloud_ml_region="europe-west4",
+        )
+        config = get_provider_config(settings)
+        assert config["region"] == "europe-west4"
+
+    def test_vertex_missing_project_id_raises(self):
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id=None,
+        )
+        with pytest.raises(
+            ValueError, match="Anthropic Vertex project ID not provided"
+        ):
+            get_provider_config(settings)
+
+    def test_vertex_empty_project_id_raises(self):
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="",
+        )
+        with pytest.raises(
+            ValueError, match="Anthropic Vertex project ID not provided"
+        ):
+            get_provider_config(settings)
+
+    def test_vertex_whitespace_project_id_raises(self):
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="   ",
+        )
+        with pytest.raises(
+            ValueError, match="Anthropic Vertex project ID not provided"
+        ):
+            get_provider_config(settings)
+
+    def test_vertex_default_model(self):
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="my-gcp-project",
+        )
+        config = get_provider_config(settings)
+        assert config["model_id"] == "claude-sonnet-4-6"
+
+    def test_vertex_config_excludes_api_key(self):
+        """Vertex config should not include api_key even if anthropic_api_key is set."""
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="my-gcp-project",
+            anthropic_api_key="not-a-real-key",
+        )
+        config = get_provider_config(settings)
+        assert config["vertex_project_id"] == "my-gcp-project"
+        assert "api_key" not in config
+
+    def test_vertex_none_region_falls_back_to_default(self):
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="my-gcp-project",
+            cloud_ml_region=None,
+        )
+        config = get_provider_config(settings)
+        assert config["region"] == "us-east5"
+
+    def test_vertex_whitespace_region_falls_back_to_default(self):
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="my-gcp-project",
+            cloud_ml_region="   ",
+        )
+        config = get_provider_config(settings)
+        assert config["region"] == "us-east5"
+
+
+class TestCreateProviderRouting:
+    """Verify create_provider returns the correct provider class."""
+
+    def test_anthropic_vertex_returns_claude_provider(self):
+        config = {
+            "ai_provider": "anthropic-vertex",
+            "model_id": "claude-sonnet-4-6",
+            "vertex_project_id": "my-project",
+            "region": "us-east5",
+            "temperature": 0.0,
+        }
+        provider = create_provider("anthropic-vertex", config)
+        assert isinstance(provider, ClaudeProvider)
 
 
 class TestGetProviderConfigNoFallback:

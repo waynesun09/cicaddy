@@ -14,12 +14,16 @@ logger = get_logger(__name__)
 # Default AI provider
 DEFAULT_AI_PROVIDER = "gemini"
 
+# Default Vertex AI region
+DEFAULT_VERTEX_REGION = "us-east5"
+
 # Default model mappings for each provider
 DEFAULT_MODELS = {
     DEFAULT_AI_PROVIDER: "gemini-3-flash-preview",
     "openai": "gpt-4o",
-    "claude": "claude-3-5-sonnet-latest",
-    "anthropic": "claude-3-5-sonnet-latest",
+    "claude": "claude-sonnet-4-6",
+    "anthropic": "claude-sonnet-4-6",
+    "anthropic-vertex": "claude-sonnet-4-6",
 }
 
 
@@ -46,7 +50,7 @@ def create_provider(provider_name: str, config: Dict[str, Any]) -> BaseProvider:
         return GeminiProvider(config)
     elif effective_provider == "openai":
         return OpenAIProvider(config)
-    elif effective_provider == "claude" or effective_provider == "anthropic":
+    elif effective_provider in ("claude", "anthropic", "anthropic-vertex"):
         return ClaudeProvider(config)
     else:
         # Fallback to default provider
@@ -94,6 +98,24 @@ def get_provider_config(settings) -> Dict[str, Any]:
         config["api_key"] = _require_api_key(
             settings.anthropic_api_key, "Anthropic", "ANTHROPIC_API_KEY"
         )
+    elif provider == "anthropic-vertex":
+        project_id = (
+            settings.anthropic_vertex_project_id.strip()
+            if isinstance(settings.anthropic_vertex_project_id, str)
+            else settings.anthropic_vertex_project_id
+        )
+        if not project_id:
+            raise ValueError(
+                "Anthropic Vertex project ID not provided. "
+                "Set the ANTHROPIC_VERTEX_PROJECT_ID environment variable."
+            )
+        config["vertex_project_id"] = project_id
+        region = (
+            settings.cloud_ml_region.strip()
+            if isinstance(settings.cloud_ml_region, str)
+            else settings.cloud_ml_region
+        )
+        config["region"] = region or DEFAULT_VERTEX_REGION
 
     logger.info(
         f"Created provider config for {provider} with model {config['model_id']}"

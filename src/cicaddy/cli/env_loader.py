@@ -84,6 +84,8 @@ def get_effective_config() -> Dict[str, Optional[str]]:
         "GEMINI_API_KEY",
         "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
+        "ANTHROPIC_VERTEX_PROJECT_ID",
+        "CLOUD_ML_REGION",
     ]
 
     # Extend with plugin-provided env vars

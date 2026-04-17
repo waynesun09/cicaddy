@@ -11,6 +11,14 @@ try:
 except ImportError:
     ANTHROPIC_AVAILABLE = False
 
+try:
+    import google.auth  # noqa: F401 -- verify vertex extra is installed
+    from anthropic import AsyncAnthropicVertex
+
+    VERTEX_AVAILABLE = True
+except ImportError:
+    VERTEX_AVAILABLE = False
+
 from cicaddy.utils.logger import get_logger
 from cicaddy.utils.tool_converter import convert_mcp_tools_to_claude
 
@@ -20,7 +28,7 @@ logger = get_logger(__name__)
 
 
 class ClaudeProvider(BaseProvider):
-    """Anthropic Claude provider adapter."""
+    """Anthropic Claude provider adapter (direct API and Vertex AI)."""
 
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
@@ -30,14 +38,32 @@ class ClaudeProvider(BaseProvider):
             raise ImportError("anthropic package not available")
 
     async def initialize(self) -> None:
-        """Initialize Anthropic connection."""
-        api_key = self.config.get("api_key") or os.getenv("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise ValueError("Anthropic API key not provided")
+        """Initialize Anthropic connection (direct API or Vertex AI)."""
+        vertex_project_id = self.config.get("vertex_project_id")
 
-        self.client = AsyncAnthropic(api_key=api_key)
-
-        logger.info(f"Initialized Claude provider with model: {self.model_id}")
+        if vertex_project_id:
+            # Vertex AI: uses Google Cloud ADC, no API key needed
+            if not VERTEX_AVAILABLE:
+                raise ImportError(
+                    "Vertex AI support requires the 'vertex' extra. "
+                    "Install it with: uv pip install 'cicaddy[vertex]'"
+                )
+            region = self.config.get("region", "us-east5")
+            self.client = AsyncAnthropicVertex(
+                project_id=vertex_project_id,
+                region=region,
+            )
+            logger.info(
+                f"Initialized Claude provider via Vertex AI "
+                f"(region={region}, model={self.model_id})"
+            )
+        else:
+            # Direct Anthropic API
+            api_key = self.config.get("api_key") or os.getenv("ANTHROPIC_API_KEY")
+            if not api_key:
+                raise ValueError("Anthropic API key not provided")
+            self.client = AsyncAnthropic(api_key=api_key)
+            logger.info(f"Initialized Claude provider with model: {self.model_id}")
 
     async def chat_completion(
         self,
