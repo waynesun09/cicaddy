@@ -21,8 +21,8 @@ DEFAULT_VERTEX_REGION = "us-east5"
 DEFAULT_MODELS = {
     DEFAULT_AI_PROVIDER: "gemini-3-flash-preview",
     "openai": "gpt-4o",
-    "claude": "claude-3-5-sonnet-latest",
-    "anthropic": "claude-3-5-sonnet-latest",
+    "claude": "claude-sonnet-4-6",
+    "anthropic": "claude-sonnet-4-6",
     "anthropic-vertex": "claude-sonnet-4-6",
 }
 
