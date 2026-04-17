@@ -6,6 +6,29 @@ import pytest
 
 from cicaddy.ai_providers.base import ProviderMessage
 from cicaddy.ai_providers.claude import ClaudeProvider
+from cicaddy.utils.token_utils import TokenLimitManager
+
+
+class TestClaudeVertexTokenLimits:
+    """Verify anthropic-vertex resolves to Claude token limits."""
+
+    def test_anthropic_vertex_resolves_claude_limits(self):
+        """anthropic-vertex provider should use Claude's token limits, not fallback."""
+        limits = TokenLimitManager.get_limits("anthropic-vertex", "claude-sonnet-4-6")
+        assert limits["input"] == 200000
+        assert limits["output"] == 65536
+
+    def test_anthropic_alias_resolves_claude_limits(self):
+        """anthropic provider should also resolve to Claude limits."""
+        limits = TokenLimitManager.get_limits("anthropic", "claude-sonnet-4-6")
+        assert limits["input"] == 200000
+        assert limits["output"] == 65536
+
+    def test_anthropic_vertex_default_limits(self):
+        """anthropic-vertex with unknown model should use Claude defaults."""
+        limits = TokenLimitManager.get_limits("anthropic-vertex")
+        assert limits["input"] == 200000
+        assert limits["output"] == 8192
 
 
 class TestClaudeVertexInitialization:
