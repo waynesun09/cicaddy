@@ -8,6 +8,7 @@ Cicaddy is a platform-agnostic pipeline AI agent library. It provides the core a
 - Auto-loads agent rules from `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `COPILOT.md` in workspace
 - Auto-discovers skills from `.agents/skills/`, `.claude/skills/`, `.gemini/skills/`, `.github/skills/`
 - Provider-specific skills and rules take precedence over cross-tool defaults
+- Claude via Vertex AI (`anthropic-vertex` provider) — uses Google Cloud ADC, no API key needed (v0.7.0+)
 
 ## Architecture
 
@@ -56,7 +57,7 @@ AgentFactory.register("my_platform", MyPlatformAgent)
 
 | Package | Purpose |
 |---------|---------|
-| `ai_providers/` | Provider abstraction (Gemini, Claude, OpenAI) |
+| `ai_providers/` | Provider abstraction (Gemini, Claude, Claude via Vertex AI, OpenAI) |
 | `execution/` | Token-aware multi-step executor, recovery, context compaction |
 | `mcp_client/` | MCP client with SSE, HTTP, stdio, WebSocket transports + security scanning |
 | `tools/` | Local file tool registry with decorator-based registration + scanning |

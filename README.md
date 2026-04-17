@@ -4,7 +4,7 @@ Platform-agnostic AI agent for running AI workflows in CI pipelines, with MCP to
 
 ## Features
 
-- **Multi-provider AI**: Gemini, OpenAI, Claude
+- **Multi-provider AI**: Gemini, OpenAI, Claude (direct API and Vertex AI)
 - **MCP integration**: Connect to any MCP-compatible tool server
 - **Multi-step execution**: Token-aware execution engine with recovery
 - **YAML task definitions**: DSPy-based task configuration
@@ -16,6 +16,9 @@ Platform-agnostic AI agent for running AI workflows in CI pipelines, with MCP to
 
 ```bash
 pip install cicaddy
+
+# With Vertex AI Claude support
+pip install 'cicaddy[vertex]'
 ```
 
 ## Quick Start
@@ -39,10 +42,16 @@ cicaddy validate --env-file .env
 Configure via environment variables or `.env` file:
 
 ```env
-# AI Provider
+# AI Provider (Gemini)
 AI_PROVIDER=gemini
 AI_MODEL=gemini-2.5-flash
 GEMINI_API_KEY=your-key-here
+
+# AI Provider (Claude via Vertex AI — uses Google Cloud ADC, no API key needed)
+# AI_PROVIDER=anthropic-vertex
+# AI_MODEL=claude-sonnet-4-6
+# ANTHROPIC_VERTEX_PROJECT_ID=your-gcp-project
+# CLOUD_ML_REGION=us-east5
 
 # Agent
 AGENT_TYPE=task
