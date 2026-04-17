@@ -136,7 +136,7 @@ class CoreSettings(BaseSettings):
     # AI provider configuration
     ai_provider: str = Field(
         default="gemini", validation_alias="AI_PROVIDER"
-    )  # gemini, openai, claude, azure, ollama
+    )  # gemini, openai, claude, azure, ollama, anthropic-vertex
     ai_model: str = Field(default="gemini-3-flash-preview", validation_alias="AI_MODEL")
     ai_response_format: str = Field(
         default="markdown",

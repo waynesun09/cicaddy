@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from cicaddy.ai_providers.base import ProviderMessage
 from cicaddy.ai_providers.claude import ClaudeProvider
 
 
@@ -94,7 +95,7 @@ class TestClaudeVertexInitialization:
                     "temperature": 0.0,
                 }
             )
-            with pytest.raises(ImportError, match="anthropic\\[vertex\\]"):
+            with pytest.raises(ImportError, match="cicaddy\\[vertex\\]"):
                 await provider.initialize()
 
     @pytest.mark.asyncio
@@ -172,8 +173,6 @@ class TestClaudeVertexChatCompletion:
                 }
             )
             await provider.initialize()
-
-            from cicaddy.ai_providers.base import ProviderMessage
 
             response = await provider.chat_completion(
                 [ProviderMessage(role="user", content="Hello")]

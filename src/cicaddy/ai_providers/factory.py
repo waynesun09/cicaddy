@@ -14,6 +14,9 @@ logger = get_logger(__name__)
 # Default AI provider
 DEFAULT_AI_PROVIDER = "gemini"
 
+# Default Vertex AI region
+DEFAULT_VERTEX_REGION = "us-east5"
+
 # Default model mappings for each provider
 DEFAULT_MODELS = {
     DEFAULT_AI_PROVIDER: "gemini-3-flash-preview",
@@ -107,7 +110,12 @@ def get_provider_config(settings) -> Dict[str, Any]:
                 "Set the ANTHROPIC_VERTEX_PROJECT_ID environment variable."
             )
         config["vertex_project_id"] = project_id
-        config["region"] = settings.cloud_ml_region or "us-east5"
+        region = (
+            settings.cloud_ml_region.strip()
+            if isinstance(settings.cloud_ml_region, str)
+            else settings.cloud_ml_region
+        )
+        config["region"] = region or DEFAULT_VERTEX_REGION
 
     logger.info(
         f"Created provider config for {provider} with model {config['model_id']}"

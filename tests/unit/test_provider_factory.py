@@ -4,7 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cicaddy.ai_providers.factory import get_provider_config
+from cicaddy.ai_providers.claude import ClaudeProvider
+from cicaddy.ai_providers.factory import create_provider, get_provider_config
 
 
 def _make_settings(**overrides):
@@ -142,6 +143,30 @@ class TestGetProviderConfigVertex:
         )
         config = get_provider_config(settings)
         assert config["model_id"] == "claude-sonnet-4-6"
+
+    def test_vertex_whitespace_region_falls_back_to_default(self):
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="my-gcp-project",
+            cloud_ml_region="   ",
+        )
+        config = get_provider_config(settings)
+        assert config["region"] == "us-east5"
+
+
+class TestCreateProviderRouting:
+    """Verify create_provider returns the correct provider class."""
+
+    def test_anthropic_vertex_returns_claude_provider(self):
+        config = {
+            "ai_provider": "anthropic-vertex",
+            "model_id": "claude-sonnet-4-6",
+            "vertex_project_id": "my-project",
+            "region": "us-east5",
+            "temperature": 0.0,
+        }
+        provider = create_provider("anthropic-vertex", config)
+        assert isinstance(provider, ClaudeProvider)
 
 
 class TestGetProviderConfigNoFallback:

@@ -12,6 +12,7 @@ except ImportError:
     ANTHROPIC_AVAILABLE = False
 
 try:
+    import google.auth  # noqa: F401 -- verify vertex extra is installed
     from anthropic import AsyncAnthropicVertex
 
     VERTEX_AVAILABLE = True
@@ -27,7 +28,7 @@ logger = get_logger(__name__)
 
 
 class ClaudeProvider(BaseProvider):
-    """Anthropic Claude provider adapter."""
+    """Anthropic Claude provider adapter (direct API and Vertex AI)."""
 
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
@@ -44,8 +45,8 @@ class ClaudeProvider(BaseProvider):
             # Vertex AI: uses Google Cloud ADC, no API key needed
             if not VERTEX_AVAILABLE:
                 raise ImportError(
-                    "Vertex AI support requires the 'anthropic[vertex]' extra. "
-                    "Install it with: uv pip install 'anthropic[vertex]'"
+                    "Vertex AI support requires the 'vertex' extra. "
+                    "Install it with: uv pip install 'cicaddy[vertex]'"
                 )
             region = self.config.get("region", "us-east5")
             self.client = AsyncAnthropicVertex(
