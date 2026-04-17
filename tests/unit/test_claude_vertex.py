@@ -6,6 +6,29 @@ import pytest
 
 from cicaddy.ai_providers.base import ProviderMessage
 from cicaddy.ai_providers.claude import ClaudeProvider
+from cicaddy.utils.token_utils import TokenLimitManager
+
+
+class TestClaudeVertexTokenLimits:
+    """Verify anthropic-vertex resolves to Claude token limits."""
+
+    def test_anthropic_vertex_resolves_claude_limits(self):
+        """anthropic-vertex provider should use Claude's token limits, not fallback."""
+        limits = TokenLimitManager.get_limits("anthropic-vertex", "claude-sonnet-4-6")
+        assert limits["input"] == 200000
+        assert limits["output"] == 65536
+
+    def test_anthropic_alias_resolves_claude_limits(self):
+        """anthropic provider should also resolve to Claude limits."""
+        limits = TokenLimitManager.get_limits("anthropic", "claude-sonnet-4-6")
+        assert limits["input"] == 200000
+        assert limits["output"] == 65536
+
+    def test_anthropic_vertex_default_limits(self):
+        """anthropic-vertex with unknown model should use Claude defaults."""
+        limits = TokenLimitManager.get_limits("anthropic-vertex")
+        assert limits["input"] == 200000
+        assert limits["output"] == 8192
 
 
 class TestClaudeVertexInitialization:
@@ -177,15 +200,21 @@ class TestClaudeVertexChatCompletion:
 
     @pytest.mark.asyncio
     async def test_vertex_chat_completion(self):
-        """Vertex client should use the same messages.create interface."""
+        """Vertex client should use streaming messages interface."""
         mock_response = MagicMock()
         mock_response.content = [MagicMock(type="text", text="Hello from Vertex")]
         mock_response.stop_reason = "end_turn"
         mock_response.model = "claude-sonnet-4-6"
         mock_response.usage = MagicMock(input_tokens=10, output_tokens=5)
 
+        # Mock the streaming context manager
+        mock_stream = AsyncMock()
+        mock_stream.get_final_message = AsyncMock(return_value=mock_response)
+        mock_stream.__aenter__ = AsyncMock(return_value=mock_stream)
+        mock_stream.__aexit__ = AsyncMock(return_value=False)
+
         mock_client = MagicMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        mock_client.messages.stream = MagicMock(return_value=mock_stream)
 
         with (
             patch("cicaddy.ai_providers.claude.VERTEX_AVAILABLE", True),
@@ -210,4 +239,38 @@ class TestClaudeVertexChatCompletion:
 
             assert response.content == "Hello from Vertex"
             assert response.model == "claude-sonnet-4-6"
+            mock_client.messages.stream.assert_called_once()
+            mock_client.messages.create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_direct_api_uses_create_not_stream(self):
+        """Direct API path should use messages.create(), not stream()."""
+        mock_response = MagicMock()
+        mock_response.content = [MagicMock(type="text", text="Hello from API")]
+        mock_response.stop_reason = "end_turn"
+        mock_response.model = "claude-sonnet-4-6"
+        mock_response.usage = MagicMock(input_tokens=10, output_tokens=5)
+
+        mock_client = MagicMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_response)
+
+        with patch(
+            "cicaddy.ai_providers.claude.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            provider = ClaudeProvider(
+                {
+                    "model_id": "claude-sonnet-4-6",
+                    "api_key": "not-a-real-key",  # noqa: S106
+                    "temperature": 0.0,
+                }
+            )
+            await provider.initialize()
+
+            response = await provider.chat_completion(
+                [ProviderMessage(role="user", content="Hello")]
+            )
+
+            assert response.content == "Hello from API"
             mock_client.messages.create.assert_called_once()
+            mock_client.messages.stream.assert_not_called()

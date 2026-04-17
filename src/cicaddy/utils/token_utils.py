@@ -245,11 +245,19 @@ class TokenLimitManager:
         # Fall back to static limits
         return cls._get_static_limits(provider, model)
 
+    # Map provider aliases to their canonical STATIC_LIMITS key
+    _PROVIDER_ALIASES: Dict[str, str] = {
+        "anthropic": "claude",
+        "anthropic-vertex": "claude",
+    }
+
     @classmethod
     def _get_static_limits(
         cls, provider: str, model: Optional[str] = None
     ) -> Dict[str, int]:
         """Get static fallback limits."""
+        # Normalize provider aliases (e.g., "anthropic-vertex" → "claude")
+        provider = cls._PROVIDER_ALIASES.get(provider, provider)
         if provider not in cls.STATIC_LIMITS:
             # Default fallback limits
             return {"input": 4096, "output": 1024}
@@ -287,6 +295,9 @@ class TokenLimitManager:
         """Fetch current token limits from provider APIs."""
         if not HTTPX_AVAILABLE:
             return None
+
+        # Normalize provider aliases (e.g., "anthropic-vertex" → "claude")
+        provider = cls._PROVIDER_ALIASES.get(provider, provider)
 
         if provider == "openai":
             return cls._fetch_openai_limits(model)
