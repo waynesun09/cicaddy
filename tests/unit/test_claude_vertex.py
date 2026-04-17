@@ -200,15 +200,21 @@ class TestClaudeVertexChatCompletion:
 
     @pytest.mark.asyncio
     async def test_vertex_chat_completion(self):
-        """Vertex client should use the same messages.create interface."""
+        """Vertex client should use streaming messages interface."""
         mock_response = MagicMock()
         mock_response.content = [MagicMock(type="text", text="Hello from Vertex")]
         mock_response.stop_reason = "end_turn"
         mock_response.model = "claude-sonnet-4-6"
         mock_response.usage = MagicMock(input_tokens=10, output_tokens=5)
 
+        # Mock the streaming context manager
+        mock_stream = AsyncMock()
+        mock_stream.get_final_message = AsyncMock(return_value=mock_response)
+        mock_stream.__aenter__ = AsyncMock(return_value=mock_stream)
+        mock_stream.__aexit__ = AsyncMock(return_value=False)
+
         mock_client = MagicMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        mock_client.messages.stream = MagicMock(return_value=mock_stream)
 
         with (
             patch("cicaddy.ai_providers.claude.VERTEX_AVAILABLE", True),
@@ -233,4 +239,4 @@ class TestClaudeVertexChatCompletion:
 
             assert response.content == "Hello from Vertex"
             assert response.model == "claude-sonnet-4-6"
-            mock_client.messages.create.assert_called_once()
+            mock_client.messages.stream.assert_called_once()

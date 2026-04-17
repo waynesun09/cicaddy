@@ -126,8 +126,12 @@ class ClaudeProvider(BaseProvider):
                     request_params["tools"] = claude_tools
                     logger.debug(f"Converted {len(claude_tools)} tools for Claude API")
 
-            # Generate response
-            response = await self.client.messages.create(**request_params)
+            # Generate response — use streaming for Vertex to avoid SDK timeout
+            if self.config.get("vertex_project_id"):
+                async with self.client.messages.stream(**request_params) as stream:
+                    response = await stream.get_final_message()
+            else:
+                response = await self.client.messages.create(**request_params)
 
             # Extract content
             content = ""
