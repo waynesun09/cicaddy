@@ -55,7 +55,7 @@ class ClaudeProvider(BaseProvider):
             )
             logger.info(
                 f"Initialized Claude provider via Vertex AI "
-                f"(project={vertex_project_id}, region={region}, model={self.model_id})"
+                f"(region={region}, model={self.model_id})"
             )
         else:
             # Direct Anthropic API

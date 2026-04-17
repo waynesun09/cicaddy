@@ -144,6 +144,26 @@ class TestGetProviderConfigVertex:
         config = get_provider_config(settings)
         assert config["model_id"] == "claude-sonnet-4-6"
 
+    def test_vertex_config_excludes_api_key(self):
+        """Vertex config should not include api_key even if anthropic_api_key is set."""
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="my-gcp-project",
+            anthropic_api_key="sk-ant-should-be-ignored",
+        )
+        config = get_provider_config(settings)
+        assert config["vertex_project_id"] == "my-gcp-project"
+        assert "api_key" not in config
+
+    def test_vertex_none_region_falls_back_to_default(self):
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="my-gcp-project",
+            cloud_ml_region=None,
+        )
+        config = get_provider_config(settings)
+        assert config["region"] == "us-east5"
+
     def test_vertex_whitespace_region_falls_back_to_default(self):
         settings = _make_settings(
             ai_provider="anthropic-vertex",

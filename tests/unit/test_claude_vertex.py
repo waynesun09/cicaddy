@@ -121,6 +121,36 @@ class TestClaudeVertexInitialization:
             assert provider.client is not None
 
     @pytest.mark.asyncio
+    async def test_vertex_takes_precedence_over_api_key(self):
+        """When both vertex_project_id and api_key are set, Vertex path wins."""
+        mock_vertex_client = MagicMock()
+
+        with (
+            patch("cicaddy.ai_providers.claude.VERTEX_AVAILABLE", True),
+            patch(
+                "cicaddy.ai_providers.claude.AsyncAnthropicVertex",
+                return_value=mock_vertex_client,
+            ) as mock_vertex_cls,
+            patch(
+                "cicaddy.ai_providers.claude.AsyncAnthropic",
+            ) as mock_direct_cls,
+        ):
+            provider = ClaudeProvider(
+                {
+                    "model_id": "claude-sonnet-4-6",
+                    "vertex_project_id": "my-project",
+                    "api_key": "sk-ant-should-be-ignored",
+                    "region": "us-east5",
+                    "temperature": 0.0,
+                }
+            )
+            await provider.initialize()
+
+            mock_vertex_cls.assert_called_once()
+            mock_direct_cls.assert_not_called()
+            assert provider.client is mock_vertex_client
+
+    @pytest.mark.asyncio
     async def test_direct_api_still_works(self):
         """Without vertex_project_id, should use direct Anthropic API as before."""
         mock_client = MagicMock()

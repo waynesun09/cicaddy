@@ -86,6 +86,7 @@ SENSITIVE_ENV_VAR_NAMES: frozenset = frozenset(
         "GEMINI_API_KEY",
         "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
+        "ANTHROPIC_VERTEX_PROJECT_ID",
         "AZURE_OPENAI_KEY",
         "OLLAMA_API_KEY",
         "SLACK_WEBHOOK_URL",
