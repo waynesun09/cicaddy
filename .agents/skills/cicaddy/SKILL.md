@@ -115,7 +115,8 @@ See `docs/mcp-security-scanning.md` for details.
 ## Sub-Agent Delegation (v0.8.0+)
 
 Cicaddy supports AI-powered sub-agent delegation where an AI triage step
-selects specialized sub-agents, runs them in parallel, and aggregates results.
+selects specialized sub-agents, runs them in parallel with sibling awareness
+(each agent knows what others cover to avoid duplication), and aggregates results.
 
 ### Enable delegation
 
@@ -179,11 +180,10 @@ priority: 15
 ### How it works
 
 1. **Triage** — AI analyzes the context and selects sub-agents from the registry
-2. **Parallel execution** — Sub-agents run with focused prompts, filtered tools, divided token budgets
+2. **Parallel execution** — Sub-agents run with focused prompts, filtered tools, workspace context (bundled skills, agent rules, repo skills), sibling awareness, and divided token budgets
 3. **Aggregation** — Results merged into unified output with per-agent sections
 
-Sub-agents share parent's MCP connections and tool registry (no new server processes).
-Side-effect tools (post comments, merge PRs) are blocked by default via plugin entry points.
+Sub-agents share parent's MCP connections and tool registry (no new server processes). They also inherit the parent's workspace context: bundled skills, per-repo agent rules (`AGENT.md`/`CLAUDE.md`/`GEMINI.md`), and per-repo skills (`.agents/skills/`). Side-effect tools (post comments, merge PRs) are blocked by default via plugin entry points.
 
 ---
 

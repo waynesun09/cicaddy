@@ -1,14 +1,16 @@
 # Sub-Agent Delegation
 
-Cicaddy supports AI-powered sub-agent delegation: instead of running a single agent, an AI triage step analyzes the context, selects specialized sub-agents, runs them in parallel, and aggregates results.
+Cicaddy supports AI-powered sub-agent delegation: instead of running a single agent, an AI triage step analyzes the context, selects specialized sub-agents, runs them in parallel with sibling awareness (each agent knows what others cover to avoid duplication), and aggregates results.
 
 ## How It Works
 
 1. **Triage** — An AI call analyzes the context (diff, task description, etc.) and selects which sub-agents to activate from the registry
-2. **Parallel Execution** — Selected sub-agents run concurrently with focused prompts, filtered tools, and divided token budgets
+2. **Parallel Execution** — Selected sub-agents run concurrently with focused prompts, filtered tools, sibling awareness, and divided token budgets
 3. **Aggregation** — Results are merged into a unified output with per-agent sections
 
-Sub-agents share the parent's MCP connections and tool registry — no new server processes are created. Side-effect tools (posting comments, merging PRs) are blocked by default via plugin entry points.
+Each sub-agent receives a `SiblingInfo` list describing the other agents in the same batch. When running solo (common for small changes), the agent is told it is the sole reviewer and should provide comprehensive coverage. When running alongside specialists, it knows their categories and avoids duplicating their work.
+
+Sub-agents share the parent's MCP connections and tool registry — no new server processes are created. They also inherit the parent's workspace context: bundled skills, per-repo agent rules (`AGENT.md`/`CLAUDE.md`/`GEMINI.md`), and per-repo skills (`.agents/skills/`). This ensures sub-agents have the same knowledge and guidelines as the parent agent. Side-effect tools (posting comments, merging PRs) are blocked by default via plugin entry points.
 
 ## Configuration
 
@@ -44,7 +46,7 @@ Activated when the parent agent type is a review type (e.g., `merge_request`, `b
 | `ui-reviewer` | Frontend components, accessibility, UX |
 | `devops-reviewer` | CI/CD pipelines, Docker, deployment |
 | `performance-reviewer` | Algorithms, caching, concurrency, resource usage |
-| `general-reviewer` | Catch-all for anything not covered |
+| `general-reviewer` | Code correctness, clarity, naming, error handling, test coverage |
 
 ### Task agents
 

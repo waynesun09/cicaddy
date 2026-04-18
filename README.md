@@ -89,7 +89,7 @@ Key schema fields:
 
 ## Sub-Agent Delegation (v0.8.0+)
 
-Enable AI-powered sub-agent delegation with `DELEGATION_MODE=auto`. An AI triage step analyzes the context, selects specialized sub-agents (security, architecture, performance, etc.), runs them in parallel, and aggregates results.
+Enable AI-powered sub-agent delegation with `DELEGATION_MODE=auto`. An AI triage step analyzes the context, selects specialized sub-agents (security, architecture, performance, etc.), runs them in parallel with sibling awareness (each agent knows what others cover), and aggregates results.
 
 ```env
 # Add to your .env

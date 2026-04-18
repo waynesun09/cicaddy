@@ -10,7 +10,7 @@ Cicaddy is a platform-agnostic pipeline AI agent library. It provides the core a
 - Provider-specific skills and rules take precedence over cross-tool defaults
 - Claude via Vertex AI (`anthropic-vertex` provider) — uses Google Cloud ADC, no API key needed (v0.7.0+)
 - Bundled knowledge and skills shipped with the package for model guidance and config reference (v0.8.0+)
-- AI-powered sub-agent delegation with parallel execution and triage (v0.8.0+)
+- AI-powered sub-agent delegation with parallel execution, triage, and sibling awareness (v0.8.0+)
 
 ## Architecture
 
@@ -98,6 +98,8 @@ BaseAIAgent.analyze()
         │     └── DelegationSubAgent × N   # parallel via asyncio.gather + Semaphore
         │           ├── filtered tools (shared parent backends)
         │           ├── focused prompt (persona + context subset)
+        │           ├── workspace context (bundled skills, rules, repo skills)
+        │           ├── sibling awareness (knows other agents' categories)
         │           └── reduced token budget (parent / N)
         └── aggregate results → unified output
 ```
@@ -106,10 +108,10 @@ BaseAIAgent.analyze()
 
 | Module | Purpose |
 |--------|---------|
-| `delegation/triage.py` | AI-powered triage: analyzes context, produces `DelegationPlan` |
+| `delegation/triage.py` | AI-powered triage: analyzes context, produces `DelegationPlan`, `SiblingInfo` |
 | `delegation/registry.py` | `SubAgentSpec` model + `SubAgentRegistry` loader (built-in + YAML + JSON) |
-| `delegation/sub_agent.py` | Lightweight executor: prompt composition, tool filtering, budget division |
-| `delegation/orchestrator.py` | Parallel execution with `Semaphore`, result aggregation |
+| `delegation/sub_agent.py` | Lightweight executor: prompt composition, tool filtering, workspace context, sibling awareness, budget division |
+| `delegation/orchestrator.py` | Parallel execution with `Semaphore`, workspace context + sibling info propagation, result aggregation |
 
 #### Delegation hooks in BaseAIAgent
 
