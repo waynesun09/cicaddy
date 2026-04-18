@@ -71,9 +71,12 @@ class BaseAIAgent(ABC):
         # Initialize execution engine
         await self._setup_execution_engine()
 
-        # Load agent rules and discover skills
+        # Load bundled knowledge, agent rules, and discover skills
+        self.bundled_context = self._load_bundled_context()
         self.agent_rules = self._load_agent_rules()
         self.skills = self._discover_skills()
+        if self.bundled_context:
+            logger.info("Bundled knowledge context loaded")
         if self.agent_rules:
             logger.info("Agent rules loaded from workspace")
         if self.skills:
@@ -338,7 +341,20 @@ class BaseAIAgent(ABC):
             context_safety_factor=self.settings.context_safety_factor,  # Configurable via CONTEXT_SAFETY_FACTOR env var
         )
 
-    # Agent rules and skills loading
+    # Bundled knowledge, agent rules, and skills loading
+
+    def _load_bundled_context(self) -> str:
+        """Load bundled cicaddy knowledge context.
+
+        This is the lowest-precedence knowledge tier — always available,
+        overridden by workspace rules and provider-specific rules.
+        """
+        if not getattr(self.settings, "agent_rules_enabled", True):
+            return ""
+
+        from cicaddy.knowledge import get_bundled_context
+
+        return get_bundled_context()
 
     def _load_agent_rules(self) -> str:
         """Load agent rules from workspace with optional scanning."""
@@ -886,7 +902,10 @@ Detailed Execution Logs
                     f"Set ai_response_format='{task.output_format}' from DSPy task"
                 )
 
-            # Prepend agent rules if loaded
+            # Prepend bundled context (lowest precedence)
+            if self.bundled_context:
+                prompt = self.bundled_context + "\n\n" + prompt
+            # Prepend agent rules if loaded (higher precedence than bundled)
             if self.agent_rules:
                 prompt = self.agent_rules + "\n\n" + prompt
             # Append skills if discovered

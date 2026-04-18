@@ -146,7 +146,7 @@ def _scan_skill_content(
         skill_dir: Path to the skill directory.
         skill_file: Path to the skill file.
         content: Full skill content.
-        source: Source type ("project" or "global").
+        source: Source type ("project", "global", or "bundled").
         workspace_root: Root of the workspace for provenance detection.
         scanner: ToolScanner for prompt injection detection.
 
@@ -158,6 +158,11 @@ def _scan_skill_content(
     from cicaddy.security.provenance import get_provenance_label, is_external_source
 
     skill_body = _strip_frontmatter(content)
+
+    # Bundled skills are first-party trusted content — skip scanning
+    if source == "bundled":
+        logger.debug(f"Skipping scan for bundled skill: {skill_file}")
+        return True
 
     # Determine if skill is from external source
     is_external = source == "global" or (
@@ -215,7 +220,7 @@ def _read_skill(
 
     Args:
         skill_dir: Path to the skill directory.
-        source: Source type ("project" or "global").
+        source: Source type ("project", "global", or "bundled").
         workspace_root: Root of the workspace for provenance detection.
         scanner: Optional ToolScanner for prompt injection detection.
         scan_mode: Scanning mode (disabled/audit/enforce).
@@ -312,7 +317,7 @@ def _iter_skill_roots(
 ) -> list[tuple[Path, str]]:
     """Iterate over skill root directories in precedence order.
 
-    Order: provider-specific project > cross-tool project > global.
+    Order: provider-specific project > cross-tool project > global > bundled.
     """
     roots: list[tuple[Path, str]] = []
 
@@ -327,5 +332,9 @@ def _iter_skill_roots(
 
     # 3. Global user dir
     roots.append((Path.home() / CROSS_TOOL_SKILLS_DIR, "global"))
+
+    # 4. Bundled package skills (lowest precedence)
+    bundled_dir = Path(__file__).parent / "bundled_skills"
+    roots.append((bundled_dir, "bundled"))
 
     return roots
