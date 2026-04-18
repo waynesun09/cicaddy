@@ -15,6 +15,7 @@ from cicaddy.ai_providers.base import ProviderMessage
 from cicaddy.ai_providers.factory import create_provider, get_provider_config
 from cicaddy.delegation.triage import (
     DelegationEntry,
+    SiblingInfo,
     _make_boundary_pair,
     _sanitize_for_boundary,
 )
