@@ -12,7 +12,7 @@ description: Current AI model names, capabilities, and naming conventions for Ge
 | `gemini-3.1-flash-lite-preview` | Simple tasks, cost-sensitive | Lightweight |
 
 - The `-preview` suffix is acceptable for Vertex AI enterprise use
-- `gemini-3.1-pro-preview` requires the `global` Vertex endpoint; other Gemini preview models support regional endpoints
+- `gemini-3.1-pro-preview` and `gemini-3-flash-preview` require the `global` Vertex endpoint; `gemini-3.1-flash-lite-preview` also supports regional endpoints
 - Date suffixes (`-YYYYMMDD`) are used to pin specific versions
 - All Gemini models support function calling (MCP tool use)
 
