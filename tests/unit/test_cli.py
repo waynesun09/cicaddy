@@ -63,6 +63,31 @@ class TestArgMapping:
         assert mapping is not None
         assert mapping.env_var == "AGENT_TYPE"
 
+    def test_delegation_mode_mapping_exists(self):
+        """RUN_ARG_MAPPINGS should include --delegation-mode."""
+        mapping = get_arg_mapping_by_cli_arg("--delegation-mode")
+        assert mapping is not None
+        assert mapping.env_var == "DELEGATION_MODE"
+
+    def test_max_sub_agents_mapping_exists(self):
+        """RUN_ARG_MAPPINGS should include --max-sub-agents."""
+        mapping = get_arg_mapping_by_cli_arg("--max-sub-agents")
+        assert mapping is not None
+        assert mapping.env_var == "MAX_SUB_AGENTS"
+        assert mapping.arg_type is int
+
+    def test_delegation_mode_by_env_var(self):
+        """get_arg_mapping_by_env_var should find DELEGATION_MODE."""
+        mapping = get_arg_mapping_by_env_var("DELEGATION_MODE")
+        assert mapping is not None
+        assert mapping.cli_arg == "--delegation-mode"
+
+    def test_max_sub_agents_by_env_var(self):
+        """get_arg_mapping_by_env_var should find MAX_SUB_AGENTS."""
+        mapping = get_arg_mapping_by_env_var("MAX_SUB_AGENTS")
+        assert mapping is not None
+        assert mapping.cli_arg == "--max-sub-agents"
+
 
 class TestEnvLoader:
     """Tests for env_loader module."""
@@ -265,6 +290,19 @@ class TestCommands:
         assert "Current Configuration" in captured.out
         assert "[Agent Settings]" in captured.out
 
+    def test_cmd_config_show_delegation_section(self, capsys):
+        """cmd_config_show should include [Delegation] section."""
+        from argparse import Namespace
+
+        args = Namespace(env_file=None)
+        result = cmd_config_show(args)
+        assert result == 0
+
+        captured = capsys.readouterr()
+        assert "[Delegation]" in captured.out
+        assert "DELEGATION_MODE" in captured.out
+        assert "MAX_SUB_AGENTS" in captured.out
+
     def test_cmd_config_show_missing_env_file(self, capsys):
         """cmd_config_show should error on missing env file."""
         from argparse import Namespace
@@ -275,6 +313,107 @@ class TestCommands:
 
         captured = capsys.readouterr()
         assert "Error" in captured.err
+
+
+class TestValidateDelegation:
+    """Tests for delegation validation in cmd_validate."""
+
+    def test_validate_delegation_default(self, capsys):
+        """cmd_validate should show delegation section with default mode."""
+        from argparse import Namespace
+
+        from cicaddy.cli.commands import cmd_validate
+
+        args = Namespace(env_file=None)
+        # Clear any existing env var
+        old = os.environ.pop("DELEGATION_MODE", None)
+        try:
+            cmd_validate(args)
+            captured = capsys.readouterr()
+            assert "[Delegation]" in captured.out
+            assert "DELEGATION_MODE: none" in captured.out
+        finally:
+            if old is not None:
+                os.environ["DELEGATION_MODE"] = old
+
+    def test_validate_delegation_auto_valid(self, capsys):
+        """cmd_validate should accept DELEGATION_MODE=auto."""
+        from argparse import Namespace
+
+        from cicaddy.cli.commands import cmd_validate
+
+        args = Namespace(env_file=None)
+        os.environ["DELEGATION_MODE"] = "auto"
+        try:
+            cmd_validate(args)
+            captured = capsys.readouterr()
+            assert "DELEGATION_MODE: auto" in captured.out
+        finally:
+            del os.environ["DELEGATION_MODE"]
+
+    def test_validate_delegation_invalid_mode(self, capsys):
+        """cmd_validate should reject invalid DELEGATION_MODE."""
+        from argparse import Namespace
+
+        from cicaddy.cli.commands import cmd_validate
+
+        args = Namespace(env_file=None)
+        os.environ["DELEGATION_MODE"] = "invalid"
+        try:
+            result = cmd_validate(args)
+            captured = capsys.readouterr()
+            assert "DELEGATION_MODE: invalid" in captured.out
+            assert "must be 'none' or 'auto'" in captured.out
+            assert result == 1
+        finally:
+            del os.environ["DELEGATION_MODE"]
+
+    def test_validate_max_sub_agents_valid(self, capsys):
+        """cmd_validate should accept valid MAX_SUB_AGENTS."""
+        from argparse import Namespace
+
+        from cicaddy.cli.commands import cmd_validate
+
+        args = Namespace(env_file=None)
+        os.environ["MAX_SUB_AGENTS"] = "5"
+        try:
+            cmd_validate(args)
+            captured = capsys.readouterr()
+            assert "MAX_SUB_AGENTS: 5" in captured.out
+        finally:
+            del os.environ["MAX_SUB_AGENTS"]
+
+    def test_validate_max_sub_agents_out_of_range(self, capsys):
+        """cmd_validate should reject MAX_SUB_AGENTS out of range."""
+        from argparse import Namespace
+
+        from cicaddy.cli.commands import cmd_validate
+
+        args = Namespace(env_file=None)
+        os.environ["MAX_SUB_AGENTS"] = "15"
+        try:
+            result = cmd_validate(args)
+            captured = capsys.readouterr()
+            assert "must be between 1 and 10" in captured.out
+            assert result == 1
+        finally:
+            del os.environ["MAX_SUB_AGENTS"]
+
+    def test_validate_max_sub_agents_not_integer(self, capsys):
+        """cmd_validate should reject non-integer MAX_SUB_AGENTS."""
+        from argparse import Namespace
+
+        from cicaddy.cli.commands import cmd_validate
+
+        args = Namespace(env_file=None)
+        os.environ["MAX_SUB_AGENTS"] = "abc"
+        try:
+            result = cmd_validate(args)
+            captured = capsys.readouterr()
+            assert "must be an integer" in captured.out
+            assert result == 1
+        finally:
+            del os.environ["MAX_SUB_AGENTS"]
 
 
 class TestMain:

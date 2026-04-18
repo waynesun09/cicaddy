@@ -174,6 +174,45 @@ class TaskAgent(BaseAIAgent):
 
         return context
 
+    def _get_delegation_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Enrich context with DSPy task metadata for smarter triage."""
+        task_file = os.getenv("AI_TASK_FILE")
+        if not task_file:
+            return context
+
+        try:
+            from cicaddy.dspy.task_loader import TaskLoader
+
+            loader = TaskLoader()
+            task, resolved_inputs = loader.load(task_file)
+
+            context["task_definition"] = {
+                "name": task.name,
+                "description": task.description,
+                "type": task.type,
+                "persona": task.persona,
+                "constraints": task.constraints,
+                "outputs": [o.name for o in task.outputs],
+                "output_format": task.output_format,
+                "reasoning": task.reasoning,
+                "tool_servers": task.tools.servers,
+                "required_tools": task.tools.required_tools,
+                "forbidden_tools": task.tools.forbidden_tools,
+                "resolved_inputs": {
+                    k: v[:200] if isinstance(v, str) and len(v) > 200 else v
+                    for k, v in resolved_inputs.items()
+                },
+            }
+            if task.context:
+                context["task_context_preview"] = task.context[:2000]
+
+            logger.info(f"Enriched delegation context with DSPy task: {task.name}")
+
+        except Exception as e:
+            logger.warning(f"Failed to load task file for delegation context: {e}")
+
+        return context
+
     def build_analysis_prompt(self, context: Dict[str, Any]) -> str:
         """Build analysis prompt based on task type and context."""
         if self.task_type == "custom":

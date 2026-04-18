@@ -113,8 +113,7 @@ class BaseAIAgent(ABC):
             context["mcp_tools"] = mcp_tools
 
             # Check delegation mode
-            delegation_mode = getattr(self.settings, "delegation_mode", "none")
-            if delegation_mode == "auto":
+            if self._should_delegate():
                 logger.info("Delegation mode: auto — running delegated analysis")
                 analysis_result = await self._analyze_delegate(context, mcp_tools)
             else:
@@ -992,6 +991,18 @@ Detailed Execution Logs
             f"complexity={plan.estimated_complexity}"
         )
 
+        # 3b. Cascade DSPy task forbidden_tools to sub-agents
+        task_def = delegation_context.get("task_definition", {})
+        task_forbidden = task_def.get("forbidden_tools", [])
+        if task_forbidden:
+            for entry in plan.entries:
+                spec = registry.get(entry.agent_name)
+                if spec:
+                    spec.blocked_tools = list(set(spec.blocked_tools + task_forbidden))
+            logger.info(
+                f"Cascaded {len(task_forbidden)} task forbidden tool(s) to sub-agents"
+            )
+
         # 4. Execute delegation plan
         max_concurrent = getattr(self.settings, "max_sub_agents", 3)
         orchestrator = DelegationOrchestrator(
@@ -1037,6 +1048,14 @@ Detailed Execution Logs
                 else ("skipped" if result.agents_failed == 0 else "failed")
             ),
         }
+
+    def _should_delegate(self) -> bool:
+        """Check if delegation should be used for this analysis.
+
+        Returns True when DELEGATION_MODE=auto. Subclasses can override
+        to add type-specific gating logic.
+        """
+        return getattr(self.settings, "delegation_mode", "none") == "auto"
 
     def _get_agent_type(self) -> str:
         """Return the agent type string for delegation registry lookup.

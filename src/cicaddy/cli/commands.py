@@ -89,6 +89,12 @@ def cmd_config_show(args: Namespace) -> int:
     else:
         print("  MCP_SERVERS_CONFIG: (not set)")
 
+    print("\n[Delegation]")
+    delegation_mode = config.get("DELEGATION_MODE") or "none"
+    print(f"  DELEGATION_MODE: {delegation_mode}")
+    max_sub = config.get("MAX_SUB_AGENTS") or "3"
+    print(f"  MAX_SUB_AGENTS: {max_sub}")
+
     # Plugin config sections
     from cicaddy.plugin import get_plugin_config_sections
 
@@ -193,6 +199,32 @@ def cmd_validate(args: Namespace) -> int:
             print("  MCP_SERVERS_CONFIG: invalid JSON ✗")
     else:
         print("  MCP_SERVERS_CONFIG: (not configured) ~")
+
+    # Check Delegation configuration
+    print("\n[Delegation]")
+    delegation_mode = config.get("DELEGATION_MODE") or "none"
+    if delegation_mode not in ("none", "auto"):
+        errors.append(
+            f"DELEGATION_MODE must be 'none' or 'auto', got '{delegation_mode}'"
+        )
+        print(f"  DELEGATION_MODE: {delegation_mode} ✗")
+    else:
+        print(f"  DELEGATION_MODE: {delegation_mode} ✓")
+
+    max_sub = config.get("MAX_SUB_AGENTS")
+    if max_sub:
+        try:
+            max_sub_int = int(max_sub)
+            if not 1 <= max_sub_int <= 10:
+                errors.append("MAX_SUB_AGENTS must be between 1 and 10")
+                print(f"  MAX_SUB_AGENTS: {max_sub} ✗")
+            else:
+                print(f"  MAX_SUB_AGENTS: {max_sub} ✓")
+        except ValueError:
+            errors.append(f"MAX_SUB_AGENTS must be an integer, got '{max_sub}'")
+            print(f"  MAX_SUB_AGENTS: {max_sub} ✗")
+    else:
+        print("  MAX_SUB_AGENTS: 3 (default) ✓")
 
     # Plugin validators
     from cicaddy.plugin import get_plugin_validators

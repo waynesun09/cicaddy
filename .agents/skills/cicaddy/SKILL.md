@@ -44,6 +44,8 @@ Key `run` flags:
 | `--task-prompt` | Inline task prompt (alternative to AI_TASK_FILE) |
 | `--dry-run` | Show config, don't run |
 | `--verbose` | Debug logging |
+| `--delegation-mode` | `none` (single-agent) or `auto` (sub-agent delegation) |
+| `--max-sub-agents` | Max concurrent sub-agents (1-10) |
 
 ### Inspect configuration
 
@@ -132,7 +134,14 @@ DELEGATION_AGENTS=""          # JSON inline custom agent definitions
 ```bash
 # Delegated code review (set DELEGATION_MODE=auto in .env)
 uv run cicaddy run --env-file .env
+
+# Or override via CLI flags
+uv run cicaddy run --env-file .env --delegation-mode auto --max-sub-agents 2
 ```
+
+When using `AI_TASK_FILE` with delegation, the task definition (persona, constraints,
+tool restrictions, output format) is loaded and provided to the triage agent as context.
+The task's `forbidden_tools` are cascaded to all sub-agents.
 
 ### Built-in sub-agents
 

@@ -21,6 +21,14 @@ Sub-agents share the parent's MCP connections and tool registry — no new serve
 | `DELEGATION_AGENTS_DIR` | `.agents/delegation` | Directory for user-defined sub-agent YAML files |
 | `TRIAGE_PROMPT` | `""` | Optional custom instructions for the triage AI |
 
+### CLI flags
+
+```bash
+cicaddy run --env-file .env --delegation-mode auto --max-sub-agents 2
+```
+
+These override the corresponding env vars. Other delegation settings (`SUB_AGENT_MAX_ITERS`, `TRIAGE_PROMPT`, etc.) are env-var only.
+
 ## Built-in Sub-Agents
 
 ### Review agents
@@ -122,6 +130,20 @@ my_platform = "my_plugin.plugin:get_delegation_blocked_tools"
 ```python
 def get_delegation_blocked_tools() -> set[str]:
     return {"create_comment", "merge_pr", "update_issue"}
+```
+
+## DSPy Task Files + Delegation
+
+When using `AI_TASK_FILE` with `DELEGATION_MODE=auto`, the task definition (persona, constraints, tool restrictions, output format) is loaded and provided to the triage agent as context. This enables task-aware delegation — the triage model understands the task's intent and can make better sub-agent assignments.
+
+The task's `forbidden_tools` are automatically cascaded to all sub-agents' `blocked_tools`, ensuring sub-agents respect the task's tool restrictions.
+
+```bash
+# DSPy task with delegation
+AI_TASK_FILE=examples/dora_metrics_task.yaml
+DELEGATION_MODE=auto
+# Triage sees: task name, persona, constraints, required_tools, output_format
+# → selects data-analyst for SQL queries + report-writer for HTML output
 ```
 
 ## Examples
