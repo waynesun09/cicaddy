@@ -100,6 +100,9 @@ where = ["src"]
 include = ["cicaddy*"]
 exclude = ["tests*", "docs*", "examples*"]
 
+[tool.setuptools.package-data]
+cicaddy = ["bundled_skills/**/*.md"]
+
 [tool.pytest.ini_options]
 minversion = "8.0"
 addopts = [

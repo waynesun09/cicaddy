@@ -212,6 +212,20 @@ Instructions:
 Please provide your comprehensive analysis.
 """
 
+        # Prepend bundled context (lowest precedence)
+        if self.bundled_context:
+            prompt = self.bundled_context + "\n\n" + prompt
+        # Prepend agent rules if loaded (higher precedence than bundled)
+        if self.agent_rules:
+            prompt = self.agent_rules + "\n\n" + prompt
+        # Append skills if discovered
+        if self.skills:
+            from cicaddy.skills import render_skills_prompt
+
+            skills_section = render_skills_prompt(self.skills)
+            if skills_section:
+                prompt = prompt + "\n\n" + skills_section
+
         return prompt
 
     def _prepare_dspy_context(self, context: Dict[str, Any]) -> Dict[str, Any]:

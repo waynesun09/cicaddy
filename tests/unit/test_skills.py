@@ -31,16 +31,23 @@ def _create_skill(base: Path, name: str, description: str, body: str = "") -> Pa
     return skill_dir
 
 
+def _non_bundled(skills: list) -> list:
+    """Filter out bundled skills for tests that only care about workspace skills."""
+    return [s for s in skills if s.source != "bundled"]
+
+
 def test_discover_skills_empty_workspace(workspace: Path):
-    """Empty workspace yields no skills."""
+    """Empty workspace yields only bundled skills."""
     result = discover_skills(workspace)
-    assert result == []
+    assert _non_bundled(result) == []
+    # Bundled skills should still be present
+    assert any(s.source == "bundled" for s in result)
 
 
 def test_discover_skills_with_project_skills(workspace: Path):
     """Skills in .agents/skills are discovered."""
     _create_skill(workspace, "my-skill", "A test skill")
-    result = discover_skills(workspace)
+    result = _non_bundled(discover_skills(workspace))
     assert len(result) == 1
     assert result[0].name == "my-skill"
     assert result[0].description == "A test skill"
@@ -62,7 +69,7 @@ def test_discover_skills_precedence(workspace: Path, tmp_path: Path, monkeypatch
         "---\nname: my-skill\ndescription: Global version\n---\n", encoding="utf-8"
     )
 
-    result = discover_skills(workspace)
+    result = _non_bundled(discover_skills(workspace))
     assert len(result) == 1
     assert result[0].description == "Project version"
     assert result[0].source == "project"
@@ -73,7 +80,7 @@ def test_skill_body_content(workspace: Path):
     _create_skill(
         workspace, "code-review", "Review code", body="Check for bugs.\nFix issues."
     )
-    skills = discover_skills(workspace)
+    skills = _non_bundled(discover_skills(workspace))
     assert len(skills) == 1
     body = skills[0].body()
     assert "Check for bugs." in body
@@ -160,7 +167,7 @@ def test_is_valid_frontmatter_description_too_long(tmp_path: Path):
 def test_skill_metadata_fields(workspace: Path):
     """SkillMetadata stores all expected fields."""
     _create_skill(workspace, "test-skill", "Test description")
-    skills = discover_skills(workspace)
+    skills = _non_bundled(discover_skills(workspace))
     assert len(skills) == 1
     skill = skills[0]
     assert skill.name == "test-skill"
@@ -185,7 +192,7 @@ def test_skill_metadata_with_extra_metadata(workspace: Path):
         "Body here"
     )
     (skill_dir / SKILL_FILE_NAME).write_text(content, encoding="utf-8")
-    skills = discover_skills(workspace)
+    skills = _non_bundled(discover_skills(workspace))
     assert len(skills) == 1
     assert skills[0].metadata == {"version": "1.0", "author": "test"}
 
@@ -195,7 +202,7 @@ def test_discover_skills_sorted(workspace: Path):
     _create_skill(workspace, "zebra", "Last skill")
     _create_skill(workspace, "alpha", "First skill")
     _create_skill(workspace, "middle", "Middle skill")
-    skills = discover_skills(workspace)
+    skills = _non_bundled(discover_skills(workspace))
     names = [s.name for s in skills]
     assert names == ["alpha", "middle", "zebra"]
 
@@ -205,7 +212,7 @@ def test_discover_skills_skips_non_directory(workspace: Path):
     skills_dir = workspace / CROSS_TOOL_SKILLS_DIR
     skills_dir.mkdir(parents=True)
     (skills_dir / "not-a-dir.txt").write_text("junk", encoding="utf-8")
-    result = discover_skills(workspace)
+    result = _non_bundled(discover_skills(workspace))
     assert result == []
 
 
@@ -213,7 +220,7 @@ def test_discover_skills_skips_missing_skill_file(workspace: Path):
     """Directories without SKILL.md are ignored."""
     skill_dir = workspace / CROSS_TOOL_SKILLS_DIR / "no-skill"
     skill_dir.mkdir(parents=True)
-    result = discover_skills(workspace)
+    result = _non_bundled(discover_skills(workspace))
     assert result == []
 
 
@@ -264,7 +271,7 @@ def test_discover_skills_claude_provider(workspace: Path):
     _create_skill_in(
         workspace / ".claude/skills", "claude-review", "Claude code review"
     )
-    result = discover_skills(workspace, provider="claude")
+    result = _non_bundled(discover_skills(workspace, provider="claude"))
     assert len(result) == 1
     assert result[0].name == "claude-review"
 
@@ -272,7 +279,7 @@ def test_discover_skills_claude_provider(workspace: Path):
 def test_discover_skills_gemini_provider(workspace: Path):
     """Gemini provider scans .gemini/skills/ directory."""
     _create_skill_in(workspace / ".gemini/skills", "gemini-lint", "Gemini linting")
-    result = discover_skills(workspace, provider="gemini")
+    result = _non_bundled(discover_skills(workspace, provider="gemini"))
     assert len(result) == 1
     assert result[0].name == "gemini-lint"
 
@@ -280,7 +287,7 @@ def test_discover_skills_gemini_provider(workspace: Path):
 def test_discover_skills_openai_provider(workspace: Path):
     """OpenAI provider scans .github/skills/ directory."""
     _create_skill_in(workspace / ".github/skills", "copilot-test", "Copilot testing")
-    result = discover_skills(workspace, provider="openai")
+    result = _non_bundled(discover_skills(workspace, provider="openai"))
     assert len(result) == 1
     assert result[0].name == "copilot-test"
 
@@ -291,7 +298,7 @@ def test_discover_skills_provider_overrides_cross_tool(workspace: Path):
     _create_skill(workspace, "my-skill", "Cross-tool version")
     _create_skill_in(workspace / ".claude/skills", "my-skill", "Claude version")
 
-    result = discover_skills(workspace, provider="claude")
+    result = _non_bundled(discover_skills(workspace, provider="claude"))
     assert len(result) == 1
     assert result[0].description == "Claude version"
 
@@ -299,7 +306,7 @@ def test_discover_skills_provider_overrides_cross_tool(workspace: Path):
 def test_discover_skills_no_provider_skips_provider_dir(workspace: Path):
     """Without provider, provider-specific dirs are not scanned."""
     _create_skill_in(workspace / ".claude/skills", "claude-only", "Claude only skill")
-    result = discover_skills(workspace)
+    result = _non_bundled(discover_skills(workspace))
     assert result == []
 
 
@@ -308,7 +315,7 @@ def test_discover_skills_provider_and_cross_tool_merged(workspace: Path):
     _create_skill(workspace, "shared-skill", "From cross-tool dir")
     _create_skill_in(workspace / ".gemini/skills", "gemini-only", "Gemini specific")
 
-    result = discover_skills(workspace, provider="gemini")
+    result = _non_bundled(discover_skills(workspace, provider="gemini"))
     assert len(result) == 2
     names = [s.name for s in result]
     assert "gemini-only" in names
@@ -318,7 +325,7 @@ def test_discover_skills_provider_and_cross_tool_merged(workspace: Path):
 def test_discover_skills_unknown_provider(workspace: Path):
     """Unknown provider name is handled gracefully (no provider dir scanned)."""
     _create_skill(workspace, "my-skill", "Cross-tool skill")
-    result = discover_skills(workspace, provider="unknown-provider")
+    result = _non_bundled(discover_skills(workspace, provider="unknown-provider"))
     assert len(result) == 1
     assert result[0].name == "my-skill"
 
@@ -326,7 +333,7 @@ def test_discover_skills_unknown_provider(workspace: Path):
 def test_discover_skills_provider_case_insensitive(workspace: Path):
     """Provider name matching is case-insensitive."""
     _create_skill_in(workspace / ".claude/skills", "test-skill", "Test skill")
-    result = discover_skills(workspace, provider="Claude")
+    result = _non_bundled(discover_skills(workspace, provider="Claude"))
     assert len(result) == 1
     assert result[0].name == "test-skill"
 

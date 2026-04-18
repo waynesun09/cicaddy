@@ -710,7 +710,10 @@ Execution Context:
         # Combine system prompt and context
         combined = system_prompt + "\n" + execution_context
 
-        # Prepend agent rules if loaded
+        # Prepend bundled context (lowest precedence)
+        if self.bundled_context:
+            combined = self.bundled_context + "\n\n" + combined
+        # Prepend agent rules if loaded (higher precedence than bundled)
         if self.agent_rules:
             combined = self.agent_rules + "\n\n" + combined
         # Append skills if discovered
