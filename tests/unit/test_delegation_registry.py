@@ -6,8 +6,6 @@ import json
 import textwrap
 
 from cicaddy.delegation.registry import (
-    _BUILT_IN_REVIEW_AGENTS,
-    _BUILT_IN_TASK_AGENTS,
     SubAgentRegistry,
     SubAgentSpec,
 )
@@ -47,7 +45,13 @@ class TestSubAgentSpec:
 
 
 class TestBuiltInAgents:
-    """Tests for built-in agent definitions."""
+    """Tests for built-in agent YAML definitions."""
+
+    def setup_method(self):
+        """Load built-in agents via registry for each test."""
+        reg = SubAgentRegistry()
+        self.review_agents = reg._load_builtin_agents("review")
+        self.task_agents = reg._load_builtin_agents("task")
 
     def test_review_agents_present(self):
         """All 8 built-in review agents should exist."""
@@ -61,30 +65,48 @@ class TestBuiltInAgents:
             "performance-reviewer",
             "general-reviewer",
         }
-        assert set(_BUILT_IN_REVIEW_AGENTS.keys()) == expected
+        assert set(self.review_agents.keys()) == expected
 
     def test_task_agents_present(self):
         """All 3 built-in task agents should exist."""
         expected = {"data-analyst", "report-writer", "general-task"}
-        assert set(_BUILT_IN_TASK_AGENTS.keys()) == expected
+        assert set(self.task_agents.keys()) == expected
 
     def test_review_agents_have_review_type(self):
-        for spec in _BUILT_IN_REVIEW_AGENTS.values():
+        for spec in self.review_agents.values():
             assert spec.agent_type == "review"
 
     def test_task_agents_have_task_type(self):
-        for spec in _BUILT_IN_TASK_AGENTS.values():
+        for spec in self.task_agents.values():
             assert spec.agent_type == "task"
 
     def test_all_agents_have_persona(self):
-        for spec in _BUILT_IN_REVIEW_AGENTS.values():
+        for spec in self.review_agents.values():
             assert spec.persona, f"{spec.name} missing persona"
-        for spec in _BUILT_IN_TASK_AGENTS.values():
+        for spec in self.task_agents.values():
             assert spec.persona, f"{spec.name} missing persona"
 
     def test_general_reviewer_is_catch_all(self):
-        gen = _BUILT_IN_REVIEW_AGENTS["general-reviewer"]
+        gen = self.review_agents["general-reviewer"]
         assert gen.priority == 100  # Lowest priority = catch-all
+
+    def test_builtin_agents_have_required_fields(self):
+        """All built-in agents must have description, categories, and constraints."""
+        for agents in (self.review_agents, self.task_agents):
+            for spec in agents.values():
+                assert spec.description, f"{spec.name} missing description"
+                assert spec.categories, f"{spec.name} missing categories"
+                assert spec.constraints, f"{spec.name} missing constraints"
+                assert spec.output_sections, f"{spec.name} missing output_sections"
+                for c in spec.constraints:
+                    assert isinstance(c, str), (
+                        f"{spec.name} constraint is {type(c).__name__}, not str: {c!r}"
+                    )
+
+    def test_security_reviewer_constraint_content(self):
+        """Spot-check that YAML constraint strings survived parsing correctly."""
+        sec = self.review_agents["security-reviewer"]
+        assert any("Critical/High/Medium/Low" in c for c in sec.constraints)
 
 
 class TestSubAgentRegistry:

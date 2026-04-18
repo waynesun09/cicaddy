@@ -64,6 +64,17 @@ RUN_ARG_MAPPINGS: List[ArgMapping] = [
         env_var="AI_TASK_PROMPT",
         help_text="Custom task prompt for the agent",
     ),
+    ArgMapping(
+        cli_arg="--delegation-mode",
+        env_var="DELEGATION_MODE",
+        help_text="Delegation mode: 'none' (single-agent) or 'auto' (AI-powered sub-agent delegation)",
+    ),
+    ArgMapping(
+        cli_arg="--max-sub-agents",
+        env_var="MAX_SUB_AGENTS",
+        arg_type=int,
+        help_text="Maximum concurrent sub-agents for delegation (1-10)",
+    ),
 ]
 
 # Sensitive environment variables that should NOT be exposed as CLI arguments

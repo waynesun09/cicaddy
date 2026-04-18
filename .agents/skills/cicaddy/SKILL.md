@@ -22,7 +22,7 @@ factory that can be extended without modifying core code.
 uv run cicaddy run --env-file .env
 
 # With inline overrides
-uv run cicaddy run --env-file .env --ai-model gemini-2.5-pro --log-level DEBUG
+uv run cicaddy run --env-file .env --ai-model gemini-3-pro-preview --log-level DEBUG
 
 # Dry-run: print resolved config without executing
 uv run cicaddy run --env-file .env --dry-run
@@ -44,6 +44,8 @@ Key `run` flags:
 | `--task-prompt` | Inline task prompt (alternative to AI_TASK_FILE) |
 | `--dry-run` | Show config, don't run |
 | `--verbose` | Debug logging |
+| `--delegation-mode` | `none` (single-agent) or `auto` (sub-agent delegation) |
+| `--max-sub-agents` | Max concurrent sub-agents (1-10) |
 
 ### Inspect configuration
 
@@ -107,6 +109,81 @@ SKILLS_BLOCKING_THRESHOLD=0.2
 - **Threshold separation**: Detection (0.0) vs blocking (0.2-0.3)
 
 See `docs/mcp-security-scanning.md` for details.
+
+---
+
+## Sub-Agent Delegation (v0.8.0+)
+
+Cicaddy supports AI-powered sub-agent delegation where an AI triage step
+selects specialized sub-agents, runs them in parallel, and aggregates results.
+
+### Enable delegation
+
+```bash
+# In .env file
+DELEGATION_MODE=auto          # none (default, single-agent) | auto (delegation)
+MAX_SUB_AGENTS=3              # Max concurrent sub-agents (1-10)
+SUB_AGENT_MAX_ITERS=5         # Max iterations per sub-agent (1-15)
+TRIAGE_PROMPT=""              # Optional custom triage instructions
+DELEGATION_AGENTS_DIR=.agents/delegation  # Custom agent YAML directory
+DELEGATION_AGENTS=""          # JSON inline custom agent definitions
+```
+
+### Run with delegation
+
+```bash
+# Delegated code review (set DELEGATION_MODE=auto in .env)
+uv run cicaddy run --env-file .env
+
+# Or override via CLI flags
+uv run cicaddy run --env-file .env --delegation-mode auto --max-sub-agents 2
+```
+
+When using `AI_TASK_FILE` with delegation, the task definition (persona, constraints,
+tool restrictions, output format) is loaded and provided to the triage agent as context.
+The task's `forbidden_tools` are cascaded to all sub-agents.
+
+### Built-in sub-agents
+
+**Review**: `security-reviewer`, `architecture-reviewer`, `api-reviewer`,
+`database-reviewer`, `ui-reviewer`, `devops-reviewer`, `performance-reviewer`,
+`general-reviewer`
+
+**Task**: `data-analyst`, `report-writer`, `general-task`
+
+### Custom sub-agents (YAML)
+
+Place YAML files in `.agents/delegation/{agent_type}/`:
+
+```yaml
+# .agents/delegation/review/compliance-reviewer.yaml
+name: compliance-reviewer
+agent_type: review
+persona: compliance engineer specializing in regulatory requirements
+description: Reviews changes for regulatory and compliance impact
+categories: [security, configuration]
+constraints:
+  - Focus on regulatory compliance (SOC2, GDPR, HIPAA)
+  - Flag any PII handling changes
+  - Check audit logging requirements
+output_sections:
+  - Compliance Impact
+  - Regulatory Risks
+  - Required Controls
+priority: 15
+# Optional: restrict tools (strict whitelist if set)
+# allowed_tools: ["read_file", "list_directory"]
+# blocked_tools: []
+```
+
+### How it works
+
+1. **Triage** — AI analyzes the context and selects sub-agents from the registry
+2. **Parallel execution** — Sub-agents run with focused prompts, filtered tools, divided token budgets
+3. **Aggregation** — Results merged into unified output with per-agent sections
+
+Sub-agents share parent's MCP connections and tool registry (no new server processes).
+Side-effect tools (post comments, merge PRs) are blocked by default via plugin entry points.
 
 ---
 

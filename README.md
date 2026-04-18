@@ -5,6 +5,7 @@ Platform-agnostic AI agent for running AI workflows in CI pipelines, with MCP to
 ## Features
 
 - **Multi-provider AI**: Gemini, OpenAI, Claude (direct API and Vertex AI)
+- **Sub-agent delegation**: AI-powered triage with parallel specialized sub-agents
 - **MCP integration**: Connect to any MCP-compatible tool server
 - **Multi-step execution**: Token-aware execution engine with recovery
 - **YAML task definitions**: DSPy-based task configuration
@@ -44,7 +45,7 @@ Configure via environment variables or `.env` file:
 ```env
 # AI Provider (Gemini)
 AI_PROVIDER=gemini
-AI_MODEL=gemini-2.5-flash
+AI_MODEL=gemini-3-flash
 GEMINI_API_KEY=your-key-here
 
 # AI Provider (Claude via Vertex AI — uses Google Cloud ADC, no API key needed)
@@ -85,6 +86,25 @@ Key schema fields:
 | `reasoning` | `chain_of_thought`, `react`, or `simple` |
 | `output_format` | `markdown`, `html`, or `json` |
 | `context` | Supports `{{VAR}}` placeholders resolved at load time |
+
+## Sub-Agent Delegation (v0.8.0+)
+
+Enable AI-powered sub-agent delegation with `DELEGATION_MODE=auto`. An AI triage step analyzes the context, selects specialized sub-agents (security, architecture, performance, etc.), runs them in parallel, and aggregates results.
+
+```env
+# Add to your .env
+DELEGATION_MODE=auto
+MAX_SUB_AGENTS=3
+```
+
+```bash
+cicaddy run --env-file .env
+```
+
+Built-in review agents: `security-reviewer`, `architecture-reviewer`, `api-reviewer`, `database-reviewer`, `ui-reviewer`, `devops-reviewer`, `performance-reviewer`, `general-reviewer`. Custom agents can be defined via YAML files in `.agents/delegation/`.
+
+See [`docs/sub-agent-delegation.md`](docs/sub-agent-delegation.md) for full configuration, built-in agent details, custom agent YAML format, and tool filtering.
+See [`examples/delegation/`](examples/delegation/) for example configurations.
 
 ## Extending with Platform Plugins
 

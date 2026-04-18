@@ -77,6 +77,70 @@ Cicaddy automatically loads:
 
 Rules and skills are injected into agent prompts during initialization. See `src/cicaddy/rules.py` and `src/cicaddy/skills.py`.
 
+### Sub-Agent Delegation (v0.8.0+)
+
+The delegation framework enables AI-powered multi-agent analysis. Any agent type can opt in by setting `DELEGATION_MODE=auto`.
+
+#### Architecture
+
+```
+BaseAIAgent.analyze()
+  ├── DELEGATION_MODE=none → single-agent pipeline (unchanged)
+  └── DELEGATION_MODE=auto → _analyze_delegate()
+        ├── _get_delegation_registry()     # hook: agent-type-specific specs
+        ├── _get_delegation_context()      # hook: shape context for triage
+        ├── TriageAgent.triage()           # AI selects sub-agents
+        ├── DelegationOrchestrator.execute()
+        │     └── DelegationSubAgent × N   # parallel via asyncio.gather + Semaphore
+        │           ├── filtered tools (shared parent backends)
+        │           ├── focused prompt (persona + context subset)
+        │           └── reduced token budget (parent / N)
+        └── aggregate results → unified output
+```
+
+#### Key modules
+
+| Module | Purpose |
+|--------|---------|
+| `delegation/triage.py` | AI-powered triage: analyzes context, produces `DelegationPlan` |
+| `delegation/registry.py` | `SubAgentSpec` model + `SubAgentRegistry` loader (built-in + YAML + JSON) |
+| `delegation/sub_agent.py` | Lightweight executor: prompt composition, tool filtering, budget division |
+| `delegation/orchestrator.py` | Parallel execution with `Semaphore`, result aggregation |
+
+#### Delegation hooks in BaseAIAgent
+
+Subclasses override these to provide agent-type-specific behavior:
+
+- `_should_delegate()` → returns `True` when `DELEGATION_MODE=auto`; subclasses can override for custom gating
+- `_get_delegation_context(analysis_context)` → shapes context for triage (e.g., review agents extract diff + MR info, task agents inject DSPy task metadata)
+
+#### Tool filtering
+
+Sub-agents receive a filtered subset of parent's tools:
+
+1. **Base blocked**: `delegate_task` (prevents recursion)
+2. **Plugin blocked**: plugins register side-effect tools via `cicaddy.delegation_blocked_tools` entry point
+3. **Per-agent**: `SubAgentSpec.allowed_tools` (strict whitelist) and `blocked_tools` (additional blocks)
+
+Sub-agents share the parent's `OfficialMCPClientManager` and `ToolRegistry` — no new MCP connections.
+
+#### Extending with custom sub-agents
+
+Place YAML files in `.agents/delegation/{agent_type}/` or `.agents/delegation/` (for `agent_type: *`). See `delegation/registry.py` for the `SubAgentSpec` dataclass fields.
+
+Plugin packages register blocked tools via entry points:
+
+```toml
+# pyproject.toml
+[project.entry-points."cicaddy.delegation_blocked_tools"]
+my_platform = "my_plugin.plugin:get_delegation_blocked_tools"
+```
+
+```python
+def get_delegation_blocked_tools() -> set[str]:
+    return {"create_comment", "merge_pr", "update_issue"}
+```
+
 ### Security Scanning (v0.6.1+)
 
 Cicaddy provides comprehensive prompt injection protection across all content sources:
@@ -170,6 +234,16 @@ When working with MCP servers:
 - Verify prompt injection scanner modes: `disabled`, `audit`, `enforce`
 - Check MCP_SERVERS_CONFIG parsing in DSPy task files
 - Test graceful degradation when MCP servers are unavailable
+
+### Delegation
+
+When testing delegation features:
+- Run delegation unit tests: `uv run pytest tests/unit/test_delegation_*.py -v`
+- Test triage prompt construction and JSON response parsing
+- Test registry loading: built-in agents, YAML overrides, JSON config merges
+- Test sub-agent tool filtering (blocked/allowed tools)
+- Test orchestrator parallel execution and partial failure handling
+- Verify `DELEGATION_MODE=none` preserves existing single-agent behavior
 
 ### Security Scanning
 

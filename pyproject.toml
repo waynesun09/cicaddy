@@ -101,7 +101,7 @@ include = ["cicaddy*"]
 exclude = ["tests*", "docs*", "examples*"]
 
 [tool.setuptools.package-data]
-cicaddy = ["bundled_skills/**/*.md"]
+cicaddy = ["bundled_skills/**/*.md", "delegation/builtin/**/*.yaml"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
