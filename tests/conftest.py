@@ -37,6 +37,14 @@ def setup_test_environment(monkeypatch):
         monkeypatch.setenv(key, value)
 
 
+def filter_non_bundled(skills: list) -> list:
+    """Filter out bundled skills for tests that only care about workspace skills.
+
+    Shared helper used across test_skills.py and test_skills_scanning.py.
+    """
+    return [s for s in skills if s.source != "bundled"]
+
+
 @pytest.fixture
 def mock_mcp_server_config():
     """Mock MCP server configuration for testing."""

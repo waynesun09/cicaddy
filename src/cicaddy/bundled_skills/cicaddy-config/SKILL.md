@@ -21,7 +21,7 @@ Set `AI_TASK_FILE` to a structured task definition (takes precedence over `AI_TA
 name: security-review
 type: code_review
 description: Security-focused code review
-reasoning_strategy: chain_of_thought
+reasoning: chain_of_thought
 
 inputs:
   - name: diff
@@ -29,7 +29,6 @@ inputs:
 
 outputs:
   - name: review
-    format: markdown
     description: Security review findings
 
 constraints:
@@ -60,7 +59,7 @@ variables:
 - `name`: Display name
 - `protocol`: `sse`, `http`, `stdio`, or `websocket`
 - `endpoint`: URL for remote servers
-- `command`/`args`: For stdio servers
+- `command`/`args`/`working_directory`/`env`: For stdio servers
 - `tools`: Optional list to restrict available tools
 - `timeout`: Request timeout (default: 30s)
 - `scan_mode`: `disabled` (default for MCP), `audit`, or `enforce`
@@ -69,14 +68,14 @@ variables:
 
 ### Rules Auto-Loading
 Cicaddy auto-loads rule files from the workspace root:
-- `AGENT.md` / `AGENTS.md` — Generic rules (always loaded)
-- `GEMINI.md` — Loaded when `AI_PROVIDER=gemini`
-- `CLAUDE.md` — Loaded when `AI_PROVIDER=claude` or `anthropic-vertex`
-- `COPILOT.md` — Loaded when `AI_PROVIDER=openai`
+- `AGENT.md` / `AGENTS.md` — Generic rules (always loaded, all providers). Use `AGENTS.md` as the primary project rule file — `CLAUDE.md` can simply refer to it.
+- `GEMINI.md` — Additional rules loaded when `AI_PROVIDER=gemini`
+- `CLAUDE.md` — Additional rules loaded when `AI_PROVIDER=claude`
+- `COPILOT.md` — Additional rules loaded when `AI_PROVIDER=openai`
 
 ### Skills Discovery
 Skills are discovered from (highest to lowest precedence):
-1. Provider-specific: `.claude/skills/`, `.gemini/skills/`
+1. Provider-specific: `.claude/skills/`, `.gemini/skills/`, `.github/skills/`
 2. Cross-tool: `.agents/skills/`
 3. Global: `~/.agents/skills/`
 4. Bundled: shipped with cicaddy package
@@ -99,3 +98,6 @@ Skill instructions here...
 | `CONTEXT_SAFETY_FACTOR` | `0.85` | 0.5-0.97 | Token budget utilization |
 | `MAX_TOKENS_RECOVERY_LIMIT` | `3` | 1-10 | Token overflow recovery attempts |
 | `AI_TEMPERATURE` | `0.0` | 0.0-2.0 | Generation temperature |
+| `GIT_WORKING_DIRECTORY` | `.` | — | Git repo path for diff/analysis |
+| `GIT_DIFF_CONTEXT_LINES` | `10` | 1+ | Lines of context in diffs |
+| `LOG_LEVEL` | `INFO` | — | DEBUG, INFO, WARNING, ERROR, CRITICAL |

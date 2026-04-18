@@ -26,8 +26,8 @@ class TestBundledKnowledge:
     def test_cicaddy_context_has_config_info(self):
         """Bundled context must contain config reference information."""
         assert "AI_PROVIDER" in CICADDY_CONTEXT
-        assert "AI_MODEL" in CICADDY_CONTEXT
-        assert "MCP_SERVERS_CONFIG" in CICADDY_CONTEXT
+        assert "AI_TASK_FILE" in CICADDY_CONTEXT
+        assert "AGENTS.md" in CICADDY_CONTEXT
 
     def test_get_bundled_context_returns_content(self):
         """get_bundled_context() must return the context string."""
@@ -115,3 +115,49 @@ class TestBundledSkills:
             if skill.source == "bundled":
                 body = skill.body()
                 assert len(body) > 50, f"Skill {skill.name} body too short"
+
+    def test_bundled_skills_bypass_scanner_in_enforce_mode(self, tmp_path):
+        """Bundled skills must not be blocked even in enforce mode."""
+        from cicaddy.mcp_client.scanner import HeuristicScanner
+        from cicaddy.tools.scanner import ToolScanner
+
+        scanner = ToolScanner(
+            scanner=HeuristicScanner(),
+            scan_mode="enforce",
+            blocking_threshold=0.1,  # Very strict — would block most content
+        )
+
+        skills = discover_skills(tmp_path, scanner=scanner, scan_mode="enforce")
+        bundled = [s for s in skills if s.source == "bundled"]
+        assert len(bundled) >= 2, "Bundled skills must survive enforce-mode scanning"
+
+
+class TestBundledContextLoading:
+    """Test _load_bundled_context respects agent_rules_enabled."""
+
+    def test_bundled_context_disabled_when_rules_disabled(self):
+        """_load_bundled_context returns '' when agent_rules_enabled=False."""
+        from unittest.mock import MagicMock
+
+        from cicaddy.agent.base import BaseAIAgent
+
+        agent = MagicMock(spec=BaseAIAgent)
+        agent.settings = MagicMock()
+        agent.settings.agent_rules_enabled = False
+
+        result = BaseAIAgent._load_bundled_context(agent)
+        assert result == ""
+
+    def test_bundled_context_enabled_by_default(self):
+        """_load_bundled_context returns content when agent_rules_enabled=True."""
+        from unittest.mock import MagicMock
+
+        from cicaddy.agent.base import BaseAIAgent
+
+        agent = MagicMock(spec=BaseAIAgent)
+        agent.settings = MagicMock()
+        agent.settings.agent_rules_enabled = True
+
+        result = BaseAIAgent._load_bundled_context(agent)
+        assert result != ""
+        assert "<cicaddy_reference" in result

@@ -45,7 +45,8 @@ class BaseAIAgent(ABC):
         # Maximum inference iterations for multi-step execution (like Llama Stack)
         # Provide sane default if settings mock omits this attribute in tests
         self.max_infer_iters = getattr(self.settings, "max_infer_iters", 15)
-        # Agent rules and skills (loaded during initialize)
+        # Bundled context, agent rules, and skills (loaded during initialize)
+        self.bundled_context: str = ""
         self.agent_rules: str = ""
         self.skills: list["SkillMetadata"] = []
 
