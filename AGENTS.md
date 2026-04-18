@@ -4,11 +4,13 @@
 
 Cicaddy is a platform-agnostic pipeline AI agent library. It provides the core agent framework, AI providers, MCP client, execution engine, and reporting — designed to be extended by platform-specific packages (e.g., GitLab, GitHub).
 
-**Key capabilities (v0.6.0+):**
-- Auto-loads agent rules from `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `COPILOT.md` in workspace
-- Auto-discovers skills from `.agents/skills/`, `.claude/skills/`, `.gemini/skills/`, `.github/skills/`
+**Key capabilities:**
+- Auto-loads agent rules from `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `COPILOT.md` in workspace (v0.6.0+)
+- Auto-discovers skills from `.agents/skills/`, `.claude/skills/`, `.gemini/skills/`, `.github/skills/` (v0.6.0+)
 - Provider-specific skills and rules take precedence over cross-tool defaults
 - Claude via Vertex AI (`anthropic-vertex` provider) — uses Google Cloud ADC, no API key needed (v0.7.0+)
+- Bundled knowledge and skills shipped with the package for model guidance and config reference (v0.8.0+)
+- AI-powered sub-agent delegation with parallel execution and triage (v0.8.0+)
 
 ## Architecture
 
@@ -66,6 +68,8 @@ AgentFactory.register("my_platform", MyPlatformAgent)
 | `notifications/` | Slack (webhook + rich blocks) and email notifiers |
 | `reports/` | HTML report generation |
 | `config/` | Settings and advanced configuration |
+| `delegation/` | AI-powered sub-agent triage, orchestration, and registry |
+| `knowledge.py` | Bundled knowledge context (model reference, config guidance) |
 | `rules.py` | Agent rules auto-loading with external content scanning |
 | `skills.py` | Skills discovery with supply chain protection |
 
@@ -87,7 +91,7 @@ The delegation framework enables AI-powered multi-agent analysis. Any agent type
 BaseAIAgent.analyze()
   ├── DELEGATION_MODE=none → single-agent pipeline (unchanged)
   └── DELEGATION_MODE=auto → _analyze_delegate()
-        ├── _get_delegation_registry()     # hook: agent-type-specific specs
+        ├── _get_agent_type()               # hook: returns type for registry lookup
         ├── _get_delegation_context()      # hook: shape context for triage
         ├── TriageAgent.triage()           # AI selects sub-agents
         ├── DelegationOrchestrator.execute()
