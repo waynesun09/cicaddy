@@ -90,6 +90,24 @@ class TestBuiltInAgents:
         gen = self.review_agents["general-reviewer"]
         assert gen.priority == 100  # Lowest priority = catch-all
 
+    def test_builtin_agents_have_required_fields(self):
+        """All built-in agents must have description, categories, and constraints."""
+        for agents in (self.review_agents, self.task_agents):
+            for spec in agents.values():
+                assert spec.description, f"{spec.name} missing description"
+                assert spec.categories, f"{spec.name} missing categories"
+                assert spec.constraints, f"{spec.name} missing constraints"
+                assert spec.output_sections, f"{spec.name} missing output_sections"
+                for c in spec.constraints:
+                    assert isinstance(c, str), (
+                        f"{spec.name} constraint is {type(c).__name__}, not str: {c!r}"
+                    )
+
+    def test_security_reviewer_constraint_content(self):
+        """Spot-check that YAML constraint strings survived parsing correctly."""
+        sec = self.review_agents["security-reviewer"]
+        assert any("Critical/High/Medium/Low" in c for c in sec.constraints)
+
 
 class TestSubAgentRegistry:
     """Tests for SubAgentRegistry.load_registry()."""

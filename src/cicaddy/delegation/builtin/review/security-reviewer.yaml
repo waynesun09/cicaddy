@@ -7,7 +7,7 @@ categories:
   - api
 constraints:
   - Focus exclusively on security vulnerabilities and risks
-  - Rate findings: Critical/High/Medium/Low
+  - "Rate findings: Critical/High/Medium/Low"
   - Include specific remediation steps for each finding
 output_sections:
   - Security Vulnerabilities

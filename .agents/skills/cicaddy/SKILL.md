@@ -157,15 +157,17 @@ persona: compliance engineer specializing in regulatory requirements
 description: Reviews changes for regulatory and compliance impact
 categories: [security, configuration]
 constraints:
-  - Focus on regulatory compliance
-  - Flag PII handling changes
+  - Focus on regulatory compliance (SOC2, GDPR, HIPAA)
+  - Flag any PII handling changes
+  - Check audit logging requirements
 output_sections:
   - Compliance Impact
+  - Regulatory Risks
   - Required Controls
 priority: 15
-# Optional tool filtering
-allowed_tools: ["read_file", "list_directory"]
-blocked_tools: []
+# Optional: restrict tools (strict whitelist if set)
+# allowed_tools: ["read_file", "list_directory"]
+# blocked_tools: []
 ```
 
 ### How it works
