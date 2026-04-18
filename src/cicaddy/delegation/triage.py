@@ -164,7 +164,7 @@ class TriageAgent:
             )
             user_instructions = f"\n## Additional Instructions\n{sanitized_prompt}\n"
 
-        prompt = (  # nosec B608 — AI prompt template, not SQL
+        prompt = (
             f"You are a triage agent. Analyze the provided context and"
             f" determine which specialized sub-agents should review it.\n\n"
             f"## Available Sub-Agents\n{agents_section}\n\n"
