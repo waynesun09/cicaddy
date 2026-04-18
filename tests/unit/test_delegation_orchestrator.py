@@ -78,7 +78,7 @@ class TestDelegationResult:
         assert result.agent_results == []
         assert result.aggregated_analysis == ""
         assert result.delegation_plan is None
-        assert result.total_execution_time == 0.0
+        assert result.total_execution_time == pytest.approx(0.0)
         assert result.agents_succeeded == 0
         assert result.agents_failed == 0
         assert result.categories_covered == []

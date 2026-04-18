@@ -39,7 +39,7 @@ class TestSubAgentSpec:
             allowed_tools=["read_file"],
             blocked_tools=["delete_file"],
             agent_type="review",
-            source_file="/tmp/sec.yaml",
+            source_file=".agents/delegation/review/sec.yaml",
         )
         assert spec.name == "sec"
         assert spec.agent_type == "review"
