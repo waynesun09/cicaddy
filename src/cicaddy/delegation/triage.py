@@ -41,11 +41,6 @@ def _sanitize_for_boundary(text: str, start: str, end: str) -> str:
     return text.replace(start, "").replace(end, "")
 
 
-# Legacy constants kept for import compatibility (used in sub_agent.py)
-DATA_BOUNDARY_START = "<<<BEGIN_CONTEXT_DATA>>>"
-DATA_BOUNDARY_END = "<<<END_CONTEXT_DATA>>>"
-
-
 @dataclass
 class DelegationEntry:
     """A single sub-agent activation entry in a delegation plan."""
@@ -165,7 +160,7 @@ class TriageAgent:
             user_instructions = f"\n## Additional Instructions\n{sanitized_prompt}\n"
 
         prompt = (
-            f"You are a triage agent. Analyze the provided context and"
+            f"You are a triage agent. Analyze the provided context and"  # nosec B608
             f" determine which specialized sub-agents should review it.\n\n"
             f"## Available Sub-Agents\n{agents_section}\n\n"
             f"## Context Keys\n{json.dumps(context_keys)}\n\n"

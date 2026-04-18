@@ -1019,7 +1019,6 @@ Detailed Execution Logs
             "agents_succeeded": result.agents_succeeded,
             "agents_failed": result.agents_failed,
             "categories_covered": result.categories_covered,
-            "total_execution_time": result.total_execution_time,
             "model_used": self.settings.ai_model
             or get_default_model(self.settings.ai_provider),
             "ai_provider": self.settings.ai_provider or DEFAULT_AI_PROVIDER,

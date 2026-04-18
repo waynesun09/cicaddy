@@ -155,7 +155,7 @@ ignore = ["E501"]
 
 [tool.bandit]
 exclude_dirs = ["tests"]
-skips = ["B101", "B608"]
+skips = ["B101"]
 
 [tool.uv]
 exclude-newer = "7 days"
