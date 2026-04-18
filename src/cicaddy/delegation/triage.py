@@ -164,36 +164,39 @@ class TriageAgent:
             )
             user_instructions = f"\n## Additional Instructions\n{sanitized_prompt}\n"
 
-        return f"""You are a triage agent. Analyze the provided context and determine which specialized sub-agents should review it.
-
-## Available Sub-Agents
-{agents_section}
-
-## Context Keys
-{json.dumps(context_keys)}
-
-## Context Data
-{context_data}
-{user_instructions}
-## Task
-
-Analyze the context and produce a JSON delegation plan. Select ONLY the agents that are relevant to the content. Do NOT select agents for aspects not present in the context.
-
-Respond with ONLY a JSON object in this exact format (no markdown, no explanation):
-{{
-  "context_summary": "Brief description of what the context contains",
-  "estimated_complexity": "low|medium|high",
-  "entries": [
-    {{
-      "agent_name": "name from available agents list",
-      "categories": ["relevant", "categories"],
-      "rationale": "Why this agent is needed for this specific context",
-      "relevant_context_keys": ["keys from context this agent needs"],
-      "relevant_files": ["file paths this agent should focus on, if applicable"],
-      "priority": 1
-    }}
-  ]
-}}"""
+        prompt = (  # nosec B608 — AI prompt template, not SQL
+            f"You are a triage agent. Analyze the provided context and"
+            f" determine which specialized sub-agents should review it.\n\n"
+            f"## Available Sub-Agents\n{agents_section}\n\n"
+            f"## Context Keys\n{json.dumps(context_keys)}\n\n"
+            f"## Context Data\n{context_data}\n"
+            f"{user_instructions}"
+            f"## Task\n\n"
+            f"Analyze the context and produce a JSON delegation plan."
+            f" Select ONLY the agents that are relevant to the content."
+            f" Do NOT select agents for aspects not present in the context.\n\n"
+            f"Respond with ONLY a JSON object in this exact format"
+            f" (no markdown, no explanation):\n"
+            f"{{\n"
+            f'  "context_summary": "Brief description of what the context'
+            f' contains",\n'
+            f'  "estimated_complexity": "low|medium|high",\n'
+            f'  "entries": [\n'
+            f"    {{\n"
+            f'      "agent_name": "name from available agents list",\n'
+            f'      "categories": ["relevant", "categories"],\n'
+            f'      "rationale": "Why this agent is needed for this specific'
+            f' context",\n'
+            f'      "relevant_context_keys": ["keys from context this agent'
+            f' needs"],\n'
+            f'      "relevant_files": ["file paths this agent should focus'
+            f' on, if applicable"],\n'
+            f'      "priority": 1\n'
+            f"    }}\n"
+            f"  ]\n"
+            f"}}"
+        )
+        return prompt
 
     def _parse_response(
         self,
