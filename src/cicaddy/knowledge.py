@@ -23,7 +23,7 @@ CICADDY_CONTEXT = """\
 ## AI Model Quick Reference
 
 Default models per provider (set via `AI_MODEL` env var):
-- **gemini**: `gemini-3-flash-preview` — also: gemini-3.1-pro-preview, gemini-3.1-flash-lite-preview
+- **gemini**: `gemini-3-flash-preview` — tiers: pro, flash, flash-lite (pattern: `gemini-{ver}-{tier}-preview`)
 - **claude / anthropic-vertex**: `claude-sonnet-4-6` — also: claude-opus-4-*, claude-haiku-4-*
 - **openai**: `gpt-5.4`
 
