@@ -395,3 +395,111 @@ class TestAggregateResults:
         output = orch._aggregate_results(results)
         assert "Agents: sec, gen" in output
         assert "1 failed" in output
+
+
+class TestOrchestratorWorkspaceContextForwarding:
+    """Tests that orchestrator forwards workspace context to sub-agents."""
+
+    @pytest.mark.asyncio
+    async def test_forwards_bundled_context_and_rules(
+        self, mock_settings, sample_registry, sample_context
+    ):
+        """execute() should forward bundled_context, agent_rules, skills to sub-agents."""
+        plan = DelegationPlan(
+            entries=[
+                DelegationEntry(
+                    agent_name="security-reviewer",
+                    categories=["security"],
+                    rationale="test",
+                ),
+            ],
+        )
+
+        mock_sub_agent = MagicMock()
+        mock_sub_agent.initialize = AsyncMock()
+        mock_sub_agent.execute = AsyncMock(
+            return_value={
+                "agent_name": "security-reviewer",
+                "status": "success",
+                "analysis": "ok",
+                "categories": ["security"],
+                "rationale": "test",
+                "execution_time": 0.1,
+                "tokens": 10,
+            }
+        )
+        mock_sub_agent.cleanup = AsyncMock()
+
+        mock_skill = MagicMock()
+        mock_skill.name = "model-reference"
+
+        with patch(
+            "cicaddy.delegation.orchestrator.DelegationSubAgent",
+            return_value=mock_sub_agent,
+        ) as mock_cls:
+            orch = DelegationOrchestrator(mock_settings, max_concurrent=3)
+            await orch.execute(
+                plan=plan,
+                registry=sample_registry,
+                context=sample_context,
+                parent_tools=[],
+                mcp_manager=None,
+                local_registry=None,
+                bundled_context="bundled knowledge",
+                agent_rules="project rules",
+                skills=[mock_skill],
+            )
+
+        call_kwargs = mock_cls.call_args[1]
+        assert call_kwargs["bundled_context"] == "bundled knowledge"
+        assert call_kwargs["agent_rules"] == "project rules"
+        assert call_kwargs["skills"] == [mock_skill]
+
+    @pytest.mark.asyncio
+    async def test_defaults_when_context_not_provided(
+        self, mock_settings, sample_registry, sample_context
+    ):
+        """execute() without workspace context params should use defaults."""
+        plan = DelegationPlan(
+            entries=[
+                DelegationEntry(
+                    agent_name="security-reviewer",
+                    categories=["security"],
+                    rationale="test",
+                ),
+            ],
+        )
+
+        mock_sub_agent = MagicMock()
+        mock_sub_agent.initialize = AsyncMock()
+        mock_sub_agent.execute = AsyncMock(
+            return_value={
+                "agent_name": "security-reviewer",
+                "status": "success",
+                "analysis": "ok",
+                "categories": ["security"],
+                "rationale": "test",
+                "execution_time": 0.1,
+                "tokens": 10,
+            }
+        )
+        mock_sub_agent.cleanup = AsyncMock()
+
+        with patch(
+            "cicaddy.delegation.orchestrator.DelegationSubAgent",
+            return_value=mock_sub_agent,
+        ) as mock_cls:
+            orch = DelegationOrchestrator(mock_settings, max_concurrent=3)
+            await orch.execute(
+                plan=plan,
+                registry=sample_registry,
+                context=sample_context,
+                parent_tools=[],
+                mcp_manager=None,
+                local_registry=None,
+            )
+
+        call_kwargs = mock_cls.call_args[1]
+        assert call_kwargs["bundled_context"] == ""
+        assert call_kwargs["agent_rules"] == ""
+        assert call_kwargs["skills"] is None

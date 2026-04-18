@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from cicaddy.config.settings import Settings
     from cicaddy.delegation.registry import SubAgentSpec
     from cicaddy.mcp_client.client import OfficialMCPClientManager
+    from cicaddy.skills import SkillMetadata
     from cicaddy.tools import ToolRegistry
 
 logger = get_logger(__name__)
@@ -59,6 +60,9 @@ class DelegationOrchestrator:
         parent_tools: List[Dict[str, Any]],
         mcp_manager: Optional["OfficialMCPClientManager"],
         local_registry: Optional["ToolRegistry"],
+        bundled_context: str = "",
+        agent_rules: str = "",
+        skills: Optional[List["SkillMetadata"]] = None,
     ) -> DelegationResult:
         """Execute delegation plan by spawning sub-agents in parallel.
 
@@ -69,6 +73,9 @@ class DelegationOrchestrator:
             parent_tools: Parent's collected tool list.
             mcp_manager: Parent's MCP client manager (shared).
             local_registry: Parent's local tool registry (shared).
+            bundled_context: Pre-rendered bundled skills text from parent.
+            agent_rules: Per-repo rules (AGENT.md/CLAUDE.md/GEMINI.md) from parent.
+            skills: Per-repo skill metadata from parent.
 
         Returns:
             DelegationResult with aggregated analysis and per-agent results.
@@ -124,6 +131,9 @@ class DelegationOrchestrator:
                     parent_mcp_manager=mcp_manager,
                     parent_local_registry=local_registry,
                     sibling_agents=all_agent_info,
+                    bundled_context=bundled_context,
+                    agent_rules=agent_rules,
+                    skills=skills,
                 )
 
                 try:

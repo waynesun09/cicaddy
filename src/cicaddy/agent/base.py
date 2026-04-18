@@ -1021,6 +1021,9 @@ Detailed Execution Logs
             parent_tools=mcp_tools,
             mcp_manager=self.mcp_manager,
             local_registry=self.local_tool_registry,
+            bundled_context=self.bundled_context,
+            agent_rules=self.agent_rules,
+            skills=self.skills,
         )
 
         # 5. Build standard analysis_result dict
