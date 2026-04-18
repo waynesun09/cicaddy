@@ -148,6 +148,58 @@ class BaseReviewAgent(BaseAIAgent):
                 "error": str(e),
             }
 
+    # Delegation hooks
+
+    def _get_agent_type(self) -> str:
+        """Review agents use the 'review' delegation registry."""
+        return "review"
+
+    def _get_delegation_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Shape context for review delegation triage.
+
+        Structures diff, MR/PR metadata, and changed files list
+        so the triage agent can route to specialized reviewers.
+        """
+        delegation_ctx: Dict[str, Any] = {}
+
+        # Project info (always included)
+        if "project" in context:
+            delegation_ctx["project"] = context["project"]
+
+        # Diff content
+        if "diff" in context:
+            delegation_ctx["diff"] = context["diff"]
+
+        # Changed files list for triage routing
+        diff_content = context.get("diff", "")
+        if diff_content:
+            changed_files = [
+                line.split(" b/")[-1]
+                for line in diff_content.splitlines()
+                if line.startswith("diff --git")
+            ]
+            delegation_ctx["changed_files"] = changed_files
+
+        # MR/PR metadata (description, title, labels, etc.)
+        for key in (
+            "mr_description",
+            "mr_title",
+            "pr_description",
+            "pr_title",
+            "labels",
+            "target_branch",
+            "source_branch",
+            "analysis_type",
+        ):
+            if key in context:
+                delegation_ctx[key] = context[key]
+
+        # Diff stats
+        if "diff_lines" in context:
+            delegation_ctx["diff_lines"] = context["diff_lines"]
+
+        return delegation_ctx
+
     def _validate_initialized(self):
         """Validate that the agent is properly initialized."""
         if not self.diff_analyzer:

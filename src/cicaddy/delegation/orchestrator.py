@@ -1,0 +1,219 @@
+"""Parallel delegation orchestrator and result aggregation.
+
+Spawns DelegationSubAgent instances in parallel (with semaphore for
+rate limit safety) and aggregates results into unified output.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import time
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+from cicaddy.delegation.sub_agent import DelegationSubAgent
+from cicaddy.delegation.triage import DelegationPlan
+from cicaddy.utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from cicaddy.config.settings import Settings
+    from cicaddy.delegation.registry import SubAgentSpec
+    from cicaddy.mcp_client.client import OfficialMCPClientManager
+    from cicaddy.tools import ToolRegistry
+
+logger = get_logger(__name__)
+
+
+@dataclass
+class DelegationResult:
+    """Result of delegated sub-agent execution."""
+
+    agent_results: List[Dict[str, Any]] = field(default_factory=list)
+    aggregated_analysis: str = ""
+    delegation_plan: Optional[DelegationPlan] = None
+    total_execution_time: float = 0.0
+    agents_succeeded: int = 0
+    agents_failed: int = 0
+    categories_covered: List[str] = field(default_factory=list)
+
+
+class DelegationOrchestrator:
+    """Orchestrates parallel sub-agent execution and result aggregation.
+
+    Uses asyncio.Semaphore to limit concurrency for API rate safety.
+    Handles partial failures gracefully — failed agents show errors
+    while successful agents' results are preserved.
+    """
+
+    def __init__(self, settings: "Settings", max_concurrent: int = 3):
+        if max_concurrent < 1:
+            raise ValueError("max_concurrent must be at least 1")
+        self.settings = settings
+        self.max_concurrent = max_concurrent
+
+    async def execute(
+        self,
+        plan: DelegationPlan,
+        registry: Dict[str, "SubAgentSpec"],
+        context: Dict[str, Any],
+        parent_tools: List[Dict[str, Any]],
+        mcp_manager: Optional["OfficialMCPClientManager"],
+        local_registry: Optional["ToolRegistry"],
+    ) -> DelegationResult:
+        """Execute delegation plan by spawning sub-agents in parallel.
+
+        Args:
+            plan: The triage-generated delegation plan.
+            registry: Available sub-agent specs.
+            context: Full context dict from parent agent.
+            parent_tools: Parent's collected tool list.
+            mcp_manager: Parent's MCP client manager (shared).
+            local_registry: Parent's local tool registry (shared).
+
+        Returns:
+            DelegationResult with aggregated analysis and per-agent results.
+        """
+        start = time.monotonic()
+        num_agents = len(plan.entries)
+
+        logger.info(
+            f"Starting delegation: {num_agents} sub-agents, "
+            f"max_concurrent={self.max_concurrent}"
+        )
+
+        semaphore = asyncio.Semaphore(self.max_concurrent)
+
+        async def _run_agent(entry):
+            async with semaphore:
+                spec = registry.get(entry.agent_name)
+                if not spec:
+                    logger.warning(
+                        f"Agent '{entry.agent_name}' not in registry, skipping"
+                    )
+                    return {
+                        "agent_name": entry.agent_name,
+                        "status": "skipped",
+                        "analysis": f"Agent '{entry.agent_name}' not found in registry",
+                        "categories": entry.categories,
+                        "rationale": entry.rationale,
+                        "execution_time": 0,
+                        "tokens": 0,
+                    }
+
+                agent = DelegationSubAgent(
+                    spec=spec,
+                    delegation_entry=entry,
+                    settings=self.settings,
+                    context=context,
+                    parent_tools=parent_tools,
+                    parent_mcp_manager=mcp_manager,
+                    parent_local_registry=local_registry,
+                )
+
+                try:
+                    await agent.initialize(num_agents=num_agents)
+                    result = await agent.execute()
+                    return result
+                finally:
+                    await agent.cleanup()
+
+        # Run all agents in parallel with semaphore
+        tasks = [_run_agent(entry) for entry in plan.entries]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Process results
+        agent_results = []
+        succeeded = 0
+        failed = 0
+        all_categories = set()
+
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                entry = plan.entries[i]
+                logger.error(
+                    f"Sub-agent '{entry.agent_name}' raised exception: {result}"
+                )
+                agent_results.append(
+                    {
+                        "agent_name": entry.agent_name,
+                        "status": "error",
+                        "analysis": f"Unexpected error: {result}",
+                        "categories": entry.categories,
+                        "rationale": entry.rationale,
+                        "execution_time": 0,
+                        "tokens": 0,
+                    }
+                )
+                failed += 1
+            else:
+                agent_results.append(result)
+                if result.get("status") == "success":
+                    succeeded += 1
+                    all_categories.update(result.get("categories", []))
+                elif result.get("status") == "skipped":
+                    pass  # Don't count skipped as failed
+                else:
+                    failed += 1
+
+        elapsed = time.monotonic() - start
+
+        aggregated = self._aggregate_results(agent_results)
+
+        logger.info(
+            f"Delegation complete: {succeeded} succeeded, {failed} failed, "
+            f"{elapsed:.2f}s total"
+        )
+
+        return DelegationResult(
+            agent_results=agent_results,
+            aggregated_analysis=aggregated,
+            delegation_plan=plan,
+            total_execution_time=round(elapsed, 2),
+            agents_succeeded=succeeded,
+            agents_failed=failed,
+            categories_covered=sorted(all_categories),
+        )
+
+    def _aggregate_results(self, results: List[Dict[str, Any]]) -> str:
+        """Aggregate sub-agent results into unified markdown output.
+
+        Uses deterministic structured concatenation (not another AI call).
+        """
+        sections = []
+
+        for result in results:
+            agent_name = result.get("agent_name", "Unknown")
+            status = result.get("status", "unknown")
+            analysis = result.get("analysis", "")
+
+            if status == "skipped":
+                continue
+
+            header = f"## {agent_name}"
+            if status != "success":
+                header += f" ({status})"
+
+            sections.append(f"{header}\n\n{analysis}")
+
+        if not sections:
+            return "No sub-agent results available."
+
+        body = "\n\n---\n\n".join(sections)
+
+        # Add delegation summary footer
+        succeeded = sum(1 for r in results if r.get("status") == "success")
+        failed = sum(
+            1 for r in results if r.get("status") not in ("success", "skipped")
+        )
+        total_time = sum(r.get("execution_time", 0) for r in results)
+        agent_names = [r["agent_name"] for r in results if r.get("status") != "skipped"]
+
+        footer = f"\n\n---\n\n*Delegation summary: {succeeded} agent(s) succeeded"
+        if failed:
+            footer += f", {failed} failed"
+        footer += (
+            f" | Agents: {', '.join(agent_names)}"
+            f" | Total sub-agent time: {total_time:.1f}s*"
+        )
+
+        return body + footer
