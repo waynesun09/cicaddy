@@ -19,16 +19,15 @@ description: Current AI model names, capabilities, and naming conventions for Ge
 
 ## Claude Models (Anthropic)
 
-| Model | Use Case | Notes |
-|-------|----------|-------|
-| `claude-opus-4-*` | Complex reasoning, architecture review | Most capable |
-| `claude-sonnet-4-*` | Balanced code review, default | Good cost/performance |
-| `claude-haiku-4-*` | Fast triage, simple checks | Lightweight |
+| Tier | Use Case | Notes |
+|------|----------|-------|
+| `claude-opus-*` | Complex reasoning, architecture review | Most capable |
+| `claude-sonnet-*` | Balanced code review, default | Good cost/performance |
+| `claude-haiku-*` | Fast triage, simple checks | Lightweight |
 
 - Model names follow `claude-{tier}-{major}-{minor}` pattern (e.g., `claude-sonnet-4-6`)
 - Acceptable suffixes: `@default`, `@latest`, or date `-YYYYMMDD` (e.g., `claude-sonnet-4-6@default`)
 - For Vertex AI enterprise: model name format depends on the organization's admin configuration
-- New versions (e.g., opus-4-7) become available as Anthropic releases them
 - All Claude models support tool use
 
 ## OpenAI Models

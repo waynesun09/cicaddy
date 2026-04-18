@@ -24,7 +24,7 @@ CICADDY_CONTEXT = """\
 
 Default models per provider (set via `AI_MODEL` env var):
 - **gemini**: `gemini-3-flash-preview` — tiers: pro, flash, flash-lite (pattern: `gemini-{ver}-{tier}-preview`)
-- **claude / anthropic-vertex**: `claude-sonnet-4-6` — also: claude-opus-4-*, claude-haiku-4-*
+- **claude / anthropic-vertex**: `claude-sonnet-4-6` — tiers: opus, sonnet, haiku (pattern: `claude-{tier}-{major}-{minor}`)
 - **openai**: `gpt-5.4`
 
 Gemini `-preview` suffix is acceptable for Vertex AI enterprise. Claude names accept `@default`, `@latest`, or date suffixes.
