@@ -2,6 +2,10 @@
 
 Provides SubAgentSpec dataclass and SubAgentRegistry for loading built-in
 and user-defined sub-agent definitions, organized by agent type.
+
+Built-in agents are shipped as YAML files in the ``builtin/`` directory
+alongside this module, included in the release package via
+``package-data`` in ``pyproject.toml``.
 """
 
 from __future__ import annotations
@@ -16,6 +20,9 @@ import yaml
 from cicaddy.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Directory containing built-in agent YAML files, shipped with the package.
+_BUILTIN_DIR = Path(__file__).parent / "builtin"
 
 
 @dataclass
@@ -33,189 +40,6 @@ class SubAgentSpec:
     blocked_tools: List[str] = field(default_factory=list)
     agent_type: str = "*"  # review|task|cron|* (which parent types can use this)
     source_file: Optional[str] = None
-
-
-# Built-in review sub-agents
-_BUILT_IN_REVIEW_AGENTS: Dict[str, SubAgentSpec] = {
-    "security-reviewer": SubAgentSpec(
-        name="security-reviewer",
-        persona="senior application security engineer with OWASP Top 10 expertise",
-        description="Reviews security-sensitive changes including auth, crypto, secrets, and access control",
-        categories=["security", "api"],
-        constraints=[
-            "Focus exclusively on security vulnerabilities and risks",
-            "Rate findings: Critical/High/Medium/Low",
-            "Include specific remediation steps for each finding",
-        ],
-        output_sections=[
-            "Security Vulnerabilities",
-            "Risk Assessment",
-            "Remediation Steps",
-        ],
-        priority=10,
-        agent_type="review",
-    ),
-    "architecture-reviewer": SubAgentSpec(
-        name="architecture-reviewer",
-        persona="senior software architect focused on design patterns and system boundaries",
-        description="Reviews architectural changes including design patterns, abstractions, module boundaries, and interfaces",
-        categories=["architecture"],
-        constraints=[
-            "Focus on structural design decisions and their implications",
-            "Evaluate separation of concerns and coupling",
-            "Consider backward compatibility and migration paths",
-        ],
-        output_sections=[
-            "Design Analysis",
-            "Architectural Concerns",
-            "Recommendations",
-        ],
-        priority=20,
-        agent_type="review",
-    ),
-    "api-reviewer": SubAgentSpec(
-        name="api-reviewer",
-        persona="API design specialist with expertise in REST, GraphQL, and backward compatibility",
-        description="Reviews API changes including endpoints, schemas, versioning, and backward compatibility",
-        categories=["api"],
-        constraints=[
-            "Focus on API contract changes and their impact",
-            "Check for breaking changes in request/response schemas",
-            "Evaluate versioning and deprecation strategy",
-        ],
-        output_sections=["API Changes", "Breaking Changes", "Compatibility Assessment"],
-        priority=30,
-        agent_type="review",
-    ),
-    "database-reviewer": SubAgentSpec(
-        name="database-reviewer",
-        persona="database engineer specializing in query optimization, migrations, and data integrity",
-        description="Reviews database changes including queries, migrations, ORM models, schema changes, and indexes",
-        categories=["database"],
-        constraints=[
-            "Focus on data integrity, migration safety, and query performance",
-            "Check for missing indexes on new queries",
-            "Evaluate migration rollback strategy",
-        ],
-        output_sections=["Schema Changes", "Query Analysis", "Migration Safety"],
-        priority=25,
-        agent_type="review",
-    ),
-    "ui-reviewer": SubAgentSpec(
-        name="ui-reviewer",
-        persona="frontend engineer with expertise in UI/UX, accessibility, and component design",
-        description="Reviews frontend changes including components, templates, CSS/styling, accessibility, and UX",
-        categories=["ui"],
-        constraints=[
-            "Focus on user experience and accessibility (WCAG)",
-            "Check for responsive design and cross-browser compatibility",
-            "Evaluate component reusability and state management",
-        ],
-        output_sections=["UI/UX Analysis", "Accessibility", "Component Review"],
-        priority=35,
-        agent_type="review",
-    ),
-    "devops-reviewer": SubAgentSpec(
-        name="devops-reviewer",
-        persona="DevOps/SRE engineer with CI/CD pipeline and infrastructure expertise",
-        description="Reviews CI/CD, Docker, deployment, and infrastructure changes",
-        categories=["cicd", "configuration"],
-        constraints=[
-            "Focus on pipeline reliability and deployment safety",
-            "Check for secrets exposure in CI configuration",
-            "Evaluate infrastructure cost and scaling implications",
-        ],
-        output_sections=[
-            "Pipeline Analysis",
-            "Deployment Safety",
-            "Infrastructure Impact",
-        ],
-        priority=40,
-        agent_type="review",
-    ),
-    "performance-reviewer": SubAgentSpec(
-        name="performance-reviewer",
-        persona="performance engineer specializing in algorithms, caching, concurrency, and resource usage",
-        description="Reviews performance-sensitive changes including algorithms, caching, concurrency, and resource usage",
-        categories=["performance"],
-        constraints=[
-            "Focus on algorithmic complexity and resource efficiency",
-            "Identify potential bottlenecks and memory leaks",
-            "Suggest concrete performance improvements with expected impact",
-        ],
-        output_sections=[
-            "Performance Analysis",
-            "Bottlenecks",
-            "Optimization Opportunities",
-        ],
-        priority=45,
-        agent_type="review",
-    ),
-    "general-reviewer": SubAgentSpec(
-        name="general-reviewer",
-        persona="senior software engineer with broad expertise in code quality and best practices",
-        description="General code review covering anything not handled by specialized reviewers",
-        categories=["architecture", "tests", "documentation", "error_handling"],
-        constraints=[
-            "Provide balanced, actionable feedback",
-            "Focus on code quality, readability, and maintainability",
-            "Avoid duplicating findings from specialized reviewers",
-        ],
-        output_sections=["Code Quality", "Test Coverage", "General Feedback"],
-        priority=100,
-        agent_type="review",
-    ),
-}
-
-# Built-in task sub-agents
-_BUILT_IN_TASK_AGENTS: Dict[str, SubAgentSpec] = {
-    "data-analyst": SubAgentSpec(
-        name="data-analyst",
-        persona="data analyst specializing in data processing, statistics, and pattern recognition",
-        description="Analyzes data patterns, trends, and anomalies",
-        categories=["data_processing", "performance"],
-        constraints=[
-            "Present findings with supporting data",
-            "Quantify observations where possible",
-        ],
-        output_sections=["Data Analysis", "Key Findings", "Recommendations"],
-        priority=10,
-        agent_type="task",
-    ),
-    "report-writer": SubAgentSpec(
-        name="report-writer",
-        persona="technical writer focused on clear, structured reports and documentation",
-        description="Generates formatted reports, summaries, and documentation",
-        categories=["documentation"],
-        constraints=[
-            "Use clear, concise language",
-            "Structure output for readability",
-            "Include actionable conclusions",
-        ],
-        output_sections=["Summary", "Details", "Conclusions"],
-        priority=20,
-        agent_type="task",
-    ),
-    "general-task": SubAgentSpec(
-        name="general-task",
-        persona="versatile analyst capable of handling diverse tasks",
-        description="General-purpose task handler for anything not covered by specialized agents",
-        categories=["data_processing", "documentation", "configuration"],
-        constraints=[
-            "Provide thorough, well-structured output",
-            "Adapt approach to the specific task requirements",
-        ],
-        output_sections=["Analysis", "Results", "Recommendations"],
-        priority=100,
-        agent_type="task",
-    ),
-}
-
-# All built-in agents indexed by type
-_ALL_BUILT_IN: Dict[str, Dict[str, SubAgentSpec]] = {
-    "review": _BUILT_IN_REVIEW_AGENTS,
-    "task": _BUILT_IN_TASK_AGENTS,
-}
 
 
 class SubAgentRegistry:
@@ -248,8 +72,8 @@ class SubAgentRegistry:
         """
         registry: Dict[str, SubAgentSpec] = {}
 
-        # 1. Load built-in agents
-        built_in = _ALL_BUILT_IN.get(agent_type, {})
+        # 1. Load built-in agents from bundled YAML files
+        built_in = self._load_builtin_agents(agent_type)
         registry.update(built_in)
         logger.info(f"Loaded {len(built_in)} built-in agents for type '{agent_type}'")
 
@@ -276,6 +100,13 @@ class SubAgentRegistry:
             f"Registry loaded: {len(registry)} total agents for type '{agent_type}'"
         )
         return registry
+
+    def _load_builtin_agents(self, agent_type: str) -> Dict[str, SubAgentSpec]:
+        """Load built-in agents from bundled YAML files for the given type."""
+        type_dir = _BUILTIN_DIR / agent_type
+        if not type_dir.is_dir():
+            return {}
+        return self._scan_yaml_dir(type_dir)
 
     def _load_yaml_agents(
         self, agent_type: str, agents_dir: str
