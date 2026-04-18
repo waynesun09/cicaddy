@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -287,7 +287,14 @@ class SubAgentRegistry:
         # Scan type-specific directory: .agents/delegation/{agent_type}/*.yaml
         type_dir = base_path / agent_type
         if type_dir.is_dir():
-            agents.update(self._scan_yaml_dir(type_dir))
+            for name, spec in self._scan_yaml_dir(type_dir).items():
+                if spec.agent_type in ("*", agent_type):
+                    agents[name] = spec
+                else:
+                    logger.warning(
+                        f"Skipping agent '{name}' from {type_dir}: "
+                        f"agent_type '{spec.agent_type}' does not match '{agent_type}'"
+                    )
 
         # Scan root directory for wildcard agents: .agents/delegation/*.yaml
         if base_path.is_dir():
@@ -297,6 +304,25 @@ class SubAgentRegistry:
                     agents[spec.name] = spec
 
         return agents
+
+    @staticmethod
+    def _as_list(value: Any, field_name: str, source: str = "") -> List[str]:
+        """Coerce a value to a list of strings, warning on type mismatch."""
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return [str(v) for v in value]
+        if isinstance(value, str):
+            logger.warning(
+                f"Field '{field_name}' should be a list, got string"
+                f"{f' in {source}' if source else ''}: wrapping in list"
+            )
+            return [value]
+        logger.warning(
+            f"Field '{field_name}' has unexpected type {type(value).__name__}"
+            f"{f' in {source}' if source else ''}: wrapping in list"
+        )
+        return [str(value)]
 
     def _scan_yaml_dir(self, directory: Path) -> Dict[str, SubAgentSpec]:
         """Scan a directory for YAML agent spec files."""
@@ -316,18 +342,30 @@ class SubAgentRegistry:
                 logger.warning(f"Invalid agent YAML (missing 'name'): {yaml_file}")
                 return None
 
+            src = str(yaml_file)
+            allowed = data.get("allowed_tools")
             return SubAgentSpec(
                 name=data["name"],
                 persona=data.get("persona", ""),
                 description=data.get("description", ""),
-                categories=data.get("categories", []),
-                constraints=data.get("constraints", []),
-                output_sections=data.get("output_sections", []),
+                categories=self._as_list(data.get("categories", []), "categories", src),
+                constraints=self._as_list(
+                    data.get("constraints", []), "constraints", src
+                ),
+                output_sections=self._as_list(
+                    data.get("output_sections", []), "output_sections", src
+                ),
                 priority=data.get("priority", 50),
-                allowed_tools=data.get("allowed_tools"),
-                blocked_tools=data.get("blocked_tools", []),
+                allowed_tools=(
+                    self._as_list(allowed, "allowed_tools", src)
+                    if allowed is not None
+                    else None
+                ),
+                blocked_tools=self._as_list(
+                    data.get("blocked_tools", []), "blocked_tools", src
+                ),
                 agent_type=data.get("agent_type", "*"),
-                source_file=str(yaml_file),
+                source_file=src,
             )
         except (yaml.YAMLError, OSError) as e:
             logger.warning(f"Failed to parse agent YAML {yaml_file}: {e}")
@@ -350,16 +388,30 @@ class SubAgentRegistry:
                 if entry_type not in ("*", agent_type):
                     continue
 
+                src = f"JSON config ({entry['name']})"
+                allowed = entry.get("allowed_tools")
                 spec = SubAgentSpec(
                     name=entry["name"],
                     persona=entry.get("persona", ""),
                     description=entry.get("description", ""),
-                    categories=entry.get("categories", []),
-                    constraints=entry.get("constraints", []),
-                    output_sections=entry.get("output_sections", []),
+                    categories=self._as_list(
+                        entry.get("categories", []), "categories", src
+                    ),
+                    constraints=self._as_list(
+                        entry.get("constraints", []), "constraints", src
+                    ),
+                    output_sections=self._as_list(
+                        entry.get("output_sections", []), "output_sections", src
+                    ),
                     priority=entry.get("priority", 50),
-                    allowed_tools=entry.get("allowed_tools"),
-                    blocked_tools=entry.get("blocked_tools", []),
+                    allowed_tools=(
+                        self._as_list(allowed, "allowed_tools", src)
+                        if allowed is not None
+                        else None
+                    ),
+                    blocked_tools=self._as_list(
+                        entry.get("blocked_tools", []), "blocked_tools", src
+                    ),
                     agent_type=entry_type,
                 )
                 agents[spec.name] = spec

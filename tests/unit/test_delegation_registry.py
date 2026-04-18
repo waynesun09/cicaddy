@@ -242,3 +242,37 @@ class TestSubAgentRegistry:
         )
         # JSON overrides YAML overrides built-in
         assert registry["security-reviewer"].persona == "json persona"
+
+    def test_yaml_string_list_coercion(self, tmp_path):
+        """YAML with scalar string instead of list should be coerced."""
+        review_dir = tmp_path / "review"
+        review_dir.mkdir()
+        (review_dir / "scalar.yaml").write_text(
+            textwrap.dedent("""\
+                name: scalar-agent
+                persona: test
+                description: test scalar coercion
+                categories: security
+                allowed_tools: read_file
+                agent_type: review
+            """)
+        )
+        registry = SubAgentRegistry().load_registry("review", agents_dir=str(tmp_path))
+        spec = registry["scalar-agent"]
+        assert spec.categories == ["security"]
+        assert spec.allowed_tools == ["read_file"]
+
+    def test_yaml_misfiled_type_excluded(self, tmp_path):
+        """YAML with agent_type=task in review/ dir should be excluded."""
+        review_dir = tmp_path / "review"
+        review_dir.mkdir()
+        (review_dir / "misfiled.yaml").write_text(
+            textwrap.dedent("""\
+                name: misfiled-agent
+                persona: task agent
+                description: wrong directory
+                agent_type: task
+            """)
+        )
+        registry = SubAgentRegistry().load_registry("review", agents_dir=str(tmp_path))
+        assert "misfiled-agent" not in registry

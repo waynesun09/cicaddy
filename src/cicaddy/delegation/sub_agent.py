@@ -122,10 +122,14 @@ class DelegationSubAgent:
         budget_fraction = max(1, num_agents)
         max_tokens_total = token_limits["input"] // budget_fraction
 
+        per_iter = max(4096, int(max_tokens_total * 0.0625))
+        # Ensure per-iteration limit never exceeds total budget
+        per_iter = min(per_iter, max_tokens_total)
+
         execution_limits = ExecutionLimits(
             max_infer_iters=max_iters,
             max_tokens_total=max_tokens_total,
-            max_tokens_per_iteration=max(4096, int(max_tokens_total * 0.0625)),
+            max_tokens_per_iteration=per_iter,
             max_tokens_per_tool_result=max(1024, int(token_limits["output"] * 0.25)),
             max_execution_time=min(
                 300,

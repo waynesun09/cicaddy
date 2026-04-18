@@ -265,3 +265,8 @@ class TestTriageAgent:
         plan = await triage_agent.triage(sample_context, sample_registry)
         assert len(plan.entries) == 1
         assert "general" in plan.entries[0].agent_name
+
+    def test_fallback_plan_raises_on_empty_registry(self, triage_agent):
+        """Fallback should raise ValueError when no agents available."""
+        with pytest.raises(ValueError, match="No agents available"):
+            triage_agent._fallback_plan({})

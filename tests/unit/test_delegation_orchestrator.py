@@ -91,6 +91,14 @@ class TestDelegationOrchestrator:
         orch = DelegationOrchestrator(mock_settings, max_concurrent=5)
         assert orch.max_concurrent == 5
 
+    def test_init_rejects_zero_max_concurrent(self, mock_settings):
+        with pytest.raises(ValueError, match="max_concurrent must be at least 1"):
+            DelegationOrchestrator(mock_settings, max_concurrent=0)
+
+    def test_init_rejects_negative_max_concurrent(self, mock_settings):
+        with pytest.raises(ValueError, match="max_concurrent must be at least 1"):
+            DelegationOrchestrator(mock_settings, max_concurrent=-1)
+
     @pytest.mark.asyncio
     async def test_execute_success(
         self, mock_settings, sample_plan, sample_registry, sample_context
@@ -257,6 +265,8 @@ class TestDelegationOrchestrator:
 
         assert len(result.agent_results) == 1
         assert result.agent_results[0]["status"] == "skipped"
+        assert result.agents_failed == 0
+        assert result.agents_succeeded == 0
 
     @pytest.mark.asyncio
     async def test_delegation_plan_passthrough(

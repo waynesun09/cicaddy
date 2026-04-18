@@ -46,6 +46,8 @@ class DelegationOrchestrator:
     """
 
     def __init__(self, settings: "Settings", max_concurrent: int = 3):
+        if max_concurrent < 1:
+            raise ValueError("max_concurrent must be at least 1")
         self.settings = settings
         self.max_concurrent = max_concurrent
 
@@ -148,6 +150,8 @@ class DelegationOrchestrator:
                 if result.get("status") == "success":
                     succeeded += 1
                     all_categories.update(result.get("categories", []))
+                elif result.get("status") == "skipped":
+                    pass  # Don't count skipped as failed
                 else:
                     failed += 1
 

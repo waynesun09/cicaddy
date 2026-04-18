@@ -967,6 +967,14 @@ Detailed Execution Logs
             ),
         )
 
+        if not registry:
+            logger.warning(
+                "Delegation mode 'auto' enabled but no sub-agents available for "
+                f"agent_type='{agent_type}'. Falling back to single-agent analysis."
+            )
+            prompt = self.build_analysis_prompt(context)
+            return await self.execute_analysis(prompt, context)
+
         # 2. Build delegation context (subclass hook)
         delegation_context = self._get_delegation_context(context)
 
@@ -1023,7 +1031,11 @@ Detailed Execution Logs
             or get_default_model(self.settings.ai_provider),
             "ai_provider": self.settings.ai_provider or DEFAULT_AI_PROVIDER,
             "execution_time": result.total_execution_time,
-            "status": "success" if result.agents_succeeded > 0 else "failed",
+            "status": (
+                "success"
+                if result.agents_succeeded > 0
+                else ("skipped" if result.agents_failed == 0 else "failed")
+            ),
         }
 
     def _get_agent_type(self) -> str:

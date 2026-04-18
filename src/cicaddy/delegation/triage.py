@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import secrets
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from cicaddy.utils.logger import get_logger
 
@@ -193,29 +193,53 @@ class TriageAgent:
         )
         return prompt
 
+    @staticmethod
+    def _extract_json(content: str) -> str:
+        """Extract JSON from response, stripping markdown code blocks."""
+        content = content.strip()
+        if not content.startswith("```"):
+            return content
+
+        lines = content.splitlines()
+        json_lines = []
+        in_block = False
+        for line in lines:
+            if line.strip().startswith("```") and not in_block:
+                in_block = True
+                continue
+            if line.strip() == "```" and in_block:
+                break
+            if in_block:
+                json_lines.append(line)
+        return "\n".join(json_lines)
+
+    @staticmethod
+    def _validate_entry(
+        entry_data: Dict[str, Any],
+        available_agents: Dict[str, "SubAgentSpec"],
+    ) -> Optional[DelegationEntry]:
+        """Validate and convert a single entry dict to DelegationEntry."""
+        agent_name = entry_data.get("agent_name", "")
+        if agent_name not in available_agents:
+            logger.warning(f"Triage selected unknown agent '{agent_name}', skipping")
+            return None
+
+        return DelegationEntry(
+            agent_name=agent_name,
+            categories=entry_data.get("categories", []),
+            rationale=entry_data.get("rationale", ""),
+            relevant_context_keys=entry_data.get("relevant_context_keys", []),
+            relevant_files=entry_data.get("relevant_files", []),
+            priority=entry_data.get("priority", 0),
+        )
+
     def _parse_response(
         self,
         response_content: str,
         available_agents: Dict[str, "SubAgentSpec"],
     ) -> DelegationPlan:
         """Parse AI response into a DelegationPlan."""
-        # Extract JSON from response (handle markdown code blocks)
-        content = response_content.strip()
-        if content.startswith("```"):
-            # Remove markdown code block wrapper
-            lines = content.splitlines()
-            # Skip first line (```json) and last line (```)
-            json_lines = []
-            in_block = False
-            for line in lines:
-                if line.strip().startswith("```") and not in_block:
-                    in_block = True
-                    continue
-                if line.strip() == "```" and in_block:
-                    break
-                if in_block:
-                    json_lines.append(line)
-            content = "\n".join(json_lines)
+        content = self._extract_json(response_content)
 
         try:
             data = json.loads(content)
@@ -225,30 +249,14 @@ class TriageAgent:
 
         entries = []
         for entry_data in data.get("entries", []):
-            agent_name = entry_data.get("agent_name", "")
-            # Validate agent exists in registry
-            if agent_name not in available_agents:
-                logger.warning(
-                    f"Triage selected unknown agent '{agent_name}', skipping"
-                )
-                continue
-
-            entries.append(
-                DelegationEntry(
-                    agent_name=agent_name,
-                    categories=entry_data.get("categories", []),
-                    rationale=entry_data.get("rationale", ""),
-                    relevant_context_keys=entry_data.get("relevant_context_keys", []),
-                    relevant_files=entry_data.get("relevant_files", []),
-                    priority=entry_data.get("priority", 0),
-                )
-            )
+            entry = self._validate_entry(entry_data, available_agents)
+            if entry:
+                entries.append(entry)
 
         if not entries:
             logger.warning("Triage produced no valid entries, using fallback")
             return self._fallback_plan(available_agents)
 
-        # Sort by priority (lower = higher priority)
         entries.sort(key=lambda e: e.priority)
 
         return DelegationPlan(
@@ -269,6 +277,8 @@ class TriageAgent:
                 break
 
         if not general_name:
+            if not available_agents:
+                raise ValueError("No agents available for fallback plan")
             # Use first available agent
             general_name = next(iter(available_agents))
 
