@@ -15,6 +15,7 @@ from cicaddy.ai_providers.base import ProviderMessage
 from cicaddy.ai_providers.factory import create_provider, get_provider_config
 from cicaddy.delegation.triage import (
     DelegationEntry,
+    SiblingInfo,
     _make_boundary_pair,
     _sanitize_for_boundary,
 )
@@ -88,6 +89,7 @@ class DelegationSubAgent:
         parent_tools: List[Dict[str, Any]],
         parent_mcp_manager: Optional["OfficialMCPClientManager"],
         parent_local_registry: Optional["ToolRegistry"],
+        sibling_agents: Optional[List[SiblingInfo]] = None,
     ):
         self.spec = spec
         self.delegation_entry = delegation_entry
@@ -96,6 +98,7 @@ class DelegationSubAgent:
         self.parent_tools = parent_tools
         self.parent_mcp_manager = parent_mcp_manager
         self.parent_local_registry = parent_local_registry
+        self.sibling_agents = sibling_agents or []
 
         self.ai_provider = None
         self.execution_engine: Optional["ExecutionEngine"] = None
@@ -209,6 +212,38 @@ class DelegationSubAgent:
             )
             user_prompt = f"\n## Additional Instructions\n{sanitized_prompt}\n"
 
+        # Build delegation context so the agent knows if it's solo or combined
+        my_name = self.delegation_entry.agent_name
+        siblings = [s for s in self.sibling_agents if s.name != my_name]
+        # Deduplicate by name, preserving order
+        seen: set[str] = set()
+        unique_siblings: list[SiblingInfo] = []
+        for s in siblings:
+            if s.name not in seen:
+                seen.add(s.name)
+                unique_siblings.append(s)
+
+        if unique_siblings:
+            parts = []
+            for s in unique_siblings:
+                if s.categories:
+                    parts.append(f"{s.name} ({', '.join(s.categories)})")
+                else:
+                    parts.append(s.name)
+            sibling_list = "; ".join(parts)
+            delegation_text = (
+                f"\n## Delegation Context\n"
+                f"You are running alongside these other agents: {sibling_list}.\n"
+                f"They will cover their listed categories. "
+                f"Focus on aspects they do not cover and avoid duplicating their work.\n"
+            )
+        else:
+            delegation_text = (
+                "\n## Delegation Context\n"
+                "You are the sole reviewer for this change. "
+                "Provide comprehensive coverage across all relevant aspects.\n"
+            )
+
         return f"""You are a {self.spec.persona}.
 
 ## Your Role
@@ -217,7 +252,7 @@ class DelegationSubAgent:
 ## Focus Areas
 Categories: {", ".join(self.delegation_entry.categories)}
 Rationale: {self.delegation_entry.rationale}
-{constraints_text}{output_text}{user_prompt}
+{constraints_text}{output_text}{delegation_text}{user_prompt}
 ## Context
 
 {boundary_start}

@@ -62,6 +62,14 @@ class DelegationPlan:
     estimated_complexity: str = "medium"
 
 
+@dataclass
+class SiblingInfo:
+    """Identifies a sibling agent in the same delegation batch."""
+
+    name: str
+    categories: List[str] = field(default_factory=list)
+
+
 class TriageAgent:
     """AI-powered triage that analyzes context and produces a DelegationPlan.
 

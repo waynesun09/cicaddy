@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from cicaddy.delegation.sub_agent import DelegationSubAgent
-from cicaddy.delegation.triage import DelegationPlan
+from cicaddy.delegation.triage import DelegationPlan, SiblingInfo
 from cicaddy.utils.logger import get_logger
 
 if TYPE_CHECKING:
@@ -82,6 +82,21 @@ class DelegationOrchestrator:
         )
 
         semaphore = asyncio.Semaphore(self.max_concurrent)
+        all_agent_info = []
+        for entry in plan.entries:
+            spec = registry.get(entry.agent_name)
+            if spec:
+                all_agent_info.append(
+                    SiblingInfo(
+                        name=entry.agent_name,
+                        categories=list(spec.categories),
+                    )
+                )
+            else:
+                logger.warning(
+                    f"Triage selected '{entry.agent_name}' but spec not in registry, "
+                    f"excluding from sibling list"
+                )
 
         async def _run_agent(entry):
             async with semaphore:
@@ -108,6 +123,7 @@ class DelegationOrchestrator:
                     parent_tools=parent_tools,
                     parent_mcp_manager=mcp_manager,
                     parent_local_registry=local_registry,
+                    sibling_agents=all_agent_info,
                 )
 
                 try:
