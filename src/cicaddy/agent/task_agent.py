@@ -192,12 +192,12 @@ class TaskAgent(BaseAIAgent):
                 "type": task.type,
                 "persona": task.persona,
                 "constraints": task.constraints,
-                "outputs": [o.name for o in task.outputs],
+                "outputs": [o.name for o in (task.outputs or [])],
                 "output_format": task.output_format,
                 "reasoning": task.reasoning,
-                "tool_servers": task.tools.servers,
-                "required_tools": task.tools.required_tools,
-                "forbidden_tools": task.tools.forbidden_tools,
+                "tool_servers": task.tools.servers if task.tools else [],
+                "required_tools": task.tools.required_tools if task.tools else [],
+                "forbidden_tools": task.tools.forbidden_tools if task.tools else [],
                 "resolved_inputs": {
                     k: v[:200] if isinstance(v, str) and len(v) > 200 else v
                     for k, v in resolved_inputs.items()
@@ -209,7 +209,9 @@ class TaskAgent(BaseAIAgent):
             logger.info(f"Enriched delegation context with DSPy task: {task.name}")
 
         except Exception as e:
-            logger.warning(f"Failed to load task file for delegation context: {e}")
+            logger.warning(
+                f"Failed to load task file '{task_file}' for delegation context: {e}"
+            )
 
         return context
 

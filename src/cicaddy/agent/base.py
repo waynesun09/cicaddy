@@ -995,10 +995,16 @@ Detailed Execution Logs
         task_def = delegation_context.get("task_definition", {})
         task_forbidden = task_def.get("forbidden_tools", [])
         if task_forbidden:
+            import copy
+
             for entry in plan.entries:
                 spec = registry.get(entry.agent_name)
                 if spec:
-                    spec.blocked_tools = list(set(spec.blocked_tools + task_forbidden))
+                    updated = copy.copy(spec)
+                    updated.blocked_tools = list(
+                        set(spec.blocked_tools) | set(task_forbidden)
+                    )
+                    registry[entry.agent_name] = updated
             logger.info(
                 f"Cascaded {len(task_forbidden)} task forbidden tool(s) to sub-agents"
             )
