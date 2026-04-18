@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from cicaddy.delegation.sub_agent import DelegationSubAgent
-from cicaddy.delegation.triage import DelegationPlan
+from cicaddy.delegation.triage import DelegationPlan, SiblingInfo
 from cicaddy.utils.logger import get_logger
 
 if TYPE_CHECKING:
@@ -85,12 +85,10 @@ class DelegationOrchestrator:
         all_agent_info = []
         for entry in plan.entries:
             spec = registry.get(entry.agent_name)
-            all_agent_info.append(
-                {
-                    "name": entry.agent_name,
-                    "categories": spec.categories if spec else entry.categories,
-                }
-            )
+            if spec:
+                all_agent_info.append(
+                    SiblingInfo(name=entry.agent_name, categories=spec.categories)
+                )
 
         async def _run_agent(entry):
             async with semaphore:

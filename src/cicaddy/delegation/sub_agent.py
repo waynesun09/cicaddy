@@ -88,7 +88,7 @@ class DelegationSubAgent:
         parent_tools: List[Dict[str, Any]],
         parent_mcp_manager: Optional["OfficialMCPClientManager"],
         parent_local_registry: Optional["ToolRegistry"],
-        sibling_agents: Optional[List[Dict[str, Any]]] = None,
+        sibling_agents: Optional[List[SiblingInfo]] = None,
     ):
         self.spec = spec
         self.delegation_entry = delegation_entry
@@ -213,25 +213,22 @@ class DelegationSubAgent:
 
         # Build delegation context so the agent knows if it's solo or combined
         my_name = self.delegation_entry.agent_name
-        siblings = [s for s in self.sibling_agents if s.get("name") != my_name]
+        siblings = [s for s in self.sibling_agents if s.name != my_name]
         # Deduplicate by name, preserving order
         seen: set[str] = set()
-        unique_siblings = []
+        unique_siblings: list[SiblingInfo] = []
         for s in siblings:
-            sname = s.get("name", "")
-            if sname not in seen:
-                seen.add(sname)
+            if s.name not in seen:
+                seen.add(s.name)
                 unique_siblings.append(s)
 
         if unique_siblings:
             parts = []
             for s in unique_siblings:
-                name = s.get("name", "unknown")
-                cats = s.get("categories", [])
-                if cats:
-                    parts.append(f"{name} ({', '.join(cats)})")
+                if s.categories:
+                    parts.append(f"{s.name} ({', '.join(s.categories)})")
                 else:
-                    parts.append(name)
+                    parts.append(s.name)
             sibling_list = "; ".join(parts)
             delegation_text = (
                 f"\n## Delegation Context\n"

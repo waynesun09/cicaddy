@@ -12,7 +12,7 @@ from cicaddy.delegation.sub_agent import (
     DelegationSubAgent,
     collect_blocked_tools,
 )
-from cicaddy.delegation.triage import DelegationEntry
+from cicaddy.delegation.triage import DelegationEntry, SiblingInfo
 
 
 @pytest.fixture(autouse=True)
@@ -449,7 +449,9 @@ class TestDelegationSubAgentSiblingAwareness:
             sample_entry,
             mock_settings,
             sample_context,
-            sibling_agents=[{"name": "security-reviewer", "categories": ["security"]}],
+            sibling_agents=[
+                SiblingInfo(name="security-reviewer", categories=["security"])
+            ],
         )
         prompt = agent._build_prompt()
         assert "sole reviewer" in prompt
@@ -464,9 +466,11 @@ class TestDelegationSubAgentSiblingAwareness:
             mock_settings,
             sample_context,
             sibling_agents=[
-                {"name": "security-reviewer", "categories": ["security"]},
-                {"name": "performance-reviewer", "categories": ["performance"]},
-                {"name": "general-reviewer", "categories": ["code_quality", "tests"]},
+                SiblingInfo(name="security-reviewer", categories=["security"]),
+                SiblingInfo(name="performance-reviewer", categories=["performance"]),
+                SiblingInfo(
+                    name="general-reviewer", categories=["code_quality", "tests"]
+                ),
             ],
         )
         prompt = agent._build_prompt()
@@ -488,8 +492,8 @@ class TestDelegationSubAgentSiblingAwareness:
             mock_settings,
             sample_context,
             sibling_agents=[
-                {"name": "security-reviewer", "categories": ["security"]},
-                {"name": "custom-agent", "categories": []},
+                SiblingInfo(name="security-reviewer", categories=["security"]),
+                SiblingInfo(name="custom-agent"),
             ],
         )
         prompt = agent._build_prompt()
@@ -521,9 +525,9 @@ class TestDelegationSubAgentSiblingAwareness:
             mock_settings,
             sample_context,
             sibling_agents=[
-                {"name": "security-reviewer", "categories": ["security"]},
-                {"name": "general-reviewer", "categories": ["code_quality"]},
-                {"name": "general-reviewer", "categories": ["code_quality"]},
+                SiblingInfo(name="security-reviewer", categories=["security"]),
+                SiblingInfo(name="general-reviewer", categories=["code_quality"]),
+                SiblingInfo(name="general-reviewer", categories=["code_quality"]),
             ],
         )
         prompt = agent._build_prompt()
@@ -555,8 +559,8 @@ class TestDelegationSubAgentSiblingAwareness:
             mock_settings,
             sample_context,
             sibling_agents=[
-                {"name": "my-agent", "categories": ["test"]},
-                {"name": "other-agent", "categories": ["other"]},
+                SiblingInfo(name="my-agent", categories=["test"]),
+                SiblingInfo(name="other-agent", categories=["other"]),
             ],
         )
         prompt = agent._build_prompt()
