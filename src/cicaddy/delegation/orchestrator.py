@@ -87,7 +87,15 @@ class DelegationOrchestrator:
             spec = registry.get(entry.agent_name)
             if spec:
                 all_agent_info.append(
-                    SiblingInfo(name=entry.agent_name, categories=spec.categories)
+                    SiblingInfo(
+                        name=entry.agent_name,
+                        categories=list(spec.categories),
+                    )
+                )
+            else:
+                logger.warning(
+                    f"Triage selected '{entry.agent_name}' but spec not in registry, "
+                    f"excluding from sibling list"
                 )
 
         async def _run_agent(entry):
