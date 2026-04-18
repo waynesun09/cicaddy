@@ -12,11 +12,7 @@ from cicaddy.delegation.sub_agent import (
     DelegationSubAgent,
     collect_blocked_tools,
 )
-from cicaddy.delegation.triage import (
-    DATA_BOUNDARY_END,
-    DATA_BOUNDARY_START,
-    DelegationEntry,
-)
+from cicaddy.delegation.triage import DelegationEntry
 
 
 @pytest.fixture(autouse=True)
@@ -279,8 +275,8 @@ class TestDelegationSubAgentPrompt:
             sample_spec, sample_entry, mock_settings, sample_context
         )
         prompt = agent._build_prompt()
-        assert DATA_BOUNDARY_START in prompt
-        assert DATA_BOUNDARY_END in prompt
+        assert "<<<BEGIN_CONTEXT_DATA_" in prompt
+        assert "<<<END_CONTEXT_DATA_" in prompt
 
     def test_prompt_includes_user_review_prompt(
         self, sample_spec, sample_entry, mock_settings, sample_context

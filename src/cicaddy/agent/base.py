@@ -118,6 +118,7 @@ class BaseAIAgent(ABC):
                 logger.info("Delegation mode: auto — running delegated analysis")
                 analysis_result = await self._analyze_delegate(context, mcp_tools)
             else:
+                logger.info("Delegation mode: none — running single-agent analysis")
                 # Step 3: Build analysis prompt (subclass-specific)
                 prompt = self.build_analysis_prompt(context)
 
@@ -1029,13 +1030,9 @@ Detailed Execution Logs
     def _get_agent_type(self) -> str:
         """Return the agent type string for delegation registry lookup.
 
-        Override in subclasses. Default uses class name heuristics.
+        Override in subclasses to return the correct type
+        (e.g., "review", "task", "cron").
         """
-        name = self.__class__.__name__.lower()
-        if "review" in name or "mr" in name:
-            return "review"
-        if "cron" in name or "task" in name:
-            return "task"
         return "task"
 
     def _get_delegation_context(self, context: Dict[str, Any]) -> Dict[str, Any]:

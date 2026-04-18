@@ -9,8 +9,6 @@ import pytest
 
 from cicaddy.delegation.registry import SubAgentSpec
 from cicaddy.delegation.triage import (
-    DATA_BOUNDARY_END,
-    DATA_BOUNDARY_START,
     DelegationEntry,
     DelegationPlan,
     TriageAgent,
@@ -119,10 +117,10 @@ class TestTriageAgent:
     def test_build_triage_prompt_includes_context(
         self, triage_agent, sample_registry, sample_context
     ):
-        """Triage prompt should include context data with boundary markers."""
+        """Triage prompt should include context data with nonce-based boundary markers."""
         prompt = triage_agent._build_triage_prompt(sample_context, sample_registry, "")
-        assert DATA_BOUNDARY_START in prompt
-        assert DATA_BOUNDARY_END in prompt
+        assert "<<<BEGIN_CONTEXT_DATA_" in prompt
+        assert "<<<END_CONTEXT_DATA_" in prompt
 
     def test_build_triage_prompt_includes_custom_prompt(
         self, triage_agent, sample_registry, sample_context

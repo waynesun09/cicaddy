@@ -14,9 +14,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
 from cicaddy.ai_providers.base import ProviderMessage
 from cicaddy.ai_providers.factory import create_provider, get_provider_config
 from cicaddy.delegation.triage import (
-    DATA_BOUNDARY_END,
-    DATA_BOUNDARY_START,
     DelegationEntry,
+    _make_boundary_pair,
+    _sanitize_for_boundary,
 )
 from cicaddy.utils.logger import get_logger
 
@@ -170,13 +170,17 @@ class DelegationSubAgent:
         # Get relevant context subset
         relevant_context = self._get_relevant_context()
 
+        # Generate nonce-based boundary markers for prompt injection protection
+        boundary_start, boundary_end = _make_boundary_pair()
+
         # Build context data section with boundary markers
         context_parts = []
         for key, value in relevant_context.items():
             if isinstance(value, str):
-                context_parts.append(f"### {key}\n{value}")
+                sanitized = _sanitize_for_boundary(value, boundary_start, boundary_end)
+                context_parts.append(f"### {key}\n{sanitized}")
             else:
-                context_parts.append(f"### {key}\n{value}")
+                context_parts.append(f"### {key}\n{value!s}")
 
         context_section = "\n\n".join(context_parts)
 
@@ -192,11 +196,14 @@ class DelegationSubAgent:
             sections_list = "\n".join(f"- {s}" for s in self.spec.output_sections)
             output_text = f"\n## Expected Output Sections\n{sections_list}\n"
 
-        # Include user custom prompt if set
+        # Include user custom prompt if set (sanitize against boundary injection)
         user_prompt = ""
         review_prompt = getattr(self.settings, "review_prompt", None)
         if review_prompt:
-            user_prompt = f"\n## Additional Instructions\n{review_prompt}\n"
+            sanitized_prompt = _sanitize_for_boundary(
+                review_prompt, boundary_start, boundary_end
+            )
+            user_prompt = f"\n## Additional Instructions\n{sanitized_prompt}\n"
 
         return f"""You are a {self.spec.persona}.
 
@@ -209,9 +216,9 @@ Rationale: {self.delegation_entry.rationale}
 {constraints_text}{output_text}{user_prompt}
 ## Context
 
-{DATA_BOUNDARY_START}
+{boundary_start}
 {context_section}
-{DATA_BOUNDARY_END}
+{boundary_end}
 
 Analyze the context above according to your role and focus areas. Provide structured, actionable findings."""
 
