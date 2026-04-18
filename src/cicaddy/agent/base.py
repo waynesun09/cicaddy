@@ -112,12 +112,19 @@ class BaseAIAgent(ABC):
             logger.info(f"Retrieved {len(mcp_tools)} MCP tools")
             context["mcp_tools"] = mcp_tools
 
-            # Step 3: Build analysis prompt (subclass-specific)
-            prompt = self.build_analysis_prompt(context)
+            # Check delegation mode
+            delegation_mode = getattr(self.settings, "delegation_mode", "none")
+            if delegation_mode == "auto":
+                logger.info("Delegation mode: auto — running delegated analysis")
+                analysis_result = await self._analyze_delegate(context, mcp_tools)
+            else:
+                # Step 3: Build analysis prompt (subclass-specific)
+                prompt = self.build_analysis_prompt(context)
 
-            # Step 4: Execute analysis using execution engine
-            logger.info("Executing AI analysis...")
-            analysis_result = await self.execute_analysis(prompt, context)
+                # Step 4: Execute analysis using execution engine
+                logger.info("Executing AI analysis...")
+                analysis_result = await self.execute_analysis(prompt, context)
+
             logger.info("Analysis completed")
 
         except Exception as e:
@@ -933,6 +940,112 @@ Detailed Execution Logs
         except TaskLoadError as e:
             logger.error(f"Failed to load DSPy task file: {e}")
             return None
+
+    # Delegation hooks
+
+    async def _analyze_delegate(
+        self, context: Dict[str, Any], mcp_tools: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Run AI-powered delegation: triage -> spawn sub-agents -> aggregate.
+
+        Uses the parent's AI provider for a lightweight triage call, then
+        spawns specialized sub-agents in parallel with filtered tools and
+        reduced budgets.
+        """
+        from cicaddy.delegation.orchestrator import DelegationOrchestrator
+        from cicaddy.delegation.registry import SubAgentRegistry
+        from cicaddy.delegation.triage import TriageAgent
+
+        # 1. Load agent registry for this agent type
+        agent_type = self._get_agent_type()
+        registry = SubAgentRegistry().load_registry(
+            agent_type=agent_type,
+            user_config=getattr(self.settings, "delegation_agents_config", ""),
+            agents_dir=getattr(
+                self.settings, "delegation_agents_dir", ".agents/delegation"
+            ),
+        )
+
+        # 2. Build delegation context (subclass hook)
+        delegation_context = self._get_delegation_context(context)
+
+        # 3. AI-powered triage to build delegation plan
+        triage_prompt = getattr(self.settings, "triage_prompt", "")
+        triage_agent = TriageAgent(self.ai_provider)
+        plan = await triage_agent.triage(
+            context=delegation_context,
+            available_agents=registry,
+            triage_prompt=triage_prompt,
+        )
+
+        logger.info(
+            f"Triage plan: {len(plan.entries)} agent(s), "
+            f"complexity={plan.estimated_complexity}"
+        )
+
+        # 4. Execute delegation plan
+        max_concurrent = getattr(self.settings, "max_sub_agents", 3)
+        orchestrator = DelegationOrchestrator(
+            settings=self.settings, max_concurrent=max_concurrent
+        )
+        result = await orchestrator.execute(
+            plan=plan,
+            registry=registry,
+            context=delegation_context,
+            parent_tools=mcp_tools,
+            mcp_manager=self.mcp_manager,
+            local_registry=self.local_tool_registry,
+        )
+
+        # 5. Build standard analysis_result dict
+        return {
+            "ai_analysis": result.aggregated_analysis,
+            "ai_response_format": self.settings.ai_response_format,
+            "delegation_mode": "auto",
+            "delegation_plan": {
+                "context_summary": plan.context_summary,
+                "estimated_complexity": plan.estimated_complexity,
+                "agents": [
+                    {
+                        "name": e.agent_name,
+                        "categories": e.categories,
+                        "rationale": e.rationale,
+                    }
+                    for e in plan.entries
+                ],
+            },
+            "sub_agent_details": result.agent_results,
+            "agents_succeeded": result.agents_succeeded,
+            "agents_failed": result.agents_failed,
+            "categories_covered": result.categories_covered,
+            "total_execution_time": result.total_execution_time,
+            "model_used": self.settings.ai_model
+            or get_default_model(self.settings.ai_provider),
+            "ai_provider": self.settings.ai_provider or DEFAULT_AI_PROVIDER,
+            "execution_time": result.total_execution_time,
+            "status": "success" if result.agents_succeeded > 0 else "failed",
+        }
+
+    def _get_agent_type(self) -> str:
+        """Return the agent type string for delegation registry lookup.
+
+        Override in subclasses. Default uses class name heuristics.
+        """
+        name = self.__class__.__name__.lower()
+        if "review" in name or "mr" in name:
+            return "review"
+        if "cron" in name or "task" in name:
+            return "task"
+        return "task"
+
+    def _get_delegation_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Shape the analysis context for delegation triage.
+
+        Override in subclasses to provide type-specific context
+        (e.g., review agents add structured diff + MR metadata).
+        Default returns context as-is.
+        """
+        return context
 
     # Abstract methods for subclass specialization
 

@@ -282,6 +282,43 @@ class CoreSettings(BaseSettings):
         description="Risk score threshold for blocking local tool results (0.0-1.0). Only applies in enforce mode. Default: 0.3.",
     )
 
+    # Delegation configuration
+    delegation_mode: str = Field(
+        default="none",
+        validation_alias="DELEGATION_MODE",
+        pattern="^(none|auto)$",
+        description="Delegation mode: 'none' (single-agent) or 'auto' (AI-powered sub-agent delegation).",
+    )
+    max_sub_agents: int = Field(
+        default=3,
+        validation_alias="MAX_SUB_AGENTS",
+        ge=1,
+        le=10,
+        description="Maximum concurrent sub-agents for delegation (1-10).",
+    )
+    delegation_agents_config: str = Field(
+        default="",
+        validation_alias="DELEGATION_AGENTS",
+        description="JSON config for custom sub-agent definitions.",
+    )
+    delegation_agents_dir: str = Field(
+        default=".agents/delegation",
+        validation_alias="DELEGATION_AGENTS_DIR",
+        description="Base directory for user-defined sub-agent YAML files.",
+    )
+    sub_agent_max_iters: int = Field(
+        default=5,
+        validation_alias="SUB_AGENT_MAX_ITERS",
+        ge=1,
+        le=15,
+        description="Maximum inference iterations per sub-agent (1-15).",
+    )
+    triage_prompt: str = Field(
+        default="",
+        validation_alias="TRIAGE_PROMPT",
+        description="Optional custom instructions for the triage AI.",
+    )
+
     # Execution configuration
     max_infer_iters: int = Field(
         15,
