@@ -238,7 +238,7 @@ When working with MCP servers:
 ### Delegation
 
 When testing delegation features:
-- Run delegation unit tests: `uv run pytest tests/unit/delegation/ -v`
+- Run delegation unit tests: `uv run pytest tests/unit/test_delegation_*.py -v`
 - Test triage prompt construction and JSON response parsing
 - Test registry loading: built-in agents, YAML overrides, JSON config merges
 - Test sub-agent tool filtering (blocked/allowed tools)

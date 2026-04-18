@@ -130,11 +130,8 @@ DELEGATION_AGENTS=""          # JSON inline custom agent definitions
 ### Run with delegation
 
 ```bash
-# Delegated code review
-uv run cicaddy run --env-file .env  # with DELEGATION_MODE=auto in .env
-
-# Override delegation at CLI
-uv run cicaddy run --env-file .env --delegation-mode auto --max-sub-agents 4
+# Delegated code review (set DELEGATION_MODE=auto in .env)
+uv run cicaddy run --env-file .env
 ```
 
 ### Built-in sub-agents
