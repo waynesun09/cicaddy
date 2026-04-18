@@ -180,11 +180,10 @@ priority: 15
 ### How it works
 
 1. **Triage** — AI analyzes the context and selects sub-agents from the registry
-2. **Parallel execution** — Sub-agents run with focused prompts, filtered tools, divided token budgets
+2. **Parallel execution** — Sub-agents run with focused prompts, filtered tools, workspace context (bundled skills, agent rules, repo skills), sibling awareness, and divided token budgets
 3. **Aggregation** — Results merged into unified output with per-agent sections
 
-Sub-agents share parent's MCP connections and tool registry (no new server processes).
-Side-effect tools (post comments, merge PRs) are blocked by default via plugin entry points.
+Sub-agents share parent's MCP connections and tool registry (no new server processes). They also inherit the parent's workspace context: bundled skills, per-repo agent rules (`AGENT.md`/`CLAUDE.md`/`GEMINI.md`), and per-repo skills (`.agents/skills/`). Side-effect tools (post comments, merge PRs) are blocked by default via plugin entry points.
 
 ---
 
