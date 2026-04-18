@@ -111,8 +111,8 @@ BaseAIAgent.analyze()
 
 Subclasses override these to provide agent-type-specific behavior:
 
-- `_get_delegation_registry()` → loads `SubAgentRegistry` for the agent type
-- `_get_delegation_context(analysis_context)` → shapes context for triage (e.g., review agents extract diff + MR info)
+- `_should_delegate()` → returns `True` when `DELEGATION_MODE=auto`; subclasses can override for custom gating
+- `_get_delegation_context(analysis_context)` → shapes context for triage (e.g., review agents extract diff + MR info, task agents inject DSPy task metadata)
 
 #### Tool filtering
 
