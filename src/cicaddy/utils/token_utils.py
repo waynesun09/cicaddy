@@ -185,7 +185,8 @@ class TokenLimitManager:
             "output": 65536,  # 64K tokens
             "models": {
                 "gemini-3-flash-preview": {"input": 1048576, "output": 65536},
-                "gemini-3-pro-preview": {"input": 1048576, "output": 65536},
+                "gemini-3.1-pro-preview": {"input": 1048576, "output": 65536},
+                "gemini-3.1-flash-lite-preview": {"input": 1048576, "output": 65536},
                 "gemini-2.5-flash": {"input": 1048576, "output": 65536},
                 "gemini-2.5-pro": {"input": 1048576, "output": 65536},
                 "gemini-1.5-pro": {"input": 2097152, "output": 8192},
@@ -195,6 +196,9 @@ class TokenLimitManager:
             "input": 128000,  # Default for most models
             "output": 16384,  # Default for most models
             "models": {
+                "gpt-5.4": {"input": 1047576, "output": 32768},
+                "gpt-5.4-mini": {"input": 1047576, "output": 32768},
+                "gpt-5.4-nano": {"input": 1047576, "output": 32768},
                 "gpt-4o": {"input": 128000, "output": 16384},
                 "gpt-4o-mini": {"input": 128000, "output": 16384},
                 "gpt-4-turbo": {"input": 128000, "output": 4096},
@@ -205,6 +209,7 @@ class TokenLimitManager:
             "input": 200000,  # 200K standard; 1M requires beta header
             "output": 8192,
             "models": {
+                "claude-opus-4-7": {"input": 200000, "output": 65536},
                 "claude-opus-4-6": {"input": 200000, "output": 65536},
                 "claude-sonnet-4-6": {"input": 200000, "output": 65536},
                 "claude-sonnet-4-5-20250514": {"input": 200000, "output": 65536},
@@ -321,6 +326,9 @@ class TokenLimitManager:
             # OpenAI doesn't provide token limits in their models API
             # Use known mappings for common models
             model_limits = {
+                "gpt-5.4": {"input": 1047576, "output": 32768},
+                "gpt-5.4-mini": {"input": 1047576, "output": 32768},
+                "gpt-5.4-nano": {"input": 1047576, "output": 32768},
                 "gpt-4o": {"input": 128000, "output": 16384},
                 "gpt-4o-mini": {"input": 128000, "output": 16384},
                 "gpt-4-turbo": {"input": 128000, "output": 4096},
@@ -371,7 +379,8 @@ class TokenLimitManager:
             # Gemini model limits (from official documentation)
             model_limits = {
                 "gemini-3-flash-preview": {"input": 1048576, "output": 65536},
-                "gemini-3-pro-preview": {"input": 1048576, "output": 65536},
+                "gemini-3.1-pro-preview": {"input": 1048576, "output": 65536},
+                "gemini-3.1-flash-lite-preview": {"input": 1048576, "output": 65536},
                 "gemini-2.5-flash": {"input": 1048576, "output": 65536},
                 "gemini-2.5-pro": {"input": 1048576, "output": 65536},
                 "gemini-2.0-flash": {"input": 1048576, "output": 8192},

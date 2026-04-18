@@ -5,33 +5,41 @@ description: Current AI model names, capabilities, and naming conventions for Ge
 
 ## Gemini Models (Google)
 
-| Model | Use Case | Notes |
-|-------|----------|-------|
-| `gemini-3.1-pro-preview` | Complex analysis, deep code review | Latest flagship |
-| `gemini-3-flash-preview` | General tasks, default for most use cases | Fast, capable |
-| `gemini-3.1-flash-lite-preview` | Simple tasks, cost-sensitive | Lightweight |
+| Tier | Use Case | Notes |
+|------|----------|-------|
+| `gemini-*-pro-preview` | Complex analysis, deep code review | Flagship |
+| `gemini-*-flash-preview` | General tasks, default for most use cases | Fast, capable |
+| `gemini-*-flash-lite-preview` | Simple tasks, cost-sensitive | Lightweight |
 
+- Model names follow `gemini-{version}-{tier}-preview` pattern (e.g., `gemini-3-flash-preview`, `gemini-3.1-pro-preview`)
 - The `-preview` suffix is acceptable for Vertex AI enterprise use
+- Pro and Flash tiers typically require the `global` Vertex endpoint; Flash-Lite also supports regional endpoints
 - Date suffixes (`-YYYYMMDD`) are used to pin specific versions
 - All Gemini models support function calling (MCP tool use)
 
 ## Claude Models (Anthropic)
 
-| Model | Use Case | Notes |
-|-------|----------|-------|
-| `claude-opus-4-6` | Complex reasoning, architecture review | Most capable |
-| `claude-sonnet-4-6` | Balanced code review, default | Good cost/performance |
-| `claude-haiku-4-5` | Fast triage, simple checks | Lightweight |
+| Tier | Use Case | Notes |
+|------|----------|-------|
+| `claude-opus-*` | Complex reasoning, architecture review | Most capable |
+| `claude-sonnet-*` | Balanced code review, default | Good cost/performance |
+| `claude-haiku-*` | Fast triage, simple checks | Lightweight |
 
-- Acceptable formats: `claude-sonnet-4-6`, with `@default`, `@latest`, or date suffix `-20250514`
+- Model names follow `claude-{tier}-{major}-{minor}` pattern (e.g., `claude-sonnet-4-6`)
+- Acceptable suffixes: `@default`, `@latest`, or date `-YYYYMMDD` (e.g., `claude-sonnet-4-6@default`)
 - For Vertex AI enterprise: model name format depends on the organization's admin configuration
 - All Claude models support tool use
 
 ## OpenAI Models
 
-| Model | Use Case | Notes |
-|-------|----------|-------|
-| `gpt-4o` | Default for OpenAI provider | Multimodal |
+| Tier | Use Case | Notes |
+|------|----------|-------|
+| `gpt-*` | Default for OpenAI provider | Flagship, strong coding |
+| `gpt-*-mini` | Cost-effective alternative | Balanced |
+| `gpt-*-nano` | Lightweight, high-volume tasks | Lowest cost |
+
+- Model names follow `gpt-{version}` pattern (e.g., `gpt-5.4`, `gpt-5.4-mini`)
+- Override via `AI_MODEL` to use other models (e.g., `o3`)
 
 ## Setting the Model
 
@@ -47,4 +55,4 @@ variables:
 The default model per provider is defined in cicaddy's factory:
 - gemini: `gemini-3-flash-preview`
 - claude/anthropic/anthropic-vertex: `claude-sonnet-4-6`
-- openai: `gpt-4o`
+- openai: `gpt-5.4`

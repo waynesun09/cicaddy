@@ -710,19 +710,20 @@ Execution Context:
         # Combine system prompt and context
         combined = system_prompt + "\n" + execution_context
 
-        # Prepend bundled context (lowest precedence)
+        # Layer context from lowest to highest precedence
+        sections: list[str] = []
         if self.bundled_context:
-            combined = self.bundled_context + "\n\n" + combined
-        # Prepend agent rules if loaded (higher precedence than bundled)
+            sections.append(self.bundled_context)
         if self.agent_rules:
-            combined = self.agent_rules + "\n\n" + combined
-        # Append skills if discovered
+            sections.append(self.agent_rules)
+        sections.append(combined)
         if self.skills:
             from cicaddy.skills import render_skills_prompt
 
             skills_section = render_skills_prompt(self.skills)
             if skills_section:
-                combined = combined + "\n\n" + skills_section
+                sections.append(skills_section)
+        combined = "\n\n".join(sections)
 
         return combined
 

@@ -66,8 +66,10 @@ variables:
 
 ## Agent Rules & Skills
 
+Set `AGENT_RULES_ENABLED=false` to disable bundled context, workspace rule loading, and skills discovery.
+
 ### Rules Auto-Loading
-Cicaddy auto-loads rule files from the workspace root:
+Cicaddy auto-loads rule files from the workspace root (when `AGENT_RULES_ENABLED=true`, the default):
 - `AGENT.md` / `AGENTS.md` — Generic rules (always loaded, all providers). Use `AGENTS.md` as the primary project rule file — `CLAUDE.md` can simply refer to it.
 - `GEMINI.md` — Additional rules loaded when `AI_PROVIDER=gemini`
 - `CLAUDE.md` — Additional rules loaded when `AI_PROVIDER=claude`

@@ -37,7 +37,7 @@ class SkillMetadata:
     name: str
     description: str
     location: Path
-    source: str  # "project" or "global"
+    source: str  # "project", "global", or "bundled"
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def body(self) -> str:
