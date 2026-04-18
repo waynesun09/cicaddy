@@ -98,6 +98,7 @@ BaseAIAgent.analyze()
         │     └── DelegationSubAgent × N   # parallel via asyncio.gather + Semaphore
         │           ├── filtered tools (shared parent backends)
         │           ├── focused prompt (persona + context subset)
+        │           ├── workspace context (bundled skills, rules, repo skills)
         │           ├── sibling awareness (knows other agents' categories)
         │           └── reduced token budget (parent / N)
         └── aggregate results → unified output
@@ -109,8 +110,8 @@ BaseAIAgent.analyze()
 |--------|---------|
 | `delegation/triage.py` | AI-powered triage: analyzes context, produces `DelegationPlan`, `SiblingInfo` |
 | `delegation/registry.py` | `SubAgentSpec` model + `SubAgentRegistry` loader (built-in + YAML + JSON) |
-| `delegation/sub_agent.py` | Lightweight executor: prompt composition, tool filtering, sibling awareness, budget division |
-| `delegation/orchestrator.py` | Parallel execution with `Semaphore`, sibling info propagation, result aggregation |
+| `delegation/sub_agent.py` | Lightweight executor: prompt composition, tool filtering, workspace context, sibling awareness, budget division |
+| `delegation/orchestrator.py` | Parallel execution with `Semaphore`, workspace context + sibling info propagation, result aggregation |
 
 #### Delegation hooks in BaseAIAgent
 

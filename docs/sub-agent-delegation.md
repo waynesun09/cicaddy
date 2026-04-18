@@ -10,7 +10,7 @@ Cicaddy supports AI-powered sub-agent delegation: instead of running a single ag
 
 Each sub-agent receives a `SiblingInfo` list describing the other agents in the same batch. When running solo (common for small changes), the agent is told it is the sole reviewer and should provide comprehensive coverage. When running alongside specialists, it knows their categories and avoids duplicating their work.
 
-Sub-agents share the parent's MCP connections and tool registry — no new server processes are created. Side-effect tools (posting comments, merging PRs) are blocked by default via plugin entry points.
+Sub-agents share the parent's MCP connections and tool registry — no new server processes are created. They also inherit the parent's workspace context: bundled skills, per-repo agent rules (`AGENT.md`/`CLAUDE.md`/`GEMINI.md`), and per-repo skills (`.agents/skills/`). This ensures sub-agents have the same knowledge and guidelines as the parent agent. Side-effect tools (posting comments, merging PRs) are blocked by default via plugin entry points.
 
 ## Configuration
 
