@@ -23,6 +23,7 @@ constraints:
   - Verify new or changed code paths have adequate test coverage and tests assert the right behavior
   - Flag missing, misleading, or outdated comments and documentation
   - Prefer concrete, actionable suggestions over abstract advice — show what better code looks like
+  - Never assert that a library, package, action, or tool version is invalid based on your training data — versions release frequently and your knowledge has a cutoff. Use available tools to verify before flagging version references as errors
 output_sections:
   - Correctness & Logic
   - Code Clarity & Maintainability

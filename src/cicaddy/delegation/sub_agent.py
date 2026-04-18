@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from cicaddy.delegation.registry import SubAgentSpec
     from cicaddy.execution.engine import ExecutionEngine
     from cicaddy.mcp_client.client import OfficialMCPClientManager
+    from cicaddy.skills import SkillMetadata
     from cicaddy.tools import ToolRegistry
 
 logger = get_logger(__name__)
@@ -90,7 +91,13 @@ class DelegationSubAgent:
         parent_mcp_manager: Optional["OfficialMCPClientManager"],
         parent_local_registry: Optional["ToolRegistry"],
         sibling_agents: Optional[List[SiblingInfo]] = None,
+        bundled_context: str = "",
+        agent_rules: str = "",
+        skills: Optional[List["SkillMetadata"]] = None,
     ):
+        # bundled_context, agent_rules, and skills are pre-scanned for prompt
+        # injection by the parent agent's initialize(). Do not re-load these
+        # from disk in sub-agents — always receive them from the parent.
         self.spec = spec
         self.delegation_entry = delegation_entry
         self.settings = settings
@@ -99,6 +106,9 @@ class DelegationSubAgent:
         self.parent_mcp_manager = parent_mcp_manager
         self.parent_local_registry = parent_local_registry
         self.sibling_agents = sibling_agents or []
+        self.bundled_context = bundled_context
+        self.agent_rules = agent_rules
+        self.skills = skills or []
 
         self.ai_provider = None
         self.execution_engine: Optional["ExecutionEngine"] = None
@@ -244,7 +254,7 @@ class DelegationSubAgent:
                 "Provide comprehensive coverage across all relevant aspects.\n"
             )
 
-        return f"""You are a {self.spec.persona}.
+        core_prompt = f"""You are a {self.spec.persona}.
 
 ## Your Role
 {self.spec.description}
@@ -260,6 +270,23 @@ Rationale: {self.delegation_entry.rationale}
 {boundary_end}
 
 Analyze the context above according to your role and focus areas. Provide structured, actionable findings."""
+
+        # Layer workspace context following the same pattern as parent agents:
+        # bundled_context → agent_rules → core prompt → skills
+        sections: list[str] = []
+        if self.bundled_context:
+            sections.append(self.bundled_context)
+        if self.agent_rules:
+            sections.append(self.agent_rules)
+        sections.append(core_prompt)
+        if self.skills:
+            from cicaddy.skills import render_skills_prompt
+
+            skills_section = render_skills_prompt(self.skills)
+            if skills_section:
+                sections.append(skills_section)
+
+        return "\n\n".join(sections)
 
     def _get_relevant_context(self) -> Dict[str, Any]:
         """Filter context to what this sub-agent needs."""

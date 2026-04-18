@@ -567,3 +567,205 @@ class TestDelegationSubAgentSiblingAwareness:
         delegation_section = prompt.split("## Delegation Context")[1].split("##")[0]
         assert "my-agent" not in delegation_section
         assert "other-agent" in delegation_section
+
+
+class TestDelegationSubAgentWorkspaceContext:
+    """Tests for workspace context (bundled_context, agent_rules, skills) in sub-agents."""
+
+    def _make_agent(
+        self,
+        spec,
+        entry,
+        settings,
+        context,
+        bundled_context="",
+        agent_rules="",
+        skills=None,
+    ):
+        return DelegationSubAgent(
+            spec=spec,
+            delegation_entry=entry,
+            settings=settings,
+            context=context,
+            parent_tools=[],
+            parent_mcp_manager=None,
+            parent_local_registry=None,
+            bundled_context=bundled_context,
+            agent_rules=agent_rules,
+            skills=skills,
+        )
+
+    def test_init_stores_bundled_context(
+        self, sample_spec, sample_entry, mock_settings, sample_context
+    ):
+        agent = self._make_agent(
+            sample_spec,
+            sample_entry,
+            mock_settings,
+            sample_context,
+            bundled_context="bundled knowledge here",
+        )
+        assert agent.bundled_context == "bundled knowledge here"
+
+    def test_init_stores_agent_rules(
+        self, sample_spec, sample_entry, mock_settings, sample_context
+    ):
+        agent = self._make_agent(
+            sample_spec,
+            sample_entry,
+            mock_settings,
+            sample_context,
+            agent_rules="# Project Rules\nUse type hints.",
+        )
+        assert agent.agent_rules == "# Project Rules\nUse type hints."
+
+    def test_init_stores_skills(
+        self, sample_spec, sample_entry, mock_settings, sample_context
+    ):
+        mock_skill = MagicMock()
+        mock_skill.name = "test-skill"
+        agent = self._make_agent(
+            sample_spec,
+            sample_entry,
+            mock_settings,
+            sample_context,
+            skills=[mock_skill],
+        )
+        assert len(agent.skills) == 1
+        assert agent.skills[0].name == "test-skill"
+
+    def test_init_defaults_empty(
+        self, sample_spec, sample_entry, mock_settings, sample_context
+    ):
+        agent = DelegationSubAgent(
+            spec=sample_spec,
+            delegation_entry=sample_entry,
+            settings=mock_settings,
+            context=sample_context,
+            parent_tools=[],
+            parent_mcp_manager=None,
+            parent_local_registry=None,
+        )
+        assert agent.bundled_context == ""
+        assert agent.agent_rules == ""
+        assert agent.skills == []
+
+    def test_prompt_includes_bundled_context(
+        self, sample_spec, sample_entry, mock_settings, sample_context
+    ):
+        agent = self._make_agent(
+            sample_spec,
+            sample_entry,
+            mock_settings,
+            sample_context,
+            bundled_context="## Model Reference\nUse gemini-3-flash-preview.",
+        )
+        prompt = agent._build_prompt()
+        assert "## Model Reference" in prompt
+        assert "gemini-3-flash-preview" in prompt
+
+    def test_prompt_includes_agent_rules(
+        self, sample_spec, sample_entry, mock_settings, sample_context
+    ):
+        agent = self._make_agent(
+            sample_spec,
+            sample_entry,
+            mock_settings,
+            sample_context,
+            agent_rules="# AGENT.md\nAlways use type hints.\nPrefer async.",
+        )
+        prompt = agent._build_prompt()
+        assert "# AGENT.md" in prompt
+        assert "Always use type hints." in prompt
+
+    def test_prompt_includes_rendered_skills(
+        self, sample_spec, sample_entry, mock_settings, sample_context
+    ):
+        mock_skill = MagicMock()
+        mock_skill.name = "test-skill"
+
+        agent = self._make_agent(
+            sample_spec,
+            sample_entry,
+            mock_settings,
+            sample_context,
+            skills=[mock_skill],
+        )
+
+        with patch(
+            "cicaddy.skills.render_skills_prompt",
+            return_value="## Skills\n- test-skill: does things",
+        ) as mock_render:
+            prompt = agent._build_prompt()
+
+        mock_render.assert_called_once_with([mock_skill])
+        assert "## Skills" in prompt
+        assert "test-skill: does things" in prompt
+
+    def test_prompt_ordering_bundled_rules_core_skills(
+        self, sample_spec, sample_entry, mock_settings, sample_context
+    ):
+        """Sections must be ordered: bundled → rules → core → skills."""
+        mock_skill = MagicMock()
+
+        agent = self._make_agent(
+            sample_spec,
+            sample_entry,
+            mock_settings,
+            sample_context,
+            bundled_context="BUNDLED_SECTION",
+            agent_rules="RULES_SECTION",
+            skills=[mock_skill],
+        )
+
+        with patch(
+            "cicaddy.skills.render_skills_prompt",
+            return_value="SKILLS_SECTION",
+        ):
+            prompt = agent._build_prompt()
+
+        bundled_pos = prompt.index("BUNDLED_SECTION")
+        rules_pos = prompt.index("RULES_SECTION")
+        core_pos = prompt.index("You are a security expert")
+        skills_pos = prompt.index("SKILLS_SECTION")
+
+        assert bundled_pos < rules_pos < core_pos < skills_pos
+
+    def test_empty_values_produce_same_structure(
+        self, sample_spec, sample_entry, mock_settings, sample_context
+    ):
+        """Empty bundled_context/agent_rules and no skills should not add extra sections."""
+        agent = self._make_agent(
+            sample_spec,
+            sample_entry,
+            mock_settings,
+            sample_context,
+        )
+        prompt = agent._build_prompt()
+        # Should start directly with core prompt (no bundled/rules prefix)
+        assert prompt.startswith("You are a security expert")
+        # Should not contain skills section
+        assert "## Skills" not in prompt
+
+    def test_skills_render_returns_empty_skipped(
+        self, sample_spec, sample_entry, mock_settings, sample_context
+    ):
+        """If render_skills_prompt returns empty string, skills section is omitted."""
+        mock_skill = MagicMock()
+
+        agent = self._make_agent(
+            sample_spec,
+            sample_entry,
+            mock_settings,
+            sample_context,
+            skills=[mock_skill],
+        )
+
+        with patch(
+            "cicaddy.skills.render_skills_prompt",
+            return_value="",
+        ):
+            prompt = agent._build_prompt()
+
+        # The core prompt should end the output (no trailing skills section)
+        assert prompt.rstrip().endswith("Provide structured, actionable findings.")
