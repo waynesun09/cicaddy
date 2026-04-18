@@ -20,7 +20,7 @@ DEFAULT_VERTEX_REGION = "us-east5"
 # Default model mappings for each provider
 DEFAULT_MODELS = {
     DEFAULT_AI_PROVIDER: "gemini-3-flash-preview",
-    "openai": "gpt-4o",
+    "openai": "gpt-5.4",
     "claude": "claude-sonnet-4-6",
     "anthropic": "claude-sonnet-4-6",
     "anthropic-vertex": "claude-sonnet-4-6",
@@ -36,7 +36,7 @@ def get_default_model(provider: str) -> str:
     Returns:
         Default model name for the provider
     """
-    return DEFAULT_MODELS.get(provider.lower(), "gpt-4o")
+    return DEFAULT_MODELS.get(provider.lower(), "gpt-5.4")
 
 
 def create_provider(provider_name: str, config: Dict[str, Any]) -> BaseProvider:

@@ -903,19 +903,21 @@ Detailed Execution Logs
                     f"Set ai_response_format='{task.output_format}' from DSPy task"
                 )
 
-            # Prepend bundled context (lowest precedence)
+            # Layer context from lowest to highest precedence
+            sections: list[str] = []
             if self.bundled_context:
-                prompt = self.bundled_context + "\n\n" + prompt
-            # Prepend agent rules if loaded (higher precedence than bundled)
+                sections.append(self.bundled_context)
             if self.agent_rules:
-                prompt = self.agent_rules + "\n\n" + prompt
+                sections.append(self.agent_rules)
+            sections.append(prompt)
             # Append skills if discovered
             if self.skills:
                 from cicaddy.skills import render_skills_prompt
 
                 skills_section = render_skills_prompt(self.skills)
                 if skills_section:
-                    prompt = prompt + "\n\n" + skills_section
+                    sections.append(skills_section)
+            prompt = "\n\n".join(sections)
 
             logger.info(
                 f"Built DSPy prompt from {task_file}",

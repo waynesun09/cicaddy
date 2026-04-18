@@ -12,6 +12,7 @@ description: Current AI model names, capabilities, and naming conventions for Ge
 | `gemini-3.1-flash-lite-preview` | Simple tasks, cost-sensitive | Lightweight |
 
 - The `-preview` suffix is acceptable for Vertex AI enterprise use
+- `gemini-3.1-pro-preview` requires the `global` Vertex endpoint; other Gemini preview models support regional endpoints
 - Date suffixes (`-YYYYMMDD`) are used to pin specific versions
 - All Gemini models support function calling (MCP tool use)
 
@@ -19,19 +20,25 @@ description: Current AI model names, capabilities, and naming conventions for Ge
 
 | Model | Use Case | Notes |
 |-------|----------|-------|
-| `claude-opus-4-6` | Complex reasoning, architecture review | Most capable |
-| `claude-sonnet-4-6` | Balanced code review, default | Good cost/performance |
-| `claude-haiku-4-5` | Fast triage, simple checks | Lightweight |
+| `claude-opus-4-*` | Complex reasoning, architecture review | Most capable |
+| `claude-sonnet-4-*` | Balanced code review, default | Good cost/performance |
+| `claude-haiku-4-*` | Fast triage, simple checks | Lightweight |
 
-- Acceptable formats: `claude-sonnet-4-6`, with `@default`, `@latest`, or date suffix `-20250514`
+- Model names follow `claude-{tier}-{major}-{minor}` pattern (e.g., `claude-sonnet-4-6`)
+- Acceptable suffixes: `@default`, `@latest`, or date `-YYYYMMDD` (e.g., `claude-sonnet-4-6@default`)
 - For Vertex AI enterprise: model name format depends on the organization's admin configuration
+- New versions (e.g., opus-4-7) become available as Anthropic releases them
 - All Claude models support tool use
 
 ## OpenAI Models
 
 | Model | Use Case | Notes |
 |-------|----------|-------|
-| `gpt-4o` | Default for OpenAI provider | Multimodal |
+| `gpt-5.4` | Default for OpenAI provider | 1M context, strong coding |
+| `gpt-5.4-mini` | Cost-effective alternative | 1M context |
+| `gpt-5.4-nano` | Lightweight, high-volume tasks | 1M context |
+
+Override via `AI_MODEL` to use other models (e.g., `o3`, `gpt-4o`).
 
 ## Setting the Model
 
@@ -47,4 +54,4 @@ variables:
 The default model per provider is defined in cicaddy's factory:
 - gemini: `gemini-3-flash-preview`
 - claude/anthropic/anthropic-vertex: `claude-sonnet-4-6`
-- openai: `gpt-4o`
+- openai: `gpt-5.4`
