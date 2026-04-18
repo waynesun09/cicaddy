@@ -115,7 +115,8 @@ See `docs/mcp-security-scanning.md` for details.
 ## Sub-Agent Delegation (v0.8.0+)
 
 Cicaddy supports AI-powered sub-agent delegation where an AI triage step
-selects specialized sub-agents, runs them in parallel, and aggregates results.
+selects specialized sub-agents, runs them in parallel with sibling awareness
+(each agent knows what others cover to avoid duplication), and aggregates results.
 
 ### Enable delegation
 
