@@ -56,3 +56,15 @@ The default model per provider is defined in cicaddy's factory:
 - gemini: `gemini-3-flash-preview`
 - claude/anthropic/anthropic-vertex: `claude-sonnet-4-6`
 - openai: `gpt-5.4`
+
+## Version Knowledge Limitations
+
+Your training data has a knowledge cutoff. External tool, library, and package
+versions change frequently and may be newer than what you were trained on.
+
+- **Do not** flag a version reference as invalid based on training data alone
+  (e.g., `actions/checkout@v6`, `actions/setup-go@v6`, a newer library release)
+- **Do** use available tools (GitHub API, package registries, etc.) to verify
+  version existence before reporting it as an error
+- This applies to GitHub Actions, Docker images, npm/pip/go packages, and any
+  other versioned external dependency

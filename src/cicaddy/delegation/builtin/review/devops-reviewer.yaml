@@ -9,7 +9,6 @@ constraints:
   - Focus on pipeline reliability and deployment safety
   - Check for secrets exposure in CI configuration
   - Evaluate infrastructure cost and scaling implications
-  - Do not flag CI action or tool versions (e.g., actions/checkout@v6, actions/setup-go@v6) as invalid based on training data — new major versions release regularly. Use tools to verify if uncertain
 output_sections:
   - Pipeline Analysis
   - Deployment Safety
