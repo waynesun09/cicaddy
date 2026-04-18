@@ -414,3 +414,152 @@ class TestDelegationSubAgentExecute:
         agent.ai_provider = None
         # Should not raise
         await agent.cleanup()
+
+
+class TestDelegationSubAgentSiblingAwareness:
+    """Tests for sibling-agent awareness in prompts."""
+
+    def _make_agent(self, spec, entry, settings, context, sibling_agents=None):
+        return DelegationSubAgent(
+            spec=spec,
+            delegation_entry=entry,
+            settings=settings,
+            context=context,
+            parent_tools=[],
+            parent_mcp_manager=None,
+            parent_local_registry=None,
+            sibling_agents=sibling_agents,
+        )
+
+    def test_sole_reviewer_when_no_siblings(
+        self, sample_spec, sample_entry, mock_settings, sample_context
+    ):
+        agent = self._make_agent(
+            sample_spec, sample_entry, mock_settings, sample_context
+        )
+        prompt = agent._build_prompt()
+        assert "sole reviewer" in prompt
+        assert "running alongside" not in prompt
+
+    def test_sole_reviewer_when_only_self_in_list(
+        self, sample_spec, sample_entry, mock_settings, sample_context
+    ):
+        agent = self._make_agent(
+            sample_spec,
+            sample_entry,
+            mock_settings,
+            sample_context,
+            sibling_agents=[{"name": "security-reviewer", "categories": ["security"]}],
+        )
+        prompt = agent._build_prompt()
+        assert "sole reviewer" in prompt
+        assert "running alongside" not in prompt
+
+    def test_siblings_shown_with_categories(
+        self, sample_spec, sample_entry, mock_settings, sample_context
+    ):
+        agent = self._make_agent(
+            sample_spec,
+            sample_entry,
+            mock_settings,
+            sample_context,
+            sibling_agents=[
+                {"name": "security-reviewer", "categories": ["security"]},
+                {"name": "performance-reviewer", "categories": ["performance"]},
+                {"name": "general-reviewer", "categories": ["code_quality", "tests"]},
+            ],
+        )
+        prompt = agent._build_prompt()
+        assert "running alongside" in prompt
+        assert "performance-reviewer (performance)" in prompt
+        assert "general-reviewer (code_quality, tests)" in prompt
+        # Self should be excluded
+        assert (
+            "security-reviewer"
+            not in prompt.split("running alongside")[1].split("\n")[0]
+        )
+
+    def test_siblings_without_categories(
+        self, sample_spec, sample_entry, mock_settings, sample_context
+    ):
+        agent = self._make_agent(
+            sample_spec,
+            sample_entry,
+            mock_settings,
+            sample_context,
+            sibling_agents=[
+                {"name": "security-reviewer", "categories": ["security"]},
+                {"name": "custom-agent", "categories": []},
+            ],
+        )
+        prompt = agent._build_prompt()
+        # Agent without categories shows just the name
+        assert (
+            "custom-agent;" in prompt
+            or "custom-agent\n" in prompt
+            or "custom-agent." in prompt
+        )
+
+    def test_sibling_agents_defaults_to_empty_list(
+        self, sample_spec, sample_entry, mock_settings, sample_context
+    ):
+        agent = self._make_agent(
+            sample_spec,
+            sample_entry,
+            mock_settings,
+            sample_context,
+            sibling_agents=None,
+        )
+        assert agent.sibling_agents == []
+
+    def test_duplicate_siblings_deduplicated(
+        self, sample_spec, sample_entry, mock_settings, sample_context
+    ):
+        agent = self._make_agent(
+            sample_spec,
+            sample_entry,
+            mock_settings,
+            sample_context,
+            sibling_agents=[
+                {"name": "security-reviewer", "categories": ["security"]},
+                {"name": "general-reviewer", "categories": ["code_quality"]},
+                {"name": "general-reviewer", "categories": ["code_quality"]},
+            ],
+        )
+        prompt = agent._build_prompt()
+        # general-reviewer should appear only once in the delegation context
+        delegation_section = prompt.split("## Delegation Context")[1].split("##")[0]
+        assert delegation_section.count("general-reviewer") == 1
+
+    def test_self_exclusion_uses_delegation_entry_name(
+        self, mock_settings, sample_context
+    ):
+        """Self-exclusion matches on delegation_entry.agent_name, not spec.name."""
+        spec = SubAgentSpec(
+            name="my-agent",
+            persona="test",
+            description="test",
+            categories=["test"],
+            constraints=["test"],
+            output_sections=["test"],
+            agent_type="review",
+        )
+        entry = DelegationEntry(
+            agent_name="my-agent",
+            categories=["test"],
+            rationale="test",
+        )
+        agent = self._make_agent(
+            spec,
+            entry,
+            mock_settings,
+            sample_context,
+            sibling_agents=[
+                {"name": "my-agent", "categories": ["test"]},
+                {"name": "other-agent", "categories": ["other"]},
+            ],
+        )
+        prompt = agent._build_prompt()
+        delegation_section = prompt.split("## Delegation Context")[1].split("##")[0]
+        assert "my-agent" not in delegation_section
+        assert "other-agent" in delegation_section

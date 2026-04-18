@@ -82,6 +82,15 @@ class DelegationOrchestrator:
         )
 
         semaphore = asyncio.Semaphore(self.max_concurrent)
+        all_agent_info = []
+        for entry in plan.entries:
+            spec = registry.get(entry.agent_name)
+            all_agent_info.append(
+                {
+                    "name": entry.agent_name,
+                    "categories": spec.categories if spec else entry.categories,
+                }
+            )
 
         async def _run_agent(entry):
             async with semaphore:
@@ -108,6 +117,7 @@ class DelegationOrchestrator:
                     parent_tools=parent_tools,
                     parent_mcp_manager=mcp_manager,
                     parent_local_registry=local_registry,
+                    sibling_agents=all_agent_info,
                 )
 
                 try:
