@@ -33,13 +33,14 @@ description: Current AI model names, capabilities, and naming conventions for Ge
 
 ## OpenAI Models
 
-| Model | Use Case | Notes |
-|-------|----------|-------|
-| `gpt-5.4` | Default for OpenAI provider | 1M context, strong coding |
-| `gpt-5.4-mini` | Cost-effective alternative | 1M context |
-| `gpt-5.4-nano` | Lightweight, high-volume tasks | 1M context |
+| Tier | Use Case | Notes |
+|------|----------|-------|
+| `gpt-*` | Default for OpenAI provider | Flagship, strong coding |
+| `gpt-*-mini` | Cost-effective alternative | Balanced |
+| `gpt-*-nano` | Lightweight, high-volume tasks | Lowest cost |
 
-Override via `AI_MODEL` to use other models (e.g., `o3`, `gpt-4o`).
+- Model names follow `gpt-{version}` pattern (e.g., `gpt-5.4`, `gpt-5.4-mini`)
+- Override via `AI_MODEL` to use other models (e.g., `o3`)
 
 ## Setting the Model
 
