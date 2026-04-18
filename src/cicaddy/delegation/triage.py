@@ -106,6 +106,10 @@ class TriageAgent:
 
         except Exception as e:
             logger.error(f"Triage failed, falling back to general agent: {e}")
+            if not available_agents:
+                raise ValueError(
+                    "Triage failed and no agents available for fallback"
+                ) from e
             return self._fallback_plan(available_agents)
 
     def _build_triage_prompt(
@@ -195,12 +199,18 @@ class TriageAgent:
 
     @staticmethod
     def _extract_json(content: str) -> str:
-        """Extract JSON from response, stripping markdown code blocks."""
+        """Extract JSON from response, stripping markdown code blocks.
+
+        Handles cases where LLM includes preamble text before the code block.
+        """
         content = content.strip()
-        if not content.startswith("```"):
+
+        # Find first code block (may not be at start due to LLM preamble)
+        block_start = content.find("```")
+        if block_start == -1:
             return content
 
-        lines = content.splitlines()
+        lines = content[block_start:].splitlines()
         json_lines = []
         in_block = False
         for line in lines:
@@ -211,7 +221,7 @@ class TriageAgent:
                 break
             if in_block:
                 json_lines.append(line)
-        return "\n".join(json_lines)
+        return "\n".join(json_lines) if json_lines else content
 
     @staticmethod
     def _validate_entry(

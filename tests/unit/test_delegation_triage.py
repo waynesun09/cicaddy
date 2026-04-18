@@ -270,3 +270,25 @@ class TestTriageAgent:
         """Fallback should raise ValueError when no agents available."""
         with pytest.raises(ValueError, match="No agents available"):
             triage_agent._fallback_plan({})
+
+    @pytest.mark.asyncio
+    async def test_triage_raises_on_empty_registry_and_provider_error(
+        self, triage_agent, mock_provider, sample_context
+    ):
+        """triage() with empty registry + provider error should raise ValueError."""
+        mock_provider.chat_completion.side_effect = Exception("API error")
+
+        with pytest.raises(ValueError, match="no agents available for fallback"):
+            await triage_agent.triage(sample_context, {})
+
+    def test_extract_json_with_preamble(self, triage_agent):
+        """Should extract JSON from code block even with preamble text."""
+        response = 'Here is the result:\n```json\n{"entries": []}\n```'
+        result = triage_agent._extract_json(response)
+        assert result == '{"entries": []}'
+
+    def test_extract_json_no_code_block(self, triage_agent):
+        """Should return raw content when no code block present."""
+        response = '{"entries": []}'
+        result = triage_agent._extract_json(response)
+        assert result == '{"entries": []}'
