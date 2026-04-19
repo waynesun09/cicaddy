@@ -41,6 +41,35 @@ def _sanitize_for_boundary(text: str, start: str, end: str) -> str:
     return text.replace(start, "").replace(end, "")
 
 
+def _sanitize_agent_name(name: str) -> str:
+    """Sanitize agent name for safe interpolation into prompts.
+
+    Strips control characters, newlines, and limits length to prevent
+    prompt injection via malicious agent names in registry data.
+    """
+    return "".join(c for c in name if c.isalnum() or c in "-_. ").strip()[:64]
+
+
+_BUILTIN_GENERAL_AGENTS = ("general-reviewer", "general-task")
+
+
+def find_general_agent(registry: Dict[str, Any]) -> Optional[str]:
+    """Find the general/baseline agent in a registry.
+
+    Prefers well-known built-in names (``general-reviewer``,
+    ``general-task``) for deterministic results, then falls back to
+    the first ``general-*`` match in sorted order.  Returns ``None``
+    if no match is found.
+    """
+    for preferred in _BUILTIN_GENERAL_AGENTS:
+        if preferred in registry:
+            return preferred
+    for name in sorted(registry):
+        if name.startswith("general-"):
+            return name
+    return None
+
+
 @dataclass
 class DelegationEntry:
     """A single sub-agent activation entry in a delegation plan."""
@@ -85,6 +114,7 @@ class TriageAgent:
         context: Dict[str, Any],
         available_agents: Dict[str, "SubAgentSpec"],
         triage_prompt: str = "",
+        agent_type: str = "",
     ) -> DelegationPlan:
         """Analyze context and produce a delegation plan.
 
@@ -97,7 +127,9 @@ class TriageAgent:
         Returns:
             DelegationPlan with entries for each sub-agent to activate.
         """
-        prompt = self._build_triage_prompt(context, available_agents, triage_prompt)
+        prompt = self._build_triage_prompt(
+            context, available_agents, triage_prompt, agent_type
+        )
 
         try:
             from cicaddy.ai_providers.base import ProviderMessage
@@ -125,14 +157,16 @@ class TriageAgent:
         context: Dict[str, Any],
         available_agents: Dict[str, "SubAgentSpec"],
         triage_prompt: str,
+        agent_type: str = "",
     ) -> str:
         """Build the triage prompt for the AI."""
-        # Format available agents
+        # Format available agents (sanitize names/categories for prompt safety)
         agents_desc = []
         for name, spec in sorted(available_agents.items()):
+            safe_name = _sanitize_agent_name(name)
+            safe_cats = ", ".join(_sanitize_agent_name(c) for c in spec.categories)
             agents_desc.append(
-                f"- **{name}**: {spec.description} "
-                f"(categories: {', '.join(spec.categories)})"
+                f"- **{safe_name}**: {spec.description} (categories: {safe_cats})"
             )
         agents_section = "\n".join(agents_desc)
 
@@ -171,10 +205,23 @@ class TriageAgent:
             )
             user_instructions = f"\n## Additional Instructions\n{sanitized_prompt}\n"
 
+        # Build type-specific preamble
+        if agent_type == "review":
+            review_guidance = self._build_review_guidance(available_agents)
+            opening = (
+                f"{review_guidance}\n"  # nosec B608
+                f"Analyze the provided code diff and determine which "
+                f"specialized reviewers should examine it.\n\n"
+            )
+        else:
+            opening = (
+                "You are a triage agent. Analyze the provided context and"
+                " determine which specialized sub-agents should review it.\n\n"
+            )
+
         prompt = (
-            f"You are a triage agent. Analyze the provided context and"  # nosec B608
-            f" determine which specialized sub-agents should review it.\n\n"
-            f"## Available Sub-Agents\n{agents_section}\n\n"
+            f"{opening}"
+            f"## Available Sub-Agents\n{agents_section}\n\n"  # nosec B608
             f"## Context Keys\n{json.dumps(context_keys)}\n\n"
             f"## Context Data\n{context_data}\n"
             f"{user_instructions}"
@@ -204,6 +251,40 @@ class TriageAgent:
             f"}}"
         )
         return prompt
+
+    @staticmethod
+    def _build_review_guidance(
+        available_agents: Dict[str, "SubAgentSpec"],
+    ) -> str:
+        """Build review-specific triage guidance from available agents."""
+        category_hints = []
+        general_agent_name = find_general_agent(available_agents)
+        for name, spec in sorted(available_agents.items()):
+            if name == general_agent_name:
+                continue
+            safe_name = _sanitize_agent_name(name)
+            cats = ", ".join(_sanitize_agent_name(c) for c in spec.categories)
+            category_hints.append(
+                f"- **{safe_name}**: look for changes related to {cats}"
+            )
+
+        hints_section = "\n".join(category_hints)
+
+        general_note = ""
+        if general_agent_name:
+            general_note = (
+                f"\n**Important**: `{general_agent_name}` provides baseline "
+                f"code quality coverage (correctness, clarity, tests) and "
+                f"should ALWAYS be included alongside any specialist reviewers.\n"
+            )
+
+        return (
+            "You are a triage agent for a **CODE REVIEW** of a merge/pull request. "
+            "Select which specialized code reviewers should analyze the diff.\n\n"
+            "## Reviewer Selection Hints\n"
+            f"{hints_section}\n"
+            f"{general_note}"
+        )
 
     @staticmethod
     def _extract_json(content: str) -> str:
@@ -287,12 +368,7 @@ class TriageAgent:
         self, available_agents: Dict[str, "SubAgentSpec"]
     ) -> DelegationPlan:
         """Create fallback plan using the general agent."""
-        # Find a general/catch-all agent
-        general_name = None
-        for name in available_agents:
-            if "general" in name:
-                general_name = name
-                break
+        general_name = find_general_agent(available_agents)
 
         if not general_name:
             if not available_agents:

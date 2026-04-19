@@ -5,6 +5,10 @@ from typing import Any, Dict, Optional
 
 from cicaddy.agent.base import BaseAIAgent
 from cicaddy.config.settings import Settings
+from cicaddy.delegation.triage import (
+    DelegationEntry,
+    DelegationPlan,
+)
 from cicaddy.git.diff_analyzer import DiffAnalyzer
 from cicaddy.utils.logger import get_logger
 
@@ -199,6 +203,43 @@ class BaseReviewAgent(BaseAIAgent):
             delegation_ctx["diff_lines"] = context["diff_lines"]
 
         return delegation_ctx
+
+    def _post_process_plan(
+        self, plan: DelegationPlan, registry: Dict[str, Any]
+    ) -> DelegationPlan:
+        """Ensure general-reviewer is always included in review plans."""
+        from cicaddy.delegation.triage import find_general_agent
+
+        general_name = find_general_agent(registry)
+
+        if general_name is None:
+            return plan
+
+        # Check if already in plan
+        existing_names = {e.agent_name for e in plan.entries}
+        if general_name in existing_names:
+            return plan
+
+        # Inject general-reviewer with its registry priority
+        spec = registry[general_name]
+        plan.entries.append(
+            DelegationEntry(
+                agent_name=general_name,
+                categories=list(spec.categories),
+                rationale="Auto-included: baseline code review coverage",
+                priority=spec.priority,
+            )
+        )
+
+        # Re-sort by priority to maintain ordering invariant
+        plan.entries.sort(key=lambda e: e.priority)
+
+        logger.info(
+            f"Post-process: injected '{general_name}' into delegation plan "
+            f"(priority={spec.priority})"
+        )
+
+        return plan
 
     def _validate_initialized(self):
         """Validate that the agent is properly initialized."""

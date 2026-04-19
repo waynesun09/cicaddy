@@ -984,12 +984,16 @@ Detailed Execution Logs
             context=delegation_context,
             available_agents=registry,
             triage_prompt=triage_prompt,
+            agent_type=agent_type,
         )
 
         logger.info(
             f"Triage plan: {len(plan.entries)} agent(s), "
             f"complexity={plan.estimated_complexity}"
         )
+
+        # 3a. Post-process plan (subclass hook for agent-type guarantees)
+        plan = self._post_process_plan(plan, registry)
 
         # 3b. Cascade DSPy task forbidden_tools to sub-agents
         task_def = delegation_context.get("task_definition", {})
@@ -1082,6 +1086,15 @@ Detailed Execution Logs
         Default returns context as-is.
         """
         return context
+
+    def _post_process_plan(self, plan: Any, registry: Dict[str, Any]) -> Any:
+        """Post-process the triage delegation plan before execution.
+
+        Override in subclasses to apply agent-type-specific guarantees
+        (e.g., ensuring a general reviewer is always included).
+        Default returns the plan unchanged.
+        """
+        return plan
 
     # Abstract methods for subclass specialization
 
