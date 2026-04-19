@@ -158,39 +158,18 @@ _cicaddy_runs/
 1. **NEVER read full output files**. Do not use Read, cat, or any tool to view
    the contents of JSON reports, HTML reports, or session JSONL files.
 
-2. **Extract only metadata** after a run completes. Use this exact pattern:
+2. **Verify completion only** after a run. Check that output files exist and
+   report status. Do NOT extract metrics — leave all analysis to `cicaddy-eval`.
 
 ```bash
-python3 -c "
-import json, glob, os
-files = sorted(glob.glob('*.json'))
-for f in files:
-    try:
-        with open(f) as fh:
-            d = json.load(fh)
-        ar = d.get('analysis_result', {})
-        if isinstance(ar, str):
-            print(f'{f}: analysis is string, {len(ar)} chars')
-            continue
-        print(f'{f}:')
-        print(f'  model: {ar.get(\"model_used\", \"unknown\")}')
-        print(f'  provider: {ar.get(\"ai_provider\", \"unknown\")}')
-        print(f'  delegation: {ar.get(\"delegation_mode\", \"none\")}')
-        print(f'  status: {ar.get(\"status\", \"unknown\")}')
-        print(f'  exec_time: {d.get(\"execution_time\", 0):.1f}s')
-        analysis = ar.get('ai_analysis', '')
-        print(f'  analysis_chars: {len(analysis)}')
-        if ar.get('sub_agent_details'):
-            print(f'  agents_ok: {ar.get(\"agents_succeeded\", 0)}')
-            print(f'  agents_fail: {ar.get(\"agents_failed\", 0)}')
-            for s in ar['sub_agent_details']:
-                print(f'    - {s[\"agent_name\"]}: {s[\"status\"]} ({s[\"execution_time\"]:.1f}s, {len(s[\"analysis\"])} chars)')
-    except Exception as e:
-        print(f'{f}: error: {e}')
-"
+# Check for output files after a run completes
+ls -la *.json *.html *.log 2>/dev/null | wc -l
 ```
 
-3. **Return a summary table** as your final output:
+3. **Write env files only inside `_cicaddy_runs/`**. Never write `.env` files
+   in the source tree or other tracked directories.
+
+4. **Return a summary table** as your final output (under 1000 chars):
 
 ```
 ## Run Summary
@@ -200,10 +179,10 @@ for f in files:
 | delegate | gemini-3-flash | auto(3) | success | 180s | _cicaddy_runs/compare/run2/ |
 ```
 
-4. **Background execution**: For long runs, use `run_in_background` on the Bash
+5. **Background execution**: For long runs, use `run_in_background` on the Bash
    tool call to avoid blocking. Check output files to confirm completion.
 
-5. **Never pipe cicaddy output to stdout**. Always redirect:
+6. **Never pipe cicaddy output to stdout**. Always redirect:
    ```bash
    uv run cicaddy run --env-file .env > /dev/null 2>&1
    ```

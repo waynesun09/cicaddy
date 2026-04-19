@@ -65,6 +65,12 @@ Prefixes: `task_`, `mr_`, `githubpr_`, `branch_`
 }
 ```
 
+## Trust Boundary
+
+This agent operates on paths provided by the parent agent or user.
+Only process files inside `_cicaddy_runs/` or known cicaddy output directories.
+Do not open arbitrary paths outside the project workspace.
+
 ## CRITICAL RULES
 
 1. **NEVER read full JSON/HTML files** with the Read tool or cat command.
@@ -136,7 +142,7 @@ if paras:
         opener += '...'
     print(f'\n### Opening')
     print(opener)
-" "$REPORT_PATH"
+" <REPORT_PATH>
 ```
 
 ## Multi-Run Comparison
@@ -207,7 +213,7 @@ if len(runs) > 1:
         avg_d = sum(r['chars'] for r in deleg_runs) / len(deleg_runs)
         avg_s = sum(r['chars'] for r in single_runs) / len(single_runs)
         print(f'- Delegation produces {avg_d/max(avg_s,1):.1f}x more analysis content')
-" "$DIR1" "$DIR2"
+" <DIR1> <DIR2>
 ```
 
 ## Session File Analysis
@@ -250,7 +256,7 @@ print(f'AI inferences: {total_inferences}')
 print(f'Tool calls: {total_tools}')
 if tool_names:
     print(f'Tools used: {sorted(tool_names)}')
-" "$OUTPUT_DIR"
+" <OUTPUT_DIR>
 ```
 
 ## Output Format
