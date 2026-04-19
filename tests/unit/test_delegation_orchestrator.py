@@ -565,6 +565,51 @@ class TestAggregateResults:
         assert summarized is False
 
     @pytest.mark.asyncio
+    async def test_diff_threaded_to_summarizer(self, mock_settings):
+        """Diff from context should be passed to summarizer.summarize()."""
+        mock_provider = MagicMock()
+        mock_provider.chat_completion = AsyncMock(
+            return_value=MagicMock(content='{"summary": "OK", "findings": []}')
+        )
+        orch = DelegationOrchestrator(mock_settings, ai_provider=mock_provider)
+        results = [
+            {
+                "agent_name": "a",
+                "status": "success",
+                "analysis": "A",
+                "categories": [],
+                "execution_time": 1,
+            },
+            {
+                "agent_name": "b",
+                "status": "success",
+                "analysis": "B",
+                "categories": [],
+                "execution_time": 1,
+            },
+        ]
+        with patch("cicaddy.delegation.summarizer.SummarizationAgent") as mock_cls:
+            mock_summarizer = MagicMock()
+            mock_summarizer.summarize = AsyncMock(
+                return_value=MagicMock(
+                    summary="OK",
+                    individual_sections="",
+                    footer="",
+                    findings=[],
+                    ai_summarized=True,
+                )
+            )
+            mock_cls.return_value = mock_summarizer
+
+            await orch._aggregate_results(
+                results, summarize=True, diff="the diff content"
+            )
+
+            mock_summarizer.summarize.assert_called_once()
+            call_kwargs = mock_summarizer.summarize.call_args
+            assert call_kwargs[1]["diff"] == "the diff content"
+
+    @pytest.mark.asyncio
     async def test_execute_end_to_end_with_summarization(
         self, mock_settings, sample_plan, sample_registry, sample_context
     ):

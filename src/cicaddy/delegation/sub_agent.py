@@ -263,11 +263,17 @@ class DelegationSubAgent:
 Categories: {", ".join(self.delegation_entry.categories)}
 Rationale: {self.delegation_entry.rationale}
 {constraints_text}{output_text}{delegation_text}{user_prompt}
-## Line References
+## Code References
 
-When identifying issues in code diffs, cite the specific line number from the \
-unified diff hunk headers (e.g., "@@ -45,10 +45,12 @@" means new lines start \
-at 45). Format as "line 42: [issue]" so findings can be mapped to inline comments.
+When identifying issues in code diffs, quote the relevant code snippet (1-3 \
+lines) so findings can be precisely located. For example:
+
+```
+problematic_function(arg, None)
+```
+Missing null check before calling `problematic_function`.
+
+This is more useful than citing line numbers.
 
 ## Context
 

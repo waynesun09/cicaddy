@@ -53,6 +53,7 @@ def ai_summary_response():
             "findings": [
                 {
                     "file": "src/foo.py",
+                    "existing_code": "value = get_data()",
                     "line": 42,
                     "severity": "major",
                     "message": "Missing null check",
@@ -61,6 +62,7 @@ def ai_summary_response():
                 },
                 {
                     "file": "src/bar.py",
+                    "existing_code": 'SECRET = "hardcoded"',
                     "line": 15,
                     "severity": "minor",
                     "message": "Hardcoded secret",
@@ -133,6 +135,7 @@ class TestSummarizationAgent:
         assert result.findings[0].file == "src/foo.py"
         assert result.findings[0].line == 42
         assert result.findings[0].severity == "major"
+        assert result.findings[0].existing_code == "value = get_data()"
         assert result.findings[1].agent_source == "security-reviewer"
         assert "<details>" in result.individual_sections
         assert "general-reviewer" in result.individual_sections
@@ -513,3 +516,221 @@ class TestBuildFooter:
         footer = SummarizationAgent._build_footer(results)
         assert "1 agent(s) succeeded" in footer
         assert "1 failed" in footer
+
+
+class TestTwoStepLineResolution:
+    """Tests for the two-step line resolution flow in SummarizationAgent."""
+
+    @pytest.mark.asyncio
+    async def test_deterministic_resolution_with_diff(self, mock_ai_provider):
+        """Findings with existing_code should be resolved via diff search."""
+        diff = """\
+diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -10,4 +10,5 @@ def process():
+     data = fetch()
+     if data:
+         result = transform(data)
++        validate(result)
+         return result
+"""
+        response_data = {
+            "summary": "Found issue",
+            "findings": [
+                {
+                    "file": "src/foo.py",
+                    "existing_code": "validate(result)",
+                    "severity": "major",
+                    "message": "Missing error handling",
+                    "agent_source": "agent-a",
+                },
+            ],
+        }
+        mock_response = MagicMock()
+        mock_response.content = json.dumps(response_data)
+        mock_ai_provider.chat_completion.return_value = mock_response
+
+        results = [
+            {
+                "agent_name": "a",
+                "status": "success",
+                "analysis": "A",
+                "categories": ["code"],
+                "execution_time": 1,
+            },
+            {
+                "agent_name": "b",
+                "status": "success",
+                "analysis": "B",
+                "categories": ["arch"],
+                "execution_time": 2,
+            },
+        ]
+        agent = SummarizationAgent(mock_ai_provider)
+        result = await agent.summarize(results, diff=diff)
+
+        assert len(result.findings) == 1
+        assert result.findings[0].line == 13
+        assert result.findings[0].start_line == 13
+        assert result.findings[0].existing_code == "validate(result)"
+        # Only the summarization call, no AI line mapping needed
+        assert mock_ai_provider.chat_completion.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_ai_fallback_for_unresolved(self, mock_ai_provider):
+        """Unresolved findings should trigger AI line-mapping call."""
+        diff = """\
+diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -10,3 +10,4 @@ def process():
+     data = fetch()
+     if data:
++        validate(data)
+         return data
+"""
+        # First call: summarization response with snippet that won't match
+        summary_response = json.dumps(
+            {
+                "summary": "Found issue",
+                "findings": [
+                    {
+                        "file": "src/foo.py",
+                        "existing_code": "this snippet does not exist in diff",
+                        "severity": "major",
+                        "message": "Some issue",
+                        "agent_source": "agent-a",
+                    },
+                ],
+            }
+        )
+        # Second call: AI line mapping response
+        mapping_response = '[{"index": 0, "start_line": 12, "end_line": 12}]'
+
+        mock_ai_provider.chat_completion.side_effect = [
+            MagicMock(content=summary_response),
+            MagicMock(content=mapping_response),
+        ]
+
+        results = [
+            {
+                "agent_name": "a",
+                "status": "success",
+                "analysis": "A",
+                "categories": ["code"],
+                "execution_time": 1,
+            },
+            {
+                "agent_name": "b",
+                "status": "success",
+                "analysis": "B",
+                "categories": ["arch"],
+                "execution_time": 2,
+            },
+        ]
+        agent = SummarizationAgent(mock_ai_provider)
+        result = await agent.summarize(results, diff=diff)
+
+        assert len(result.findings) == 1
+        assert result.findings[0].line == 12
+        assert result.findings[0].start_line == 12
+        # Two AI calls: summarization + line mapping
+        assert mock_ai_provider.chat_completion.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_ai_fallback_failure_preserves_findings(self, mock_ai_provider):
+        """If AI line mapping fails, findings remain with line=None."""
+        diff = """\
+diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -1,3 +1,4 @@
+ import os
++import sys
+ x = 1
+"""
+        summary_response = json.dumps(
+            {
+                "summary": "Found issue",
+                "findings": [
+                    {
+                        "file": "src/foo.py",
+                        "existing_code": "no match here",
+                        "severity": "minor",
+                        "message": "Some issue",
+                        "agent_source": "a",
+                    },
+                ],
+            }
+        )
+        mock_ai_provider.chat_completion.side_effect = [
+            MagicMock(content=summary_response),
+            RuntimeError("API error"),
+        ]
+
+        results = [
+            {
+                "agent_name": "a",
+                "status": "success",
+                "analysis": "A",
+                "categories": [],
+                "execution_time": 1,
+            },
+            {
+                "agent_name": "b",
+                "status": "success",
+                "analysis": "B",
+                "categories": [],
+                "execution_time": 1,
+            },
+        ]
+        agent = SummarizationAgent(mock_ai_provider)
+        result = await agent.summarize(results, diff=diff)
+
+        assert len(result.findings) == 1
+        assert result.findings[0].line is None
+        assert result.ai_summarized is True
+
+    @pytest.mark.asyncio
+    async def test_no_diff_skips_resolution(self, mock_ai_provider):
+        """Without a diff, findings are returned without line resolution."""
+        response_data = {
+            "summary": "Summary",
+            "findings": [
+                {
+                    "file": "src/foo.py",
+                    "existing_code": "some code",
+                    "severity": "major",
+                    "message": "Issue",
+                    "agent_source": "a",
+                },
+            ],
+        }
+        mock_response = MagicMock()
+        mock_response.content = json.dumps(response_data)
+        mock_ai_provider.chat_completion.return_value = mock_response
+
+        results = [
+            {
+                "agent_name": "a",
+                "status": "success",
+                "analysis": "A",
+                "categories": [],
+                "execution_time": 1,
+            },
+            {
+                "agent_name": "b",
+                "status": "success",
+                "analysis": "B",
+                "categories": [],
+                "execution_time": 1,
+            },
+        ]
+        agent = SummarizationAgent(mock_ai_provider)
+        result = await agent.summarize(results, diff="")
+
+        assert len(result.findings) == 1
+        assert result.findings[0].line is None
+        # Only one AI call (no line mapping without diff)
+        assert mock_ai_provider.chat_completion.call_count == 1

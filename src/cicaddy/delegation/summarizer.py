@@ -44,14 +44,13 @@ _SUMMARY_RULES = """\
 
 _FINDINGS_RULES = """\
 ## Findings Extraction Rules
-- Extract file path and line number from agent analyses when referenced
-- **Line numbers are critical for inline comment support.** When an agent
-  mentions a line number or references a diff hunk (e.g., "@@ -45,10 +45,12 @@"),
-  extract the line number. Look for patterns like "line 42:", "at line X",
-  or contextual references to diff locations
-- Only set line to null for truly file-level findings (e.g., "missing license
-  header", "file should be renamed"). Prefer an extracted or inferred line
-  number over null
+- Extract file path from agent analyses when referenced
+- **Include the exact code snippet** the finding refers to in `existing_code`.
+  Quote 1-3 lines of the relevant code from the diff. This is used for
+  precise inline comment placement — accurate snippets are critical
+- If an agent mentions a line number, include it in the `line` field as
+  a best-effort hint. Otherwise set `line` to null (line resolution is
+  handled separately)
 - Map severity from agent output (Critical/Major/Minor/Nit)
 - Include concrete suggestion/fix when the agent provided one
 - Track which agent identified each finding via agent_source
@@ -67,6 +66,7 @@ Respond with ONLY a JSON object in this exact format \
   "findings": [
     {
       "file": "path/to/file.py",
+      "existing_code": "the relevant code snippet from the diff (1-3 lines)",
       "line": 42,
       "severity": "major",
       "message": "Description of the finding",
@@ -76,8 +76,8 @@ Respond with ONLY a JSON object in this exact format \
   ]
 }
 
-"line" must be an integer from the diff when the finding targets specific code. \
-Use null only for file-level findings that do not reference a specific line."""
+"existing_code" is the exact code snippet the finding targets — quote it from \
+the diff. "line" is a best-effort integer if the agent cited one, otherwise null."""
 
 
 @dataclass
@@ -90,6 +90,9 @@ class Finding:
     message: str
     suggestion: Optional[str] = None
     agent_source: str = ""
+    existing_code: Optional[str] = None
+    start_line: Optional[int] = None
+    end_line: Optional[int] = None
 
 
 @dataclass
@@ -118,14 +121,21 @@ class SummarizationAgent:
         self,
         agent_results: List[Dict[str, Any]],
         custom_instructions: str = "",
+        diff: str = "",
     ) -> SummarizationResult:
         """Summarize multiple agent analyses into structured output.
+
+        Uses a two-step line resolution approach:
+        1. AI generates findings with ``existing_code`` snippets
+        2. Deterministic search maps snippets to line numbers, with
+           AI fallback for unresolved findings
 
         Args:
             agent_results: List of per-agent result dicts from the
                 orchestrator (each with agent_name, status, analysis, etc.).
             custom_instructions: Optional user-provided summarization
                 instructions.
+            diff: Raw unified diff string for line number resolution.
 
         Returns:
             SummarizationResult with concise summary, individual agent
@@ -163,6 +173,10 @@ class SummarizationAgent:
             response = await self.ai_provider.chat_completion(messages)
 
             summary, findings = self._parse_response(response.content)
+
+            # Step 2: Resolve line numbers via deterministic diff search
+            if diff and findings:
+                findings = await self._resolve_lines(findings, diff)
 
             logger.info(
                 f"Summarization complete: {len(findings)} findings extracted "
@@ -272,6 +286,10 @@ class SummarizationAgent:
         except (TypeError, ValueError):
             line = None
 
+        existing_code = entry.get("existing_code")
+        if isinstance(existing_code, str) and not existing_code.strip():
+            existing_code = None
+
         return Finding(
             file=file_path,
             line=line,
@@ -279,7 +297,107 @@ class SummarizationAgent:
             message=message,
             suggestion=entry.get("suggestion"),
             agent_source=entry.get("agent_source", ""),
+            existing_code=existing_code,
         )
+
+    async def _resolve_lines(self, findings: List[Finding], diff: str) -> List[Finding]:
+        """Two-step line resolution: deterministic first, AI fallback second."""
+        from cicaddy.delegation.line_resolver import resolve_findings
+
+        resolved, unresolved = resolve_findings(findings, diff)
+
+        if unresolved:
+            ai_resolved = await self._ai_resolve_lines(unresolved, diff)
+            resolved.extend(ai_resolved)
+
+        return resolved
+
+    async def _ai_resolve_lines(
+        self, unresolved: List[Finding], diff: str
+    ) -> List[Finding]:
+        """AI fallback for findings that deterministic resolution missed."""
+        try:
+            from cicaddy.ai_providers.base import ProviderMessage
+            from cicaddy.delegation.line_resolver import annotate_diff_with_line_numbers
+
+            # Filter diff to relevant files only
+            relevant_files = {f.file for f in unresolved}
+            filtered_lines: list[str] = []
+            include_file = False
+            for line in diff.splitlines():
+                if line.startswith("+++ b/"):
+                    path = line[6:]
+                    include_file = any(
+                        path == rf or path.endswith(rf) or rf.endswith(path)
+                        for rf in relevant_files
+                    )
+                if (
+                    include_file
+                    or line.startswith("diff --git")
+                    or line.startswith("--- ")
+                ):
+                    filtered_lines.append(line)
+
+            filtered_diff = "\n".join(filtered_lines)
+            annotated = annotate_diff_with_line_numbers(filtered_diff)
+
+            # Build compact findings list for the prompt
+            findings_for_prompt = []
+            for i, f in enumerate(unresolved):
+                entry = {
+                    "index": i,
+                    "file": f.file,
+                    "message": f.message[:200],
+                }
+                if f.existing_code:
+                    entry["existing_code"] = f.existing_code
+                findings_for_prompt.append(entry)
+
+            prompt = (
+                "You are a code diff line number resolver. Given a unified diff "
+                "with line numbers and a list of code findings, determine the "
+                "exact line numbers where each finding occurs in the NEW version "
+                "of the file.\n\n"
+                f"## Diff\n```\n{annotated}\n```\n\n"
+                f"## Findings to resolve\n```json\n"
+                f"{json.dumps(findings_for_prompt, indent=2)}\n```\n\n"
+                "Respond with ONLY a JSON array (no markdown fences):\n"
+                '[{"index": 0, "start_line": 42, "end_line": 44}, ...]'
+            )
+
+            messages = [ProviderMessage(content=prompt, role="user")]
+            response = await self.ai_provider.chat_completion(messages)
+
+            content = extract_json(response.content)
+            mappings = json.loads(content)
+            if not isinstance(mappings, list):
+                return unresolved
+
+            for mapping in mappings:
+                if not isinstance(mapping, dict):
+                    continue
+                idx = mapping.get("index")
+                if not isinstance(idx, int) or idx < 0 or idx >= len(unresolved):
+                    continue
+                start = mapping.get("start_line")
+                end = mapping.get("end_line", start)
+                if isinstance(start, int) and start > 0:
+                    unresolved[idx].line = start
+                    unresolved[idx].start_line = start
+                    unresolved[idx].end_line = (
+                        int(end) if isinstance(end, int) else start
+                    )
+
+            ai_resolved_count = sum(1 for f in unresolved if f.line is not None)
+            logger.info(
+                f"AI line mapping resolved {ai_resolved_count}/{len(unresolved)} "
+                f"remaining findings"
+            )
+
+        except Exception as e:
+            logger.warning(f"AI line mapping failed, findings remain unresolved: {e}")
+
+        return unresolved
 
     @staticmethod
     def _build_individual_sections(
