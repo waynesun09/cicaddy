@@ -10,7 +10,7 @@ Cicaddy is a platform-agnostic pipeline AI agent library. It provides the core a
 - Provider-specific skills and rules take precedence over cross-tool defaults
 - Claude via Vertex AI (`anthropic-vertex` provider) — uses Google Cloud ADC, no API key needed (v0.7.0+)
 - Bundled knowledge and skills shipped with the package for model guidance and config reference (v0.8.0+)
-- AI-powered sub-agent delegation with parallel execution, triage, and sibling awareness (v0.8.0+)
+- AI-powered sub-agent delegation with parallel execution, triage, sibling awareness, and context-aware review triage (v0.8.0+)
 
 ## Architecture
 
@@ -93,7 +93,8 @@ BaseAIAgent.analyze()
   └── DELEGATION_MODE=auto → _analyze_delegate()
         ├── _get_agent_type()               # hook: returns type for registry lookup
         ├── _get_delegation_context()      # hook: shape context for triage
-        ├── TriageAgent.triage()           # AI selects sub-agents
+        ├── TriageAgent.triage(agent_type) # AI selects sub-agents (context-aware prompt)
+        ├── _post_process_plan()           # hook: enforce agent-type guarantees
         ├── DelegationOrchestrator.execute()
         │     └── DelegationSubAgent × N   # parallel via asyncio.gather + Semaphore
         │           ├── filtered tools (shared parent backends)
@@ -108,7 +109,7 @@ BaseAIAgent.analyze()
 
 | Module | Purpose |
 |--------|---------|
-| `delegation/triage.py` | AI-powered triage: analyzes context, produces `DelegationPlan`, `SiblingInfo` |
+| `delegation/triage.py` | AI-powered triage: context-aware prompts (review vs. generic), `DelegationPlan`, `SiblingInfo`, agent name sanitization |
 | `delegation/registry.py` | `SubAgentSpec` model + `SubAgentRegistry` loader (built-in + YAML + JSON) |
 | `delegation/sub_agent.py` | Lightweight executor: prompt composition, tool filtering, workspace context, sibling awareness, budget division |
 | `delegation/orchestrator.py` | Parallel execution with `Semaphore`, workspace context + sibling info propagation, result aggregation |
@@ -119,6 +120,7 @@ Subclasses override these to provide agent-type-specific behavior:
 
 - `_should_delegate()` → returns `True` when `DELEGATION_MODE=auto`; subclasses can override for custom gating
 - `_get_delegation_context(analysis_context)` → shapes context for triage (e.g., review agents extract diff + MR info, task agents inject DSPy task metadata)
+- `_post_process_plan(plan, registry)` → post-process the triage plan before execution (v0.9.0+); `BaseReviewAgent` overrides this to guarantee `general-reviewer` is always included in review plans
 
 #### Tool filtering
 
