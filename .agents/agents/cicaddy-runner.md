@@ -179,8 +179,9 @@ ls -la *.json *.html *.log 2>/dev/null | wc -l
 | delegate | gemini-3-flash | auto(3) | success | 180s | _cicaddy_runs/compare/run2/ |
 ```
 
-5. **Background execution**: For long runs, use `run_in_background` on the Bash
-   tool call to avoid blocking. Check output files to confirm completion.
+5. **Background execution**: For long runs, use `run_in_background: true` parameter
+   on the Bash tool call (a Claude Code feature that runs the command asynchronously
+   and notifies on completion). Check output files to confirm completion.
 
 6. **Never pipe cicaddy output to stdout**. Always redirect:
    ```bash

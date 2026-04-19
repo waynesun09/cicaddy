@@ -6,7 +6,7 @@ description: >
   delegation, agent factory extension, and security scanning. Use when working with cicaddy
   CLI, writing .env files for cicaddy, creating DSPy task definitions, configuring MCP servers,
   setting up delegation, or extending the agent registry.
-compatibility: Requires Python 3.11+ and uv. Install with uv pip install -e cicaddy.
+compatibility: Requires Python 3.11+ and uv. Dev install with uv pip install -e ".[dev,test]" or released package with uv pip install cicaddy.
 metadata:
   version: "0.9.0"
   author: waynesun09

@@ -28,7 +28,7 @@ Prefixes: `task_`, `mr_`, `githubpr_`, `branch_`
 
 ## JSON Report Structure
 
-```
+```json
 {
   "report_id": "githubpr_20260418_153528",
   "generated_at": "2026-04-18T15:35:28",
@@ -137,9 +137,9 @@ if ar.get('sub_agent_details'):
     print('| Agent | Status | Time | Output |')
     print('|-------|--------|------|--------|')
     for s in ar['sub_agent_details']:
-        a_lines = s['analysis'].split('\n') if isinstance(s['analysis'], str) else []
+        a_lines = s.get('analysis', '').split('\n') if isinstance(s.get('analysis', ''), str) else []
         a_bullets = sum(1 for l in a_lines if l.strip().startswith('- '))
-        print(f'| {s[\"agent_name\"]} | {s[\"status\"]} | {s[\"execution_time\"]:.1f}s | {len(s[\"analysis\"]):,} chars, {a_bullets} items |')
+        print(f'| {s.get(\"agent_name\", \"?\")} | {s.get(\"status\", \"?\")} | {s.get(\"execution_time\", 0):.1f}s | {len(s.get(\"analysis\", \"\")):,} chars, {a_bullets} items |')
 " "$REPORT_PATH"
 ```
 
