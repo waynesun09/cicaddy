@@ -28,10 +28,10 @@ Tool Result --------+
 
 **Location**: `execution/knowledge_store.py`
 
-`AccumulatedKnowledge` stores every MCP tool result with triple indexing:
-- `tool_results` — execution order (list)
-- `results_by_server` — grouped by MCP server
-- `results_by_tool` — grouped by tool name
+`AccumulatedKnowledge` stores every MCP tool result in execution order:
+- `tool_results` — flat list, serialized to JSON
+- `results_by_server` — in-memory index grouped by MCP server (rebuilt from `tool_results` on deserialization)
+- `results_by_tool` — in-memory index grouped by tool name (rebuilt from `tool_results` on deserialization)
 
 Each entry records: `iteration`, `server`, `tool`, `arguments`, `result` (full), `execution_time`, `result_size_bytes`, `timestamp`, `inference_id`, `unique_ref`.
 
