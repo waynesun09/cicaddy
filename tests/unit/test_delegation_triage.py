@@ -423,16 +423,16 @@ class TestFindGeneralAgent:
         }
         assert find_general_agent(registry) is None
 
-    def test_deterministic_with_multiple_general(self):
-        """When multiple general-* agents exist, returns first sorted."""
+    def test_prefers_builtin_over_alphabetical(self):
+        """Prefers well-known built-in names over alphabetical order."""
         from cicaddy.delegation.triage import find_general_agent
 
         registry = {
-            "general-task": SubAgentSpec(
-                name="general-task",
-                persona="t",
-                description="t",
-                categories=["task"],
+            "general-audit": SubAgentSpec(
+                name="general-audit",
+                persona="a",
+                description="a",
+                categories=["audit"],
             ),
             "general-reviewer": SubAgentSpec(
                 name="general-reviewer",
@@ -441,8 +441,28 @@ class TestFindGeneralAgent:
                 categories=["review"],
             ),
         }
-        # Sorted: general-reviewer < general-task
+        # general-audit sorts first, but general-reviewer is a built-in
         assert find_general_agent(registry) == "general-reviewer"
+
+    def test_falls_back_to_sorted_prefix(self):
+        """Falls back to sorted general-* match when no built-in name found."""
+        from cicaddy.delegation.triage import find_general_agent
+
+        registry = {
+            "general-zeta": SubAgentSpec(
+                name="general-zeta",
+                persona="z",
+                description="z",
+                categories=["zeta"],
+            ),
+            "general-alpha": SubAgentSpec(
+                name="general-alpha",
+                persona="a",
+                description="a",
+                categories=["alpha"],
+            ),
+        }
+        assert find_general_agent(registry) == "general-alpha"
 
     def test_empty_registry(self):
         from cicaddy.delegation.triage import find_general_agent

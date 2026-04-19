@@ -50,13 +50,20 @@ def _sanitize_agent_name(name: str) -> str:
     return "".join(c for c in name if c.isalnum() or c in "-_. ").strip()[:64]
 
 
+_BUILTIN_GENERAL_AGENTS = ("general-reviewer", "general-task")
+
+
 def find_general_agent(registry: Dict[str, Any]) -> Optional[str]:
     """Find the general/baseline agent in a registry.
 
-    Matches agents whose name starts with ``general-`` (e.g.
-    ``general-reviewer``, ``general-task``).  Returns the first
-    match in sorted order for deterministic results, or ``None``.
+    Prefers well-known built-in names (``general-reviewer``,
+    ``general-task``) for deterministic results, then falls back to
+    the first ``general-*`` match in sorted order.  Returns ``None``
+    if no match is found.
     """
+    for preferred in _BUILTIN_GENERAL_AGENTS:
+        if preferred in registry:
+            return preferred
     for name in sorted(registry):
         if name.startswith("general-"):
             return name
@@ -214,7 +221,7 @@ class TriageAgent:
 
         prompt = (
             f"{opening}"
-            f"## Available Sub-Agents\n{agents_section}\n\n"
+            f"## Available Sub-Agents\n{agents_section}\n\n"  # nosec B608
             f"## Context Keys\n{json.dumps(context_keys)}\n\n"
             f"## Context Data\n{context_data}\n"
             f"{user_instructions}"
