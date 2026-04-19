@@ -210,7 +210,7 @@ async def retry_async(
                 if suggested and suggested > 0:
                     # Use API-suggested delay with 1s safety margin, capped at max_delay
                     delay = min(suggested + 1.0, config.max_delay)
-                    logger.info(
+                    logger.debug(
                         f"Using API-suggested delay of {delay:.2f}s "
                         f"(suggested: {suggested:.2f}s) for {context_name}"
                     )
@@ -229,11 +229,11 @@ async def retry_async(
                         break
                     if delay > remaining_time:
                         delay = max(0.1, remaining_time * 0.8)
-                        logger.info(
+                        logger.debug(
                             f"Reduced retry delay to {delay:.2f}s due to time limit for {context_name}"
                         )
 
-                logger.info(
+                logger.debug(
                     f"Retrying {context_name} (attempt {attempt + 1}/{config.max_retries + 1}) "
                     f"after {delay:.2f}s delay"
                 )
@@ -354,7 +354,7 @@ def retry_sync(
                 if suggested and suggested > 0:
                     # Use API-suggested delay with 1s safety margin, capped at max_delay
                     delay = min(suggested + 1.0, config.max_delay)
-                    logger.info(
+                    logger.debug(
                         f"Using API-suggested delay of {delay:.2f}s "
                         f"(suggested: {suggested:.2f}s) for {context_name}"
                     )
@@ -373,11 +373,11 @@ def retry_sync(
                         break
                     if delay > remaining_time:
                         delay = max(0.1, remaining_time * 0.8)
-                        logger.info(
+                        logger.debug(
                             f"Reduced retry delay to {delay:.2f}s due to time limit for {context_name}"
                         )
 
-                logger.info(
+                logger.debug(
                     f"Retrying {context_name} (attempt {attempt + 1}/{config.max_retries + 1}) "
                     f"after {delay:.2f}s delay"
                 )
