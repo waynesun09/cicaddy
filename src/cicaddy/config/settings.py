@@ -514,9 +514,9 @@ class CoreSettings(BaseSettings):
                         # Show non-sensitive values
                         env_info[key] = value
                 safe_info["env_vars"] = env_info
-                logger.info(f"MCP Server: {safe_info}")
+                logger.debug(f"MCP Server: {safe_info}")
             else:
-                logger.info(f"MCP Server: {safe_info}")
+                logger.debug(f"MCP Server: {safe_info}")
 
     def get_mcp_servers(self) -> List[MCPServerConfig]:
         """Parse MCP servers configuration from YAML."""
@@ -541,7 +541,7 @@ class CoreSettings(BaseSettings):
                 logger.error(f"Expected list from YAML, got {type(servers_data)}")
                 return []
 
-            logger.info(
+            logger.debug(
                 f"Successfully parsed {len(servers_data)} MCP server configurations"
             )
             mcp_configs = [MCPServerConfig(**server) for server in servers_data]

@@ -281,8 +281,10 @@ class TestAccumulatedKnowledge:
         data = store.to_dict()
 
         assert "tool_results" in data
-        assert "results_by_server" in data
-        assert "results_by_tool" in data
+        # results_by_server and results_by_tool are no longer serialized
+        # (they are rebuilt from tool_results in from_dict)
+        assert "results_by_server" not in data
+        assert "results_by_tool" not in data
         assert "total_tools_executed" in data
         assert "servers_used" in data
         assert "tools_used" in data
@@ -321,6 +323,14 @@ class TestAccumulatedKnowledge:
         assert len(reconstructed.tool_results) == len(store.tool_results)
         assert reconstructed.servers_used == store.servers_used
         assert reconstructed.tools_used == store.tools_used
+
+        # Verify in-memory indices are rebuilt from tool_results
+        assert len(reconstructed.results_by_server) == 2
+        assert "datarouter" in reconstructed.results_by_server
+        assert "github" in reconstructed.results_by_server
+        assert len(reconstructed.results_by_tool) == 2
+        assert "tool1" in reconstructed.results_by_tool
+        assert "tool2" in reconstructed.results_by_tool
 
     def test_preserve_full_data_not_compacted(self):
         """Test that full data is preserved without compression."""

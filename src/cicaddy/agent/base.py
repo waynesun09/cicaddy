@@ -165,9 +165,9 @@ class BaseAIAgent(ABC):
         # This ensures HTML report generation, notifications, and all other phases are logged
         try:
             if report and report.get("report_id"):
-                logger.info("Saving execution log file...")
+                logger.debug("Saving execution log file...")
                 await self._save_log_file(report["report_id"])
-                logger.info("Execution log file saved successfully")
+                logger.debug("Execution log file saved successfully")
         except Exception as e:
             logger.error(f"Failed to save log file: {e}", exc_info=True)
 
@@ -196,10 +196,10 @@ class BaseAIAgent(ABC):
 
     async def _setup_mcp_manager(self):
         """Initialize MCP client manager."""
-        logger.info(
+        logger.debug(
             f"MCP_SERVERS_CONFIG length: {len(self.settings.mcp_servers_config)}"
         )
-        logger.info(
+        logger.debug(
             f"MCP_SERVERS_CONFIG type: {type(self.settings.mcp_servers_config)}"
         )
 
@@ -208,7 +208,7 @@ class BaseAIAgent(ABC):
 
         if mcp_servers:
             for i, server in enumerate(mcp_servers):
-                logger.info(f"MCP Server {i + 1}: {server.name} ({server.protocol})")
+                logger.debug(f"MCP Server {i + 1}: {server.name} ({server.protocol})")
         else:
             logger.warning("No MCP servers configured in MCP_SERVERS_CONFIG")
 
@@ -332,7 +332,7 @@ class BaseAIAgent(ABC):
             max_execution_time=self.settings.max_execution_time,  # Configurable via MAX_EXECUTION_TIME env var
         )
 
-        logger.info(
+        logger.debug(
             f"Execution engine configured with dynamic token limits: "
             f"provider={provider}, model={model}, "
             f"max_tokens_total={execution_limits.max_tokens_total:,}, "
@@ -500,21 +500,21 @@ class BaseAIAgent(ABC):
         # Get tools from local tool registry
         if self.local_tool_registry:
             local_tools = self.local_tool_registry.get_tools()
-            logger.info(f"Local tool registry returned {len(local_tools)} tools")
+            logger.debug(f"Local tool registry returned {len(local_tools)} tools")
             tools.extend(local_tools)
 
         # Get tools from MCP servers
         if self.mcp_manager:
             server_names = self.mcp_manager.get_server_names()
-            logger.info(
+            logger.debug(
                 f"Checking tools from {len(server_names)} connected MCP servers: {server_names}"
             )
 
             for server_name in server_names:
                 try:
-                    logger.info(f"Listing tools from server: {server_name}")
+                    logger.debug(f"Listing tools from server: {server_name}")
                     server_tools = await self.mcp_manager.list_tools(server_name)
-                    logger.info(
+                    logger.debug(
                         f"Server {server_name} returned {len(server_tools)} tools"
                     )
                     for tool in server_tools:
@@ -672,14 +672,14 @@ class BaseAIAgent(ABC):
 
             with open(report_path, "w") as f:
                 json.dump(report, f, indent=2)
-            logger.info(
+            logger.debug(
                 f"JSON report saved successfully to {os.path.abspath(report_path)}"
             )
 
             # Generate HTML report
-            logger.info("Starting HTML report generation...")
+            logger.debug("Starting HTML report generation...")
             await self._save_html_report(report, report_path)
-            logger.info("HTML report generation completed")
+            logger.debug("HTML report generation completed")
 
             # Note: Log file is saved at the end of analyze() to capture all logs
 
@@ -706,14 +706,14 @@ class BaseAIAgent(ABC):
             with open(html_filename, "w", encoding="utf-8") as f:
                 f.write(html_content)
 
-            logger.info(
+            logger.debug(
                 f"HTML report saved successfully to {os.path.abspath(html_filename)}"
             )
 
             # Log file sizes for comparison
             html_size = os.path.getsize(html_filename) / (1024 * 1024)
             json_size = os.path.getsize(json_report_path) / (1024 * 1024)
-            logger.info(
+            logger.debug(
                 f"HTML report size: {html_size:.2f} MB, JSON report size: {json_size:.2f} MB"
             )
 

@@ -51,7 +51,7 @@ class EventLog:
         # Create directory if it doesn't exist
         try:
             self.log_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(f"EventLog initialized: {self.log_path}")
+            logger.debug(f"EventLog initialized: {self.log_path}")
         except Exception as e:
             logger.error(f"Failed to create event log directory {self.log_dir}: {e}")
             raise

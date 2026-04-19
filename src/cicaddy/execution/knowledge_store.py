@@ -129,7 +129,7 @@ class AccumulatedKnowledge:
         with the new inference number.
         """
         self.current_inference_id += 1
-        logger.info(f"Started new inference: inference_id={self.current_inference_id}")
+        logger.debug(f"Started new inference: inference_id={self.current_inference_id}")
 
     def get_results_for_server(self, server: str) -> List[Dict[str, Any]]:
         """Get all results for a specific MCP server."""
@@ -250,8 +250,6 @@ class AccumulatedKnowledge:
         """
         return {
             "tool_results": self.tool_results,
-            "results_by_server": self.results_by_server,
-            "results_by_tool": self.results_by_tool,
             "total_tools_executed": self.total_tools_executed,
             "servers_used": list(self.servers_used),
             "tools_used": list(self.tools_used),
@@ -273,13 +271,22 @@ class AccumulatedKnowledge:
         """
         knowledge = cls()
         knowledge.tool_results = data.get("tool_results", [])
-        knowledge.results_by_server = data.get("results_by_server", {})
-        knowledge.results_by_tool = data.get("results_by_tool", {})
         knowledge.total_tools_executed = data.get("total_tools_executed", 0)
         knowledge.servers_used = set(data.get("servers_used", []))
         knowledge.tools_used = set(data.get("tools_used", []))
         # Backward compatibility: default to 1 if not present in old data
         knowledge.current_inference_id = data.get("current_inference_id", 1)
+
+        # Rebuild in-memory indices from tool_results
+        # (these are no longer serialized to reduce JSON size)
+        for entry in knowledge.tool_results:
+            server = entry.get("server", "")
+            tool = entry.get("tool", "")
+            if server:
+                knowledge.results_by_server.setdefault(server, []).append(entry)
+            if tool:
+                knowledge.results_by_tool.setdefault(tool, []).append(entry)
+
         return knowledge
 
     def __repr__(self) -> str:
