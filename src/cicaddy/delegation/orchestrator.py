@@ -253,7 +253,7 @@ class DelegationOrchestrator:
             return (
                 "\n\n".join(parts),
                 result.findings,
-                bool(result.findings or result.summary),
+                bool(result.findings),
             )
 
         # Deterministic concatenation (original behavior)

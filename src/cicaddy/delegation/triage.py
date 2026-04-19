@@ -192,8 +192,9 @@ class TriageAgent:
         for name, spec in sorted(available_agents.items()):
             safe_name = _sanitize_agent_name(name)
             safe_cats = ", ".join(_sanitize_agent_name(c) for c in spec.categories)
+            safe_desc = _sanitize_for_boundary(spec.description, "", "")[:200]
             agents_desc.append(
-                f"- **{safe_name}**: {spec.description} (categories: {safe_cats})"
+                f"- **{safe_name}**: {safe_desc} (categories: {safe_cats})"
             )
         agents_section = "\n".join(agents_desc)
 
@@ -299,8 +300,9 @@ class TriageAgent:
 
         general_note = ""
         if general_agent_name:
+            safe_general = _sanitize_agent_name(general_agent_name)
             general_note = (
-                f"\n**Important**: `{general_agent_name}` provides baseline "
+                f"\n**Important**: `{safe_general}` provides baseline "
                 f"code quality coverage (correctness, clarity, tests) and "
                 f"should ALWAYS be included alongside any specialist reviewers.\n"
             )

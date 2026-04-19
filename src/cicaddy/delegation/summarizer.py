@@ -122,8 +122,13 @@ class SummarizationAgent:
                 footer=footer,
             )
 
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
             logger.warning(f"Summarization failed, falling back to concatenation: {e}")
+            return self._fallback_result(agent_results)
+        except Exception as e:
+            logger.warning(
+                f"Summarization AI call failed, falling back: {type(e).__name__}"
+            )
             return self._fallback_result(agent_results)
 
     def _build_summarization_prompt(
@@ -215,7 +220,10 @@ class SummarizationAgent:
             raise ValueError("AI response missing 'summary' field")
 
         findings = []
-        for entry in data.get("findings", []):
+        raw_findings = data.get("findings", [])
+        if not isinstance(raw_findings, list):
+            raw_findings = []
+        for entry in raw_findings:
             if not isinstance(entry, dict):
                 continue
             finding = self._validate_finding(entry)
@@ -228,7 +236,7 @@ class SummarizationAgent:
     def _validate_finding(entry: Dict[str, Any]) -> Optional[Finding]:
         """Validate and convert a single finding dict to Finding."""
         file_path = entry.get("file", "")
-        if not file_path:
+        if not isinstance(file_path, str) or not file_path.strip():
             return None
 
         severity = str(entry.get("severity", "")).lower()
@@ -236,7 +244,7 @@ class SummarizationAgent:
             severity = "minor"
 
         message = entry.get("message", "")
-        if not message:
+        if not isinstance(message, str) or not message.strip():
             return None
 
         raw_line = entry.get("line")

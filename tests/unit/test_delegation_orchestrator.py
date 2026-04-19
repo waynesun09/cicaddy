@@ -464,6 +464,7 @@ class TestAggregateResults:
         # Single agent goes through SummarizationAgent which returns analysis directly
         assert "A" in output
         assert findings == []
+        assert summarized is False
 
     @pytest.mark.asyncio
     async def test_summarization_enabled(self, mock_settings):
