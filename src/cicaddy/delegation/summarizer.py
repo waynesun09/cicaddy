@@ -370,11 +370,25 @@ class SummarizationAgent:
             filtered_diff = self._filter_diff_for_files(diff, relevant_files)
             annotated = annotate_diff_with_line_numbers(filtered_diff)
 
+            # Sanitize diff content with boundary markers (prompt injection protection)
+            boundary_start, boundary_end = _make_boundary_pair()
+            sanitized_diff = _sanitize_for_boundary(
+                annotated, boundary_start, boundary_end
+            )
+
             findings_for_prompt = []
             for i, f in enumerate(unresolved):
-                entry = {"index": i, "file": f.file, "message": f.message[:200]}
+                entry = {
+                    "index": i,
+                    "file": f.file,
+                    "message": _sanitize_for_boundary(
+                        f.message[:200], boundary_start, boundary_end
+                    ),
+                }
                 if f.existing_code:
-                    entry["existing_code"] = f.existing_code
+                    entry["existing_code"] = _sanitize_for_boundary(
+                        f.existing_code, boundary_start, boundary_end
+                    )
                 findings_for_prompt.append(entry)
 
             prompt = (
@@ -382,7 +396,7 @@ class SummarizationAgent:
                 "with line numbers and a list of code findings, determine the "
                 "exact line numbers where each finding occurs in the NEW version "
                 "of the file.\n\n"
-                f"## Diff\n```\n{annotated}\n```\n\n"
+                f"## Diff\n{boundary_start}\n{sanitized_diff}\n{boundary_end}\n\n"
                 f"## Findings to resolve\n```json\n"
                 f"{json.dumps(findings_for_prompt, indent=2)}\n```\n\n"
                 "Respond with ONLY a JSON array (no markdown fences):\n"
