@@ -1,9 +1,15 @@
 ---
 name: cicaddy
 description: >
-  Use this skill when working with the Cicaddy platform-agnostic pipeline AI
-  agent. Covers CLI commands, environment configuration, DSPy task files,
-  MCP server setup, and extending the agent factory with custom agents.
+  Run and configure the Cicaddy pipeline AI agent CLI. Covers cicaddy run/validate/config
+  commands, env file setup, DSPy task YAML authoring, MCP server configuration, sub-agent
+  delegation, agent factory extension, and security scanning. Use when working with cicaddy
+  CLI, writing .env files for cicaddy, creating DSPy task definitions, configuring MCP servers,
+  setting up delegation, or extending the agent registry.
+compatibility: Requires Python 3.11+ and uv. Dev install with uv pip install -e ".[dev,test]" or released package with uv pip install cicaddy.
+metadata:
+  version: "0.9.0"
+  author: waynesun09
 ---
 
 # Cicaddy Agent
@@ -59,14 +65,7 @@ uv run cicaddy config show --env-file .env
 uv run cicaddy validate --env-file .env
 ```
 
-Performs pre-flight checks without running the agent:
-
-- **AI Provider** — `AI_PROVIDER` is set and the corresponding API key exists
-  (`GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.)
-- **Agent type** — `AGENT_TYPE` is set; warns if it will be auto-detected
-- **MCP servers** — `MCP_SERVERS_CONFIG` is valid JSON, lists each server name
-  and protocol (credentials are masked)
-
+Performs pre-flight checks: AI provider + API key, agent type, MCP server config validity.
 Exits `0` on pass (warnings allowed), `1` on error.
 
 ### Version
@@ -77,119 +76,9 @@ uv run cicaddy version
 
 ---
 
-## Security Scanning (v0.6.1+)
-
-Cicaddy includes prompt injection protection for all external content:
-
-### Scan configuration
-
-```bash
-# MCP tool responses (per-server in MCP_SERVERS_CONFIG)
-# - scan_mode: disabled|audit|enforce
-
-# Local file tools
-LOCAL_TOOLS_SCAN_MODE=audit
-LOCAL_TOOLS_BLOCKING_THRESHOLD=0.3
-
-# Agent rules from submodules
-RULES_SCAN_MODE=audit
-RULES_BLOCKING_THRESHOLD=0.3
-
-# Skills from dependencies
-SKILLS_SCAN_MODE=enforce
-SKILLS_BLOCKING_THRESHOLD=0.2
-```
-
-### How it works
-
-- **Local/git-tracked content**: Trusted (skips scanning)
-- **External content** (submodules, untracked, global skills): Scanned
-- **Audit mode**: Logs warnings, doesn't block
-- **Enforce mode**: Blocks content above threshold
-- **Threshold separation**: Detection (0.0) vs blocking (0.2-0.3)
-
-See `docs/mcp-security-scanning.md` for details.
-
----
-
-## Sub-Agent Delegation (v0.8.0+)
-
-Cicaddy supports AI-powered sub-agent delegation where an AI triage step
-selects specialized sub-agents, runs them in parallel with sibling awareness
-(each agent knows what others cover to avoid duplication), and aggregates results.
-
-### Enable delegation
-
-```bash
-# In .env file
-DELEGATION_MODE=auto          # none (default, single-agent) | auto (delegation)
-MAX_SUB_AGENTS=3              # Max concurrent sub-agents (1-10)
-SUB_AGENT_MAX_ITERS=5         # Max iterations per sub-agent (1-15)
-TRIAGE_PROMPT=""              # Optional custom triage instructions
-DELEGATION_AGENTS_DIR=.agents/delegation  # Custom agent YAML directory
-DELEGATION_AGENTS=""          # JSON inline custom agent definitions
-```
-
-### Run with delegation
-
-```bash
-# Delegated code review (set DELEGATION_MODE=auto in .env)
-uv run cicaddy run --env-file .env
-
-# Or override via CLI flags
-uv run cicaddy run --env-file .env --delegation-mode auto --max-sub-agents 2
-```
-
-When using `AI_TASK_FILE` with delegation, the task definition (persona, constraints,
-tool restrictions, output format) is loaded and provided to the triage agent as context.
-The task's `forbidden_tools` are cascaded to all sub-agents.
-
-### Built-in sub-agents
-
-**Review**: `security-reviewer`, `architecture-reviewer`, `api-reviewer`,
-`database-reviewer`, `ui-reviewer`, `devops-reviewer`, `performance-reviewer`,
-`general-reviewer`
-
-**Task**: `data-analyst`, `report-writer`, `general-task`
-
-### Custom sub-agents (YAML)
-
-Place YAML files in `.agents/delegation/{agent_type}/`:
-
-```yaml
-# .agents/delegation/review/compliance-reviewer.yaml
-name: compliance-reviewer
-agent_type: review
-persona: compliance engineer specializing in regulatory requirements
-description: Reviews changes for regulatory and compliance impact
-categories: [security, configuration]
-constraints:
-  - Focus on regulatory compliance (SOC2, GDPR, HIPAA)
-  - Flag any PII handling changes
-  - Check audit logging requirements
-output_sections:
-  - Compliance Impact
-  - Regulatory Risks
-  - Required Controls
-priority: 15
-# Optional: restrict tools (strict whitelist if set)
-# allowed_tools: ["read_file", "list_directory"]
-# blocked_tools: []
-```
-
-### How it works
-
-1. **Triage** — AI analyzes the context and selects sub-agents from the registry
-2. **Parallel execution** — Sub-agents run with focused prompts, filtered tools, workspace context (bundled skills, agent rules, repo skills), sibling awareness, and divided token budgets
-3. **Aggregation** — Results merged into unified output with per-agent sections
-
-Sub-agents share parent's MCP connections and tool registry (no new server processes). They also inherit the parent's workspace context: bundled skills, per-repo agent rules (`AGENT.md`/`CLAUDE.md`/`GEMINI.md`), and per-repo skills (`.agents/skills/`). Side-effect tools (post comments, merge PRs) are blocked by default via plugin entry points.
-
----
-
 ## Environment Configuration
 
-Core env vars for a DSPy task run:
+Core env vars for a cicaddy run:
 
 ```bash
 # Agent type
@@ -230,7 +119,8 @@ LOG_LEVEL=INFO
 
 ### DSPy task file inputs
 
-Inputs declared in the task YAML are resolved from environment variables:
+Inputs declared in the task YAML are resolved from environment variables.
+See `references/dspy-task-yaml.md` for the full task file specification.
 
 ```yaml
 inputs:
@@ -244,159 +134,26 @@ inputs:
 
 ---
 
-## DSPy Task YAML
+## Gotchas
 
-A task file defines the prompt, tools, constraints, and output format
-declaratively. The MCP server name in `tools.servers` must match the `name`
-field in `MCP_SERVERS_CONFIG`. The `local` server is auto-provided when
-`ENABLE_LOCAL_TOOLS=true`.
-
-```yaml
-name: my_analysis
-type: data_analysis
-version: "1.0"
-
-persona: >
-  expert analyst for {{PROJECT_NAME}}
-
-inputs:
-  - name: project_name
-    env_var: PROJECT_NAME
-    required: true
-
-tools:
-  servers:
-    - devlake-mcp-instance   # must match MCP_SERVERS_CONFIG name
-    - local                  # built-in: requires ENABLE_LOCAL_TOOLS=true
-  required_tools:
-    - connect_database
-    - execute_query
-    - read_file
-
-constraints:
-  - "NEVER use WITH clauses (CTEs)"
-  - "Always use fully qualified table names: lake.table_name"
-
-reasoning: react
-output_format: html   # html | markdown | json
-
-context: |
-  Analyze {{PROJECT_NAME}} for the last {{ANALYSIS_DAYS}} days.
-  ...
-```
+- `AI_TASK_FILE` paths are relative to CWD, not the env file location
+- `LOCAL_TOOLS_WORKING_DIR` must be absolute when running from output directories
+- `MCP_SERVERS_CONFIG` server `name` must exactly match `tools.servers` in task YAML
+- Delegation mode `auto` requires at least 2 sub-agents to be useful
+- `--dry-run` does NOT validate MCP server connectivity, only config parsing
+- Session JSONL files can be very large (50MB+) -- never read directly
+- Report output goes to CWD, not the source repo directory
+- Bundled skills (`model-reference`, `cicaddy-config`) are always available, no install needed
+- `validate` checks API key presence but does not test the key against the provider
 
 ---
 
-## Agent Factory Extension
+## Reference Topics
 
-The `AgentFactory` uses a registry pattern. Custom agents and type detectors
-can be registered from any package — no need to modify cicaddy's core.
+For detailed documentation on these topics, read the corresponding reference file:
 
-### Register a custom agent
-
-```python
-from cicaddy.agent.base import BaseAIAgent
-from cicaddy.agent.factory import AgentFactory
-
-class MyCustomAgent(BaseAIAgent):
-    async def _build_prompt(self, context):
-        return "Analyze the pipeline..."
-
-    async def _process_result(self, result, analysis_result):
-        # post-process the AI result
-        return result
-
-# Register under a type name
-AgentFactory.register("my_custom", MyCustomAgent)
-```
-
-Activate with `AGENT_TYPE=my_custom` in the env file.
-
-### Register a type detector
-
-Detectors auto-select agent type from environment/settings.
-Lower priority number = checked first. First non-None result wins.
-
-```python
-from cicaddy.agent.factory import AgentFactory
-from cicaddy.config.settings import Settings
-from typing import Optional
-
-def detect_my_platform(settings: Settings) -> Optional[str]:
-    import os
-    if os.getenv("MY_PLATFORM_EVENT") == "pipeline":
-        return "my_custom"
-    return None
-
-# Register with priority 10 (runs before built-in CI detector at 50)
-AgentFactory.register_detector(detect_my_platform, priority=10)
-```
-
-### Entry point plugin registration (for installable packages)
-
-Cicaddy discovers plugins automatically via `importlib.metadata.entry_points()`.
-Register callables in your package's `pyproject.toml`:
-
-```toml
-[project.entry-points."cicaddy.agents"]
-my_platform = "my_plugin.plugin:register_agents"
-
-[project.entry-points."cicaddy.cli_args"]
-my_platform = "my_plugin.plugin:get_cli_args"
-
-[project.entry-points."cicaddy.env_vars"]
-my_platform = "my_plugin.plugin:get_env_vars"
-
-[project.entry-points."cicaddy.config_sections"]
-my_platform = "my_plugin.plugin:config_section"
-
-[project.entry-points."cicaddy.validators"]
-my_platform = "my_plugin.plugin:validate"
-
-[project.entry-points."cicaddy.settings_loader"]
-my_platform = "my_plugin.config:load_settings"
-```
-
-Plugin callable signatures:
-
-| Group | Signature |
-|-------|-----------|
-| `cicaddy.agents` | `() -> None` — calls `AgentFactory.register()` / `register_detector()` |
-| `cicaddy.cli_args` | `() -> List[ArgMapping]` |
-| `cicaddy.env_vars` | `() -> List[str]` |
-| `cicaddy.config_sections` | `(config: Dict, mask_fn: Callable, sensitive_vars: frozenset) -> None` |
-| `cicaddy.validators` | `(config: Dict) -> Tuple[List[str], List[str]]` (errors, warnings) |
-| `cicaddy.settings_loader` | `() -> CoreSettings` |
-
-Example agent registration callable:
-
-```python
-# my_plugin/plugin.py
-def register_agents():
-    from cicaddy.agent.factory import AgentFactory
-    from my_plugin.agents import MyCustomAgent, detect_my_platform
-
-    AgentFactory.register("my_custom", MyCustomAgent)
-    AgentFactory.register_detector(detect_my_platform, priority=10)
-```
-
-After `pip install cicaddy my-plugin`, cicaddy discovers and loads the plugin
-automatically — no manual imports needed.
-
-### Built-in agent types
-
-| Type | Class | Activated by |
-|------|-------|--------------|
-| `task` | `TaskAgent` | `AGENT_TYPE=task` or `TASK_TYPE` env var |
-| `branch_review` | `BranchReviewAgent` | `AGENT_TYPE=branch` or branch push CI |
-| `merge_request` | *(platform plugin)* | `CI_MERGE_REQUEST_IID` or `AGENT_TYPE=mr` |
-
-### Available AgentFactory methods
-
-```python
-AgentFactory.register(agent_type, agent_class)         # register agent class
-AgentFactory.register_detector(detector_fn, priority)  # register type detector
-AgentFactory.create_agent(settings)                    # create agent instance
-AgentFactory.get_available_agent_types()               # list registered types
-AgentFactory.validate_agent_requirements(type, settings)
-```
+- **Sub-Agent Delegation** (v0.8.0+): Enable `DELEGATION_MODE=auto` for AI-powered triage with parallel sub-agents. See `references/delegation.md`
+- **Security Scanning** (v0.6.1+): Prompt injection protection for external content. See `references/security-scanning.md`
+- **Agent Factory Extension**: Register custom agents and type detectors via the registry pattern. See `references/factory-extension.md`
+- **DSPy Task YAML**: Declarative task definitions with persona, tools, constraints, and output format. See `references/dspy-task-yaml.md`
+- **Local Testing & Evaluation**: Use `cicaddy-runner` and `cicaddy-eval` sub-agents for local runs. See `references/local-testing.md`
