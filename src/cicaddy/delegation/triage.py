@@ -153,12 +153,13 @@ class TriageAgent:
         agent_type: str = "",
     ) -> str:
         """Build the triage prompt for the AI."""
-        # Format available agents
+        # Format available agents (sanitize names/categories for prompt safety)
         agents_desc = []
         for name, spec in sorted(available_agents.items()):
+            safe_name = _sanitize_agent_name(name)
+            safe_cats = ", ".join(_sanitize_agent_name(c) for c in spec.categories)
             agents_desc.append(
-                f"- **{name}**: {spec.description} "
-                f"(categories: {', '.join(spec.categories)})"
+                f"- **{safe_name}**: {spec.description} (categories: {safe_cats})"
             )
         agents_section = "\n".join(agents_desc)
 
