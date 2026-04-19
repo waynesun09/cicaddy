@@ -1016,7 +1016,9 @@ Detailed Execution Logs
         # 4. Execute delegation plan
         max_concurrent = getattr(self.settings, "max_sub_agents", 3)
         orchestrator = DelegationOrchestrator(
-            settings=self.settings, max_concurrent=max_concurrent
+            settings=self.settings,
+            max_concurrent=max_concurrent,
+            ai_provider=self.ai_provider,
         )
         result = await orchestrator.execute(
             plan=plan,
@@ -1028,9 +1030,15 @@ Detailed Execution Logs
             bundled_context=self.bundled_context,
             agent_rules=self.agent_rules,
             skills=self.skills,
+            summarize_results=getattr(self.settings, "delegation_summarize", True),
+            summarization_prompt=getattr(
+                self.settings, "delegation_summarization_prompt", ""
+            ),
         )
 
         # 5. Build standard analysis_result dict
+        from dataclasses import asdict
+
         return {
             "ai_analysis": result.aggregated_analysis,
             "ai_response_format": self.settings.ai_response_format,
@@ -1051,6 +1059,8 @@ Detailed Execution Logs
             "agents_succeeded": result.agents_succeeded,
             "agents_failed": result.agents_failed,
             "categories_covered": result.categories_covered,
+            "findings": [asdict(f) for f in result.findings],
+            "summarized": result.summarized,
             "model_used": self.settings.ai_model
             or get_default_model(self.settings.ai_provider),
             "ai_provider": self.settings.ai_provider or DEFAULT_AI_PROVIDER,

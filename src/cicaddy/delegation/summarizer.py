@@ -1,0 +1,321 @@
+"""AI-powered summarization of multi-agent delegation results.
+
+Uses the parent agent's AI provider (single lightweight call) to
+condense multiple sub-agent analyses into a concise consolidated
+review with structured findings for inline comment support.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+from cicaddy.delegation.triage import (
+    _make_boundary_pair,
+    _sanitize_for_boundary,
+)
+from cicaddy.utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from cicaddy.ai_providers.base import BaseProvider
+
+logger = get_logger(__name__)
+
+_VALID_SEVERITIES = frozenset({"critical", "major", "minor", "nit"})
+
+
+@dataclass
+class Finding:
+    """A structured review finding that can be mapped to inline comments."""
+
+    file: str
+    line: Optional[int]
+    severity: str
+    message: str
+    suggestion: Optional[str] = None
+    agent_source: str = ""
+
+
+@dataclass
+class SummarizationResult:
+    """Result of AI-powered review summarization."""
+
+    summary: str
+    individual_sections: str
+    findings: List[Finding] = field(default_factory=list)
+    footer: str = ""
+
+
+class SummarizationAgent:
+    """AI-powered summarization of multi-agent review results.
+
+    Uses the parent agent's AI provider (single lightweight call, no new
+    provider needed) to condense multiple sub-agent analyses into a
+    concise summary with structured findings.
+    """
+
+    def __init__(self, ai_provider: "BaseProvider"):
+        self.ai_provider = ai_provider
+
+    async def summarize(
+        self,
+        agent_results: List[Dict[str, Any]],
+        custom_instructions: str = "",
+    ) -> SummarizationResult:
+        """Summarize multiple agent analyses into structured output.
+
+        Args:
+            agent_results: List of per-agent result dicts from the
+                orchestrator (each with agent_name, status, analysis, etc.).
+            custom_instructions: Optional user-provided summarization
+                instructions.
+
+        Returns:
+            SummarizationResult with concise summary, individual agent
+            sections, and structured findings.
+        """
+        successful = [r for r in agent_results if r.get("status") == "success"]
+        footer = self._build_footer(agent_results)
+
+        if not successful:
+            return SummarizationResult(
+                summary="No sub-agent results available.",
+                individual_sections="",
+                findings=[],
+                footer=footer,
+            )
+
+        if len(successful) == 1:
+            analysis = successful[0].get("analysis", "")
+            return SummarizationResult(
+                summary=analysis,
+                individual_sections="",
+                findings=[],
+                footer=footer,
+            )
+
+        # 2+ successful agents — run AI summarization
+        individual_sections = self._build_individual_sections(agent_results)
+
+        try:
+            prompt = self._build_summarization_prompt(successful, custom_instructions)
+
+            from cicaddy.ai_providers.base import ProviderMessage
+
+            messages = [ProviderMessage(content=prompt, role="user")]
+            response = await self.ai_provider.chat_completion(messages)
+
+            summary, findings = self._parse_response(response.content)
+
+            logger.info(
+                f"Summarization complete: {len(findings)} findings extracted "
+                f"from {len(successful)} agent analyses"
+            )
+
+            return SummarizationResult(
+                summary=summary,
+                individual_sections=individual_sections,
+                findings=findings,
+                footer=footer,
+            )
+
+        except Exception as e:
+            logger.warning(f"Summarization failed, falling back to concatenation: {e}")
+            return self._fallback_result(agent_results)
+
+    def _build_summarization_prompt(
+        self,
+        successful_results: List[Dict[str, Any]],
+        custom_instructions: str = "",
+    ) -> str:
+        """Build the summarization prompt for the AI."""
+        boundary_start, boundary_end = _make_boundary_pair()
+
+        # Build analyses section
+        analyses_parts = []
+        for result in successful_results:
+            agent_name = result.get("agent_name", "unknown")
+            categories = ", ".join(result.get("categories", []))
+            analysis = _sanitize_for_boundary(
+                result.get("analysis", ""), boundary_start, boundary_end
+            )
+            analyses_parts.append(
+                f"### {agent_name} (categories: {categories})\n\n{analysis}"
+            )
+        analyses_section = "\n\n---\n\n".join(analyses_parts)
+
+        custom_section = ""
+        if custom_instructions:
+            sanitized = _sanitize_for_boundary(
+                custom_instructions, boundary_start, boundary_end
+            )
+            custom_section = f"\n## Additional Instructions\n{sanitized}\n"
+
+        return (
+            "You are a technical review summarizer. Condense the following "
+            "multi-agent code review analyses into a single unified review.\n\n"
+            "## Summary Rules\n"
+            "- Target 300-500 words for the summary\n"
+            "- Group findings by severity: Critical > Major > Minor > Nit\n"
+            "- De-duplicate: if multiple agents flagged the same issue, "
+            "mention it once\n"
+            "- Preserve concrete, actionable suggestions — include code "
+            "snippets when agents provided them\n"
+            "- Do NOT invent new findings — only summarize what agents "
+            "reported\n"
+            "- Use markdown formatting with ## headings for severity groups\n"
+            "- Omit empty severity groups (if no Critical findings, skip "
+            "that section)\n"
+            "- End with a brief overall assessment (1-2 sentences)\n\n"
+            "## Findings Extraction Rules\n"
+            "- Extract file path and line number from agent analyses when "
+            "referenced\n"
+            "- Map severity from agent output (Critical/Major/Minor/Nit)\n"
+            "- Include concrete suggestion/fix when the agent provided one\n"
+            "- Track which agent identified each finding via agent_source\n"
+            "- If line number is unclear, set to null (file-level finding)\n"
+            "- Do NOT invent findings — only extract what agents explicitly "
+            "reported\n"
+            f"{custom_section}\n"
+            f"## Agent Analyses to Summarize\n\n"
+            f"{boundary_start}\n{analyses_section}\n{boundary_end}\n\n"
+            "## Response Format\n\n"
+            "Respond with ONLY a JSON object in this exact format "
+            "(no markdown code fences, no explanation):\n"
+            "{\n"
+            '  "summary": "Concise consolidated review in markdown...",\n'
+            '  "findings": [\n'
+            "    {\n"
+            '      "file": "path/to/file.py",\n'
+            '      "line": 42,\n'
+            '      "severity": "major",\n'
+            '      "message": "Description of the finding",\n'
+            '      "suggestion": "Concrete fix or null if none",\n'
+            '      "agent_source": "agent-name"\n'
+            "    }\n"
+            "  ]\n"
+            "}"
+        )
+
+    def _parse_response(self, response_content: str) -> tuple[str, List[Finding]]:
+        """Parse AI response into summary text and findings list."""
+        from cicaddy.delegation.triage import TriageAgent
+
+        content = TriageAgent._extract_json(response_content)
+
+        data = json.loads(content)
+
+        summary = data.get("summary", "")
+        if not summary:
+            raise ValueError("AI response missing 'summary' field")
+
+        findings = []
+        for entry in data.get("findings", []):
+            finding = self._validate_finding(entry)
+            if finding:
+                findings.append(finding)
+
+        return summary, findings
+
+    @staticmethod
+    def _validate_finding(entry: Dict[str, Any]) -> Optional[Finding]:
+        """Validate and convert a single finding dict to Finding."""
+        file_path = entry.get("file", "")
+        if not file_path:
+            return None
+
+        severity = str(entry.get("severity", "")).lower()
+        if severity not in _VALID_SEVERITIES:
+            severity = "minor"
+
+        message = entry.get("message", "")
+        if not message:
+            return None
+
+        return Finding(
+            file=file_path,
+            line=entry.get("line"),
+            severity=severity,
+            message=message,
+            suggestion=entry.get("suggestion"),
+            agent_source=entry.get("agent_source", ""),
+        )
+
+    @staticmethod
+    def _build_individual_sections(
+        agent_results: List[Dict[str, Any]],
+    ) -> str:
+        """Format full analyses into a collapsible <details> block."""
+        sections = []
+        for result in agent_results:
+            status = result.get("status", "unknown")
+            if status == "skipped":
+                continue
+            agent_name = result.get("agent_name", "Unknown")
+            analysis = result.get("analysis", "")
+            header = f"## {agent_name}"
+            if status != "success":
+                header += f" ({status})"
+            sections.append(f"{header}\n\n{analysis}")
+
+        if not sections:
+            return ""
+
+        body = "\n\n---\n\n".join(sections)
+        return (
+            "<details><summary>Individual Agent Analyses</summary>\n\n"
+            f"{body}\n\n"
+            "</details>"
+        )
+
+    @staticmethod
+    def _build_footer(agent_results: List[Dict[str, Any]]) -> str:
+        """Build the delegation summary footer line."""
+        succeeded = sum(1 for r in agent_results if r.get("status") == "success")
+        failed = sum(
+            1 for r in agent_results if r.get("status") not in ("success", "skipped")
+        )
+        total_time = sum(r.get("execution_time", 0) for r in agent_results)
+        agent_names = [
+            r["agent_name"] for r in agent_results if r.get("status") != "skipped"
+        ]
+
+        footer = f"*Delegation summary: {succeeded} agent(s) succeeded"
+        if failed:
+            footer += f", {failed} failed"
+        footer += (
+            f" | Agents: {', '.join(agent_names)}"
+            f" | Total sub-agent time: {total_time:.1f}s*"
+        )
+        return footer
+
+    def _fallback_result(
+        self, agent_results: List[Dict[str, Any]]
+    ) -> SummarizationResult:
+        """Build a SummarizationResult using deterministic concatenation."""
+        sections = []
+        for result in agent_results:
+            status = result.get("status", "unknown")
+            if status == "skipped":
+                continue
+            agent_name = result.get("agent_name", "Unknown")
+            analysis = result.get("analysis", "")
+            header = f"## {agent_name}"
+            if status != "success":
+                header += f" ({status})"
+            sections.append(f"{header}\n\n{analysis}")
+
+        summary = (
+            "\n\n---\n\n".join(sections)
+            if sections
+            else "No sub-agent results available."
+        )
+        footer = self._build_footer(agent_results)
+
+        return SummarizationResult(
+            summary=summary,
+            individual_sections="",
+            findings=[],
+            footer=footer,
+        )

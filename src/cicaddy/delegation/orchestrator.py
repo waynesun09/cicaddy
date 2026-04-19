@@ -16,8 +16,10 @@ from cicaddy.delegation.triage import DelegationPlan, SiblingInfo
 from cicaddy.utils.logger import get_logger
 
 if TYPE_CHECKING:
+    from cicaddy.ai_providers.base import BaseProvider
     from cicaddy.config.settings import Settings
     from cicaddy.delegation.registry import SubAgentSpec
+    from cicaddy.delegation.summarizer import Finding
     from cicaddy.mcp_client.client import OfficialMCPClientManager
     from cicaddy.skills import SkillMetadata
     from cicaddy.tools import ToolRegistry
@@ -36,6 +38,8 @@ class DelegationResult:
     agents_succeeded: int = 0
     agents_failed: int = 0
     categories_covered: List[str] = field(default_factory=list)
+    findings: List[Finding] = field(default_factory=list)
+    summarized: bool = False
 
 
 class DelegationOrchestrator:
@@ -46,11 +50,17 @@ class DelegationOrchestrator:
     while successful agents' results are preserved.
     """
 
-    def __init__(self, settings: "Settings", max_concurrent: int = 3):
+    def __init__(
+        self,
+        settings: "Settings",
+        max_concurrent: int = 3,
+        ai_provider: Optional["BaseProvider"] = None,
+    ):
         if max_concurrent < 1:
             raise ValueError("max_concurrent must be at least 1")
         self.settings = settings
         self.max_concurrent = max_concurrent
+        self.ai_provider = ai_provider
 
     async def execute(
         self,
@@ -63,6 +73,8 @@ class DelegationOrchestrator:
         bundled_context: str = "",
         agent_rules: str = "",
         skills: Optional[List["SkillMetadata"]] = None,
+        summarize_results: bool = False,
+        summarization_prompt: str = "",
     ) -> DelegationResult:
         """Execute delegation plan by spawning sub-agents in parallel.
 
@@ -76,6 +88,8 @@ class DelegationOrchestrator:
             bundled_context: Pre-rendered bundled skills text from parent.
             agent_rules: Per-repo rules (AGENT.md/CLAUDE.md/GEMINI.md) from parent.
             skills: Per-repo skill metadata from parent.
+            summarize_results: Whether to use AI summarization for 2+ agents.
+            summarization_prompt: Optional custom instructions for the summarizer.
 
         Returns:
             DelegationResult with aggregated analysis and per-agent results.
@@ -183,7 +197,11 @@ class DelegationOrchestrator:
 
         elapsed = time.monotonic() - start
 
-        aggregated = self._aggregate_results(agent_results)
+        aggregated, findings, summarized = await self._aggregate_results(
+            agent_results,
+            summarize=summarize_results,
+            summarization_prompt=summarization_prompt,
+        )
 
         logger.info(
             f"Delegation complete: {succeeded} succeeded, {failed} failed, "
@@ -198,13 +216,52 @@ class DelegationOrchestrator:
             agents_succeeded=succeeded,
             agents_failed=failed,
             categories_covered=sorted(all_categories),
+            findings=findings,
+            summarized=summarized,
         )
 
-    def _aggregate_results(self, results: List[Dict[str, Any]]) -> str:
+    async def _aggregate_results(
+        self,
+        results: List[Dict[str, Any]],
+        summarize: bool = False,
+        summarization_prompt: str = "",
+    ) -> tuple[str, list, bool]:
         """Aggregate sub-agent results into unified markdown output.
 
-        Uses deterministic structured concatenation (not another AI call).
+        When summarize=True and an AI provider is available with 2+
+        successful results, uses AI-powered summarization. Otherwise
+        falls back to deterministic structured concatenation.
+
+        Returns:
+            Tuple of (aggregated_analysis, findings, summarized).
         """
+        num_successful = sum(1 for r in results if r.get("status") == "success")
+
+        if summarize and self.ai_provider and num_successful >= 2:
+            from cicaddy.delegation.summarizer import SummarizationAgent
+
+            summarizer = SummarizationAgent(self.ai_provider)
+            result = await summarizer.summarize(results, summarization_prompt)
+
+            # Assemble: summary + individual sections + footer
+            parts = [result.summary]
+            if result.individual_sections:
+                parts.append(result.individual_sections)
+            if result.footer:
+                parts.append(f"\n---\n\n{result.footer}")
+
+            return (
+                "\n\n".join(parts),
+                result.findings,
+                bool(result.findings or result.summary),
+            )
+
+        # Deterministic concatenation (original behavior)
+        return self._concat_results(results), [], False
+
+    @staticmethod
+    def _concat_results(results: List[Dict[str, Any]]) -> str:
+        """Deterministic structured concatenation of sub-agent results."""
         sections = []
 
         for result in results:
