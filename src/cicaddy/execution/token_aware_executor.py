@@ -400,7 +400,7 @@ class TokenAwareExecutor:
         """
         # Check iteration limit (LlamaStack max_infer_iters pattern)
         if self.state.current_iteration >= self.limits.max_infer_iters:
-            logger.debug(
+            logger.warning(
                 f"Maximum iterations reached: {self.state.current_iteration}/{self.limits.max_infer_iters}"
             )
             return StopReason.max_iterations
@@ -408,14 +408,14 @@ class TokenAwareExecutor:
         # Check token limits (LlamaStack out_of_tokens pattern)
         # Phase 4: Use effective budget instead of raw limit
         if self.state.total_tokens_used >= self._effective_token_budget:
-            logger.debug(
+            logger.warning(
                 f"Total token budget exhausted: {self.state.total_tokens_used}/{self._effective_token_budget} "
                 f"(effective budget, original limit: {self._original_token_limit})"
             )
             return StopReason.out_of_tokens
 
         if self.state.current_iteration_tokens >= self.limits.max_tokens_per_iteration:
-            logger.debug(
+            logger.warning(
                 f"Iteration token budget exhausted: "
                 f"{self.state.current_iteration_tokens}/{self.limits.max_tokens_per_iteration}"
             )
@@ -423,14 +423,14 @@ class TokenAwareExecutor:
 
         # Check tool limits
         if self.state.current_iteration_tools >= self.limits.max_tools_per_iteration:
-            logger.debug(
+            logger.warning(
                 f"Tool limit per iteration reached: "
                 f"{self.state.current_iteration_tools}/{self.limits.max_tools_per_iteration}"
             )
             return StopReason.max_tools
 
         if self.state.total_tools_executed >= self.limits.max_total_tools:
-            logger.debug(
+            logger.warning(
                 f"Total tool limit reached: "
                 f"{self.state.total_tools_executed}/{self.limits.max_total_tools}"
             )
@@ -441,7 +441,7 @@ class TokenAwareExecutor:
             self.state.total_result_size_bytes
             >= self.limits.max_total_result_size_bytes
         ):
-            logger.debug(
+            logger.warning(
                 f"Total result size limit reached: "
                 f"{self.state.total_result_size_bytes}/{self.limits.max_total_result_size_bytes} bytes"
             )
@@ -450,7 +450,7 @@ class TokenAwareExecutor:
         # Check time limits
         elapsed_time = self.state.get_elapsed_time()
         if elapsed_time >= self.limits.max_execution_time:
-            logger.debug(
+            logger.warning(
                 f"Execution time limit reached: {elapsed_time:.1f}/{self.limits.max_execution_time}s"
             )
             return StopReason.timeout

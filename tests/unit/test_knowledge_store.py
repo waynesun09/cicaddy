@@ -332,6 +332,49 @@ class TestAccumulatedKnowledge:
         assert "tool1" in reconstructed.results_by_tool
         assert "tool2" in reconstructed.results_by_tool
 
+    def test_from_dict_backward_compat_with_old_keys(self):
+        """Test from_dict handles old serialized data containing results_by_server/results_by_tool."""
+        # Simulate old-format JSON that still has the removed keys
+        old_data = {
+            "tool_results": [
+                {
+                    "server": "datarouter",
+                    "tool": "tool1",
+                    "iteration": 1,
+                    "arguments": {},
+                    "result": {"data": 1},
+                },
+                {
+                    "server": "github",
+                    "tool": "tool2",
+                    "iteration": 2,
+                    "arguments": {},
+                    "result": {"data": 2},
+                },
+            ],
+            "results_by_server": {"datarouter": ["stale"], "github": ["stale"]},
+            "results_by_tool": {"tool1": ["stale"], "tool2": ["stale"]},
+            "total_tools_executed": 2,
+            "servers_used": ["datarouter", "github"],
+            "tools_used": ["tool1", "tool2"],
+        }
+
+        reconstructed = AccumulatedKnowledge.from_dict(old_data)
+
+        # Old keys should be ignored; indices rebuilt from tool_results
+        assert len(reconstructed.results_by_server["datarouter"]) == 1
+        assert len(reconstructed.results_by_server["github"]) == 1
+        assert reconstructed.results_by_server["datarouter"][0]["result"] == {"data": 1}
+
+        # Methods should work correctly
+        dr_results = reconstructed.get_results_for_server("datarouter")
+        assert len(dr_results) == 1
+        assert dr_results[0]["tool"] == "tool1"
+
+        latest = reconstructed.get_latest_result("tool2")
+        assert latest is not None
+        assert latest["server"] == "github"
+
     def test_preserve_full_data_not_compacted(self):
         """Test that full data is preserved without compression."""
         store = AccumulatedKnowledge()
