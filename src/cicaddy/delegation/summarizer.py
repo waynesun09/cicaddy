@@ -45,10 +45,16 @@ _SUMMARY_RULES = """\
 _FINDINGS_RULES = """\
 ## Findings Extraction Rules
 - Extract file path and line number from agent analyses when referenced
+- **Line numbers are critical for inline comment support.** When an agent
+  mentions a line number or references a diff hunk (e.g., "@@ -45,10 +45,12 @@"),
+  extract the line number. Look for patterns like "line 42:", "at line X",
+  or contextual references to diff locations
+- Only set line to null for truly file-level findings (e.g., "missing license
+  header", "file should be renamed"). Prefer an extracted or inferred line
+  number over null
 - Map severity from agent output (Critical/Major/Minor/Nit)
 - Include concrete suggestion/fix when the agent provided one
 - Track which agent identified each finding via agent_source
-- If line number is unclear, set to null (file-level finding)
 - Do NOT invent findings — only extract what agents explicitly reported"""
 
 _RESPONSE_FORMAT = """\
@@ -68,7 +74,10 @@ Respond with ONLY a JSON object in this exact format \
       "agent_source": "agent-name"
     }
   ]
-}"""
+}
+
+"line" must be an integer from the diff when the finding targets specific code. \
+Use null only for file-level findings that do not reference a specific line."""
 
 
 @dataclass

@@ -263,6 +263,12 @@ class DelegationSubAgent:
 Categories: {", ".join(self.delegation_entry.categories)}
 Rationale: {self.delegation_entry.rationale}
 {constraints_text}{output_text}{delegation_text}{user_prompt}
+## Line References
+
+When identifying issues in code diffs, cite the specific line number from the \
+unified diff hunk headers (e.g., "@@ -45,10 +45,12 @@" means new lines start \
+at 45). Format as "line 42: [issue]" so findings can be mapped to inline comments.
+
 ## Context
 
 {boundary_start}
