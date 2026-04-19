@@ -1,10 +1,12 @@
-"""Tests for delegation CLI integration: _should_delegate(), _get_delegation_context(), tool cascade."""
+"""Tests for delegation CLI integration: _should_delegate(), _get_delegation_context(), tool cascade, post-process hooks."""
 
 from __future__ import annotations
 
 import os
 import textwrap
 from unittest.mock import MagicMock, patch
+
+from cicaddy.delegation.registry import SubAgentSpec
 
 
 class TestShouldDelegate:
@@ -177,7 +179,6 @@ class TestToolCascade:
 
     def test_forbidden_tools_merged_into_blocked(self):
         """Task forbidden_tools should be added to sub-agent blocked_tools."""
-        from cicaddy.delegation.registry import SubAgentSpec
 
         # Simulate what _analyze_delegate does
         delegation_context = {
@@ -207,7 +208,6 @@ class TestToolCascade:
 
     def test_no_task_definition_no_cascade(self):
         """Without task_definition in context, blocked_tools unchanged."""
-        from cicaddy.delegation.registry import SubAgentSpec
 
         delegation_context = {"project": {"name": "test"}}
 
@@ -224,3 +224,134 @@ class TestToolCascade:
             spec.blocked_tools = list(set(spec.blocked_tools + task_forbidden))
 
         assert spec.blocked_tools == ["delegate_task"]
+
+
+class TestPostProcessPlanHook:
+    """Tests for _post_process_plan() hook in BaseAIAgent and BaseReviewAgent."""
+
+    def _make_base_agent(self):
+        """Create a minimal BaseAIAgent (concrete subclass)."""
+        from cicaddy.agent.base import BaseAIAgent
+
+        class ConcreteAgent(BaseAIAgent):
+            async def get_analysis_context(self):
+                return {}
+
+            def build_analysis_prompt(self, context):
+                return ""
+
+            def get_session_id(self):
+                return "test"
+
+        agent = ConcreteAgent.__new__(ConcreteAgent)
+        agent.settings = MagicMock()
+        return agent
+
+    def _make_review_agent(self):
+        """Create a minimal BaseReviewAgent (concrete subclass)."""
+        from cicaddy.agent.base_review_agent import BaseReviewAgent
+
+        class ConcreteReviewAgent(BaseReviewAgent):
+            async def get_diff_content(self):
+                return ""
+
+            async def get_review_context(self):
+                return {}
+
+            async def get_analysis_context(self):
+                return {}
+
+            def build_analysis_prompt(self, context):
+                return ""
+
+            def get_session_id(self):
+                return "test"
+
+        agent = ConcreteReviewAgent.__new__(ConcreteReviewAgent)
+        agent.settings = MagicMock()
+        return agent
+
+    def _make_plan(self, entries):
+        """Create a DelegationPlan with given entries."""
+        from cicaddy.delegation.triage import DelegationPlan
+
+        return DelegationPlan(entries=entries)
+
+    def _make_entry(self, name, priority=0):
+        """Create a DelegationEntry."""
+        from cicaddy.delegation.triage import DelegationEntry
+
+        return DelegationEntry(
+            agent_name=name,
+            categories=["test"],
+            rationale="test",
+            priority=priority,
+        )
+
+    def _make_registry(self, *names, include_general=True):
+        """Build a registry dict from agent names."""
+        registry = {}
+        for name in names:
+            priority = 100 if "general" in name else 10
+            registry[name] = SubAgentSpec(
+                name=name,
+                persona="test",
+                description=f"{name} description",
+                categories=["code_quality"] if "general" in name else ["security"],
+                priority=priority,
+                agent_type="review",
+            )
+        return registry
+
+    def test_base_class_noop(self):
+        """BaseAIAgent._post_process_plan returns plan unchanged."""
+        agent = self._make_base_agent()
+        plan = self._make_plan([self._make_entry("security-reviewer", 10)])
+        registry = self._make_registry("security-reviewer", "general-reviewer")
+
+        result = agent._post_process_plan(plan, registry)
+        assert result is plan
+        assert len(result.entries) == 1
+
+    def test_injects_general_reviewer(self):
+        """BaseReviewAgent should inject general-reviewer when missing."""
+        agent = self._make_review_agent()
+        plan = self._make_plan([self._make_entry("security-reviewer", 10)])
+        registry = self._make_registry("security-reviewer", "general-reviewer")
+
+        result = agent._post_process_plan(plan, registry)
+        names = [e.agent_name for e in result.entries]
+        assert "general-reviewer" in names
+        assert len(result.entries) == 2
+        # Should be sorted by priority: security(10) then general(100)
+        assert result.entries[0].agent_name == "security-reviewer"
+        assert result.entries[1].agent_name == "general-reviewer"
+        assert result.entries[1].priority == 100
+
+    def test_no_duplicate(self):
+        """Should not add general-reviewer if already present."""
+        agent = self._make_review_agent()
+        plan = self._make_plan(
+            [
+                self._make_entry("security-reviewer", 10),
+                self._make_entry("general-reviewer", 100),
+            ]
+        )
+        registry = self._make_registry("security-reviewer", "general-reviewer")
+
+        result = agent._post_process_plan(plan, registry)
+        names = [e.agent_name for e in result.entries]
+        assert names.count("general-reviewer") == 1
+        assert len(result.entries) == 2
+
+    def test_no_general_in_registry(self):
+        """If no general-* agent exists in registry, plan unchanged."""
+        agent = self._make_review_agent()
+        plan = self._make_plan([self._make_entry("security-reviewer", 10)])
+        registry = self._make_registry("security-reviewer")
+        # Remove any general agent
+        registry = {k: v for k, v in registry.items() if "general" not in k}
+
+        result = agent._post_process_plan(plan, registry)
+        assert len(result.entries) == 1
+        assert result.entries[0].agent_name == "security-reviewer"

@@ -85,6 +85,7 @@ class TriageAgent:
         context: Dict[str, Any],
         available_agents: Dict[str, "SubAgentSpec"],
         triage_prompt: str = "",
+        agent_type: str = "",
     ) -> DelegationPlan:
         """Analyze context and produce a delegation plan.
 
@@ -97,7 +98,9 @@ class TriageAgent:
         Returns:
             DelegationPlan with entries for each sub-agent to activate.
         """
-        prompt = self._build_triage_prompt(context, available_agents, triage_prompt)
+        prompt = self._build_triage_prompt(
+            context, available_agents, triage_prompt, agent_type
+        )
 
         try:
             from cicaddy.ai_providers.base import ProviderMessage
@@ -125,6 +128,7 @@ class TriageAgent:
         context: Dict[str, Any],
         available_agents: Dict[str, "SubAgentSpec"],
         triage_prompt: str,
+        agent_type: str = "",
     ) -> str:
         """Build the triage prompt for the AI."""
         # Format available agents
@@ -171,9 +175,22 @@ class TriageAgent:
             )
             user_instructions = f"\n## Additional Instructions\n{sanitized_prompt}\n"
 
+        # Build type-specific preamble
+        if agent_type == "review":
+            review_guidance = self._build_review_guidance(available_agents)
+            opening = (
+                f"{review_guidance}\n"  # nosec B608
+                f"Analyze the provided code diff and determine which "
+                f"specialized reviewers should examine it.\n\n"
+            )
+        else:
+            opening = (
+                "You are a triage agent. Analyze the provided context and"
+                " determine which specialized sub-agents should review it.\n\n"
+            )
+
         prompt = (
-            f"You are a triage agent. Analyze the provided context and"  # nosec B608
-            f" determine which specialized sub-agents should review it.\n\n"
+            f"{opening}"
             f"## Available Sub-Agents\n{agents_section}\n\n"
             f"## Context Keys\n{json.dumps(context_keys)}\n\n"
             f"## Context Data\n{context_data}\n"
@@ -204,6 +221,38 @@ class TriageAgent:
             f"}}"
         )
         return prompt
+
+    @staticmethod
+    def _build_review_guidance(
+        available_agents: Dict[str, "SubAgentSpec"],
+    ) -> str:
+        """Build review-specific triage guidance from available agents."""
+        category_hints = []
+        general_agent_name = None
+        for name, spec in sorted(available_agents.items()):
+            if "general" in name:
+                general_agent_name = name
+                continue
+            cats = ", ".join(spec.categories)
+            category_hints.append(f"- **{name}**: look for changes related to {cats}")
+
+        hints_section = "\n".join(category_hints)
+
+        general_note = ""
+        if general_agent_name:
+            general_note = (
+                f"\n**Important**: `{general_agent_name}` provides baseline "
+                f"code quality coverage (correctness, clarity, tests) and "
+                f"should ALWAYS be included alongside any specialist reviewers.\n"
+            )
+
+        return (
+            "You are a triage agent for a **CODE REVIEW** of a merge/pull request. "
+            "Select which specialized code reviewers should analyze the diff.\n\n"
+            "## Reviewer Selection Hints\n"
+            f"{hints_section}\n"
+            f"{general_note}"
+        )
 
     @staticmethod
     def _extract_json(content: str) -> str:

@@ -292,3 +292,90 @@ class TestTriageAgent:
         response = '{"entries": []}'
         result = triage_agent._extract_json(response)
         assert result == '{"entries": []}'
+
+    # --- Review-type triage prompt tests ---
+
+    def test_build_triage_prompt_review_type(
+        self, triage_agent, sample_registry, sample_context
+    ):
+        """Review agent_type should produce CODE REVIEW preamble with ALWAYS hint."""
+        prompt = triage_agent._build_triage_prompt(
+            sample_context, sample_registry, "", agent_type="review"
+        )
+        assert "CODE REVIEW" in prompt
+        assert "ALWAYS" in prompt
+        # Specialist hints should appear
+        assert "security-reviewer" in prompt
+
+    def test_build_triage_prompt_non_review_type(
+        self, triage_agent, sample_registry, sample_context
+    ):
+        """Non-review agent_type should produce generic triage prompt."""
+        prompt = triage_agent._build_triage_prompt(
+            sample_context, sample_registry, "", agent_type="task"
+        )
+        assert "CODE REVIEW" not in prompt
+        assert "You are a triage agent" in prompt
+
+    def test_build_review_guidance_dynamic(self):
+        """_build_review_guidance should list specialist agents with category hints."""
+        registry = {
+            "security-reviewer": SubAgentSpec(
+                name="security-reviewer",
+                persona="sec",
+                description="Security review",
+                categories=["security", "auth"],
+                agent_type="review",
+            ),
+            "api-reviewer": SubAgentSpec(
+                name="api-reviewer",
+                persona="api",
+                description="API review",
+                categories=["api", "contracts"],
+                agent_type="review",
+            ),
+            "general-reviewer": SubAgentSpec(
+                name="general-reviewer",
+                persona="eng",
+                description="General review",
+                categories=["code_quality"],
+                agent_type="review",
+            ),
+        }
+        guidance = TriageAgent._build_review_guidance(registry)
+
+        # Specialist agents listed with categories
+        assert "security-reviewer" in guidance
+        assert "security, auth" in guidance
+        assert "api-reviewer" in guidance
+        assert "api, contracts" in guidance
+        # General agent not listed as specialist, but mentioned as always-required
+        assert "ALWAYS" in guidance
+        assert "general-reviewer" in guidance
+
+    @pytest.mark.asyncio
+    async def test_triage_passes_agent_type(
+        self, triage_agent, mock_provider, sample_registry, sample_context
+    ):
+        """triage() with agent_type='review' should pass review prompt to AI."""
+        mock_response = MagicMock()
+        mock_response.content = json.dumps(
+            {
+                "entries": [
+                    {
+                        "agent_name": "general-reviewer",
+                        "categories": ["tests"],
+                        "rationale": "baseline",
+                    }
+                ]
+            }
+        )
+        mock_provider.chat_completion.return_value = mock_response
+
+        await triage_agent.triage(sample_context, sample_registry, agent_type="review")
+
+        # Verify the prompt sent to the AI contains review-specific content
+        call_args = mock_provider.chat_completion.call_args
+        messages = call_args[0][0] if call_args[0] else call_args[1]["messages"]
+        prompt_content = messages[0].content
+        assert "CODE REVIEW" in prompt_content
