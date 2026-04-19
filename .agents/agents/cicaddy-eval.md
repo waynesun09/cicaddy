@@ -84,8 +84,9 @@ Use this extraction script to analyze one run:
 python3 -c "
 import json, sys, os
 f = sys.argv[1]
-d = json.load(open(f))
-ar = d['analysis_result']
+with open(f) as fh:
+    d = json.load(fh)
+ar = d.get('analysis_result', {})
 print('## Run Summary')
 print(f'- **Report**: {os.path.basename(f)}')
 print(f'- **Model**: {ar.get(\"model_used\", \"unknown\")}')
@@ -152,8 +153,9 @@ for d in dirs:
     jsons = sorted(glob.glob(os.path.join(d, '*.json')))
     for f in jsons:
         try:
-            data = json.load(open(f))
-            ar = data['analysis_result']
+            with open(f) as fh:
+                data = json.load(fh)
+            ar = data.get('analysis_result', {})
             analysis = ar.get('ai_analysis', '')
             lines = analysis.split('\n') if isinstance(analysis, str) else []
             runs.append({
@@ -228,18 +230,19 @@ total_tools = 0
 tool_names = set()
 
 for f in files:
-    for line in open(f):
-        try:
-            e = json.loads(line)
-            total_events += 1
-            et = e.get('event_type', '')
-            if et == 'ai_inference':
-                total_inferences += 1
-            elif et == 'tool_execution':
-                total_tools += 1
-                tool_names.add(e.get('tool', 'unknown'))
-        except:
-            pass
+    with open(f) as fh:
+        for line in fh:
+            try:
+                e = json.loads(line)
+                total_events += 1
+                et = e.get('event_type', '')
+                if et == 'ai_inference':
+                    total_inferences += 1
+                elif et == 'tool_execution':
+                    total_tools += 1
+                    tool_names.add(e.get('tool', 'unknown'))
+            except Exception:
+                pass
 
 print(f'Session files: {len(files)}')
 print(f'Total events: {total_events}')

@@ -7,7 +7,7 @@ description: >
   Use when testing cicaddy reviews locally or comparing model performance.
 tools: Bash, Read, Glob, Grep, Write
 model: haiku
-permissionMode: bypassPermissions
+permissionMode: acceptEdits
 memory: project
 maxTurns: 40
 ---
@@ -165,24 +165,28 @@ python3 -c "
 import json, glob, os
 files = sorted(glob.glob('*.json'))
 for f in files:
-    d = json.load(open(f))
-    ar = d.get('analysis_result', {})
-    if isinstance(ar, str):
-        print(f'{f}: analysis is string, {len(ar)} chars')
-        continue
-    print(f'{f}:')
-    print(f'  model: {ar.get(\"model_used\", \"unknown\")}')
-    print(f'  provider: {ar.get(\"ai_provider\", \"unknown\")}')
-    print(f'  delegation: {ar.get(\"delegation_mode\", \"none\")}')
-    print(f'  status: {ar.get(\"status\", \"unknown\")}')
-    print(f'  exec_time: {d.get(\"execution_time\", 0):.1f}s')
-    analysis = ar.get('ai_analysis', '')
-    print(f'  analysis_chars: {len(analysis)}')
-    if ar.get('sub_agent_details'):
-        print(f'  agents_ok: {ar.get(\"agents_succeeded\", 0)}')
-        print(f'  agents_fail: {ar.get(\"agents_failed\", 0)}')
-        for s in ar['sub_agent_details']:
-            print(f'    - {s[\"agent_name\"]}: {s[\"status\"]} ({s[\"execution_time\"]:.1f}s, {len(s[\"analysis\"])} chars)')
+    try:
+        with open(f) as fh:
+            d = json.load(fh)
+        ar = d.get('analysis_result', {})
+        if isinstance(ar, str):
+            print(f'{f}: analysis is string, {len(ar)} chars')
+            continue
+        print(f'{f}:')
+        print(f'  model: {ar.get(\"model_used\", \"unknown\")}')
+        print(f'  provider: {ar.get(\"ai_provider\", \"unknown\")}')
+        print(f'  delegation: {ar.get(\"delegation_mode\", \"none\")}')
+        print(f'  status: {ar.get(\"status\", \"unknown\")}')
+        print(f'  exec_time: {d.get(\"execution_time\", 0):.1f}s')
+        analysis = ar.get('ai_analysis', '')
+        print(f'  analysis_chars: {len(analysis)}')
+        if ar.get('sub_agent_details'):
+            print(f'  agents_ok: {ar.get(\"agents_succeeded\", 0)}')
+            print(f'  agents_fail: {ar.get(\"agents_failed\", 0)}')
+            for s in ar['sub_agent_details']:
+                print(f'    - {s[\"agent_name\"]}: {s[\"status\"]} ({s[\"execution_time\"]:.1f}s, {len(s[\"analysis\"])} chars)')
+    except Exception as e:
+        print(f'{f}: error: {e}')
 "
 ```
 
