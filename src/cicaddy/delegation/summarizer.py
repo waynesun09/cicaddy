@@ -26,6 +26,50 @@ logger = get_logger(__name__)
 
 _VALID_SEVERITIES = frozenset({"critical", "major", "minor", "nit"})
 
+_SUMMARIZATION_SYSTEM_PROMPT = (
+    "You are a technical review summarizer. Condense the following "
+    "multi-agent code review analyses into a single unified review."
+)
+
+_SUMMARY_RULES = """\
+## Summary Rules
+- Target 300-500 words for the summary
+- Group findings by severity: Critical > Major > Minor > Nit
+- De-duplicate: if multiple agents flagged the same issue, mention it once
+- Preserve concrete, actionable suggestions — include code snippets when agents provided them
+- Do NOT invent new findings — only summarize what agents reported
+- Use markdown formatting with ## headings for severity groups
+- Omit empty severity groups (if no Critical findings, skip that section)
+- End with a brief overall assessment (1-2 sentences)"""
+
+_FINDINGS_RULES = """\
+## Findings Extraction Rules
+- Extract file path and line number from agent analyses when referenced
+- Map severity from agent output (Critical/Major/Minor/Nit)
+- Include concrete suggestion/fix when the agent provided one
+- Track which agent identified each finding via agent_source
+- If line number is unclear, set to null (file-level finding)
+- Do NOT invent findings — only extract what agents explicitly reported"""
+
+_RESPONSE_FORMAT = """\
+## Response Format
+
+Respond with ONLY a JSON object in this exact format \
+(no markdown code fences, no explanation):
+{
+  "summary": "Concise consolidated review in markdown...",
+  "findings": [
+    {
+      "file": "path/to/file.py",
+      "line": 42,
+      "severity": "major",
+      "message": "Description of the finding",
+      "suggestion": "Concrete fix or null if none",
+      "agent_source": "agent-name"
+    }
+  ]
+}"""
+
 
 @dataclass
 class Finding:
@@ -162,49 +206,13 @@ class SummarizationAgent:
             custom_section = f"\n## Additional Instructions\n{sanitized}\n"
 
         return (
-            "You are a technical review summarizer. Condense the following "
-            "multi-agent code review analyses into a single unified review.\n\n"
-            "## Summary Rules\n"
-            "- Target 300-500 words for the summary\n"
-            "- Group findings by severity: Critical > Major > Minor > Nit\n"
-            "- De-duplicate: if multiple agents flagged the same issue, "
-            "mention it once\n"
-            "- Preserve concrete, actionable suggestions — include code "
-            "snippets when agents provided them\n"
-            "- Do NOT invent new findings — only summarize what agents "
-            "reported\n"
-            "- Use markdown formatting with ## headings for severity groups\n"
-            "- Omit empty severity groups (if no Critical findings, skip "
-            "that section)\n"
-            "- End with a brief overall assessment (1-2 sentences)\n\n"
-            "## Findings Extraction Rules\n"
-            "- Extract file path and line number from agent analyses when "
-            "referenced\n"
-            "- Map severity from agent output (Critical/Major/Minor/Nit)\n"
-            "- Include concrete suggestion/fix when the agent provided one\n"
-            "- Track which agent identified each finding via agent_source\n"
-            "- If line number is unclear, set to null (file-level finding)\n"
-            "- Do NOT invent findings — only extract what agents explicitly "
-            "reported\n"
+            f"{_SUMMARIZATION_SYSTEM_PROMPT}\n\n"
+            f"{_SUMMARY_RULES}\n\n"
+            f"{_FINDINGS_RULES}\n"
             f"{custom_section}\n"
             f"## Agent Analyses to Summarize\n\n"
             f"{boundary_start}\n{analyses_section}\n{boundary_end}\n\n"
-            "## Response Format\n\n"
-            "Respond with ONLY a JSON object in this exact format "
-            "(no markdown code fences, no explanation):\n"
-            "{\n"
-            '  "summary": "Concise consolidated review in markdown...",\n'
-            '  "findings": [\n'
-            "    {\n"
-            '      "file": "path/to/file.py",\n'
-            '      "line": 42,\n'
-            '      "severity": "major",\n'
-            '      "message": "Description of the finding",\n'
-            '      "suggestion": "Concrete fix or null if none",\n'
-            '      "agent_source": "agent-name"\n'
-            "    }\n"
-            "  ]\n"
-            "}"
+            f"{_RESPONSE_FORMAT}"
         )
 
     def _parse_response(self, response_content: str) -> tuple[str, List[Finding]]:
