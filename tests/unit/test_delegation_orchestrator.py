@@ -502,6 +502,69 @@ class TestAggregateResults:
         assert summarized is True
 
     @pytest.mark.asyncio
+    async def test_summarization_success_with_empty_findings(self, mock_settings):
+        """summarized should be True even when AI returns zero findings."""
+        mock_provider = MagicMock()
+        mock_provider.chat_completion = AsyncMock(
+            return_value=MagicMock(
+                content='{"summary": "LGTM, no issues found.", "findings": []}'
+            )
+        )
+        orch = DelegationOrchestrator(mock_settings, ai_provider=mock_provider)
+        results = [
+            {
+                "agent_name": "a",
+                "status": "success",
+                "analysis": "A output",
+                "categories": ["code"],
+                "execution_time": 1,
+            },
+            {
+                "agent_name": "b",
+                "status": "success",
+                "analysis": "B output",
+                "categories": ["arch"],
+                "execution_time": 2,
+            },
+        ]
+        output, findings, summarized = await orch._aggregate_results(
+            results, summarize=True
+        )
+        assert "LGTM" in output
+        assert findings == []
+        assert summarized is True
+
+    @pytest.mark.asyncio
+    async def test_summarization_fallback_returns_not_summarized(self, mock_settings):
+        """AI failure in summarizer should result in summarized=False."""
+        mock_provider = MagicMock()
+        mock_provider.chat_completion = AsyncMock(side_effect=RuntimeError("API error"))
+        orch = DelegationOrchestrator(mock_settings, ai_provider=mock_provider)
+        results = [
+            {
+                "agent_name": "a",
+                "status": "success",
+                "analysis": "A output",
+                "categories": ["code"],
+                "execution_time": 1,
+            },
+            {
+                "agent_name": "b",
+                "status": "success",
+                "analysis": "B output",
+                "categories": ["arch"],
+                "execution_time": 2,
+            },
+        ]
+        output, findings, summarized = await orch._aggregate_results(
+            results, summarize=True
+        )
+        assert "## a" in output
+        assert "## b" in output
+        assert findings == []
+        assert summarized is False
+
+    @pytest.mark.asyncio
     async def test_execute_end_to_end_with_summarization(
         self, mock_settings, sample_plan, sample_registry, sample_context
     ):

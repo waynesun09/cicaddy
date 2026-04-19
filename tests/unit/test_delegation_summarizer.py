@@ -81,6 +81,13 @@ class TestSummarizationResult:
         assert result.individual_sections == ""
         assert result.findings == []
         assert result.footer == ""
+        assert result.ai_summarized is False
+
+    def test_ai_summarized_flag(self):
+        result = SummarizationResult(
+            summary="test", individual_sections="", ai_summarized=True
+        )
+        assert result.ai_summarized is True
 
 
 class TestFinding:
@@ -131,6 +138,7 @@ class TestSummarizationAgent:
         assert "general-reviewer" in result.individual_sections
         assert "security-reviewer" in result.individual_sections
         assert "2 agent(s) succeeded" in result.footer
+        assert result.ai_summarized is True
         mock_ai_provider.chat_completion.assert_called_once()
 
     @pytest.mark.asyncio
@@ -174,6 +182,24 @@ class TestSummarizationAgent:
         mock_ai_provider.chat_completion.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_summarize_success_with_empty_findings(
+        self, mock_ai_provider, two_agent_results
+    ):
+        """AI summarization succeeds but returns zero findings."""
+        mock_response = MagicMock()
+        mock_response.content = json.dumps(
+            {"summary": "All looks good, no issues found.", "findings": []}
+        )
+        mock_ai_provider.chat_completion.return_value = mock_response
+
+        agent = SummarizationAgent(mock_ai_provider)
+        result = await agent.summarize(two_agent_results)
+
+        assert result.ai_summarized is True
+        assert result.findings == []
+        assert "All looks good" in result.summary
+
+    @pytest.mark.asyncio
     async def test_summarize_ai_failure_falls_back(
         self, mock_ai_provider, two_agent_results
     ):
@@ -188,6 +214,7 @@ class TestSummarizationAgent:
         assert "## security-reviewer" in result.summary
         assert result.findings == []
         assert result.individual_sections == ""
+        assert result.ai_summarized is False
 
     @pytest.mark.asyncio
     async def test_summarize_json_parse_failure_falls_back(
@@ -203,6 +230,7 @@ class TestSummarizationAgent:
 
         assert "## general-reviewer" in result.summary
         assert result.findings == []
+        assert result.ai_summarized is False
 
     @pytest.mark.asyncio
     async def test_custom_instructions_in_prompt(

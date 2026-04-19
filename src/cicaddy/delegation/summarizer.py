@@ -100,6 +100,7 @@ class SummarizationResult:
     individual_sections: str
     findings: List[Finding] = field(default_factory=list)
     footer: str = ""
+    ai_summarized: bool = False
 
 
 class SummarizationAgent:
@@ -173,6 +174,7 @@ class SummarizationAgent:
                 individual_sections=individual_sections,
                 findings=findings,
                 footer=footer,
+                ai_summarized=True,
             )
 
         except (json.JSONDecodeError, ValueError, KeyError) as e:
