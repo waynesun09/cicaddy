@@ -263,6 +263,19 @@ class DelegationSubAgent:
 Categories: {", ".join(self.delegation_entry.categories)}
 Rationale: {self.delegation_entry.rationale}
 {constraints_text}{output_text}{delegation_text}{user_prompt}
+## Code References
+
+When identifying issues in code diffs, quote the relevant code snippet (1-3 \
+lines) so findings can be precisely located. For example:
+
+```
+problematic_function(arg, None)
+```
+Missing null check before calling `problematic_function`.
+
+Accurate snippets are the primary signal for inline placement; include line \
+numbers as well when you are confident about them.
+
 ## Context
 
 {boundary_start}

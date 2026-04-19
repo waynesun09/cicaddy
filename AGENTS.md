@@ -196,6 +196,8 @@ Two sub-agents in `.agents/agents/` support local cicaddy testing without floodi
 
 Run outputs are stored in `_cicaddy_runs/` (gitignored). **Never read cicaddy output files directly** — always delegate to the sub-agents.
 
+**Maintenance**: When changing the agent output format (e.g., fields in `analysis_result` like `summarized`, `findings`, or `sub_agent_details`), update the JSON Report Structure and extraction scripts in `.agents/agents/cicaddy-eval.md` to match.
+
 ## Code Quality
 
 - Run `pre-commit run --files <changed-files>` before committing

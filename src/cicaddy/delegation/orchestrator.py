@@ -201,6 +201,7 @@ class DelegationOrchestrator:
             agent_results,
             summarize=summarize_results,
             summarization_prompt=summarization_prompt,
+            diff=context.get("diff", ""),
         )
 
         logger.info(
@@ -225,12 +226,14 @@ class DelegationOrchestrator:
         results: List[Dict[str, Any]],
         summarize: bool = False,
         summarization_prompt: str = "",
+        diff: str = "",
     ) -> tuple[str, list, bool]:
         """Aggregate sub-agent results into unified markdown output.
 
         When summarize=True and an AI provider is available with 2+
-        successful results, uses AI-powered summarization. Otherwise
-        falls back to deterministic structured concatenation.
+        successful results, uses AI-powered summarization with two-step
+        line resolution. Otherwise falls back to deterministic
+        structured concatenation.
 
         Returns:
             Tuple of (aggregated_analysis, findings, summarized).
@@ -241,7 +244,9 @@ class DelegationOrchestrator:
             from cicaddy.delegation.summarizer import SummarizationAgent
 
             summarizer = SummarizationAgent(self.ai_provider)
-            result = await summarizer.summarize(results, summarization_prompt)
+            result = await summarizer.summarize(
+                results, summarization_prompt, diff=diff
+            )
 
             # Assemble: summary + individual sections + footer
             parts = [result.summary]
@@ -253,7 +258,7 @@ class DelegationOrchestrator:
             return (
                 "\n\n".join(parts),
                 result.findings,
-                bool(result.findings),
+                result.ai_summarized,
             )
 
         # Deterministic concatenation (original behavior)
