@@ -13,7 +13,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from cicaddy.delegation.triage import (
     _make_boundary_pair,
+    _sanitize_agent_name,
     _sanitize_for_boundary,
+    extract_json,
 )
 from cicaddy.utils.logger import get_logger
 
@@ -135,8 +137,10 @@ class SummarizationAgent:
         # Build analyses section
         analyses_parts = []
         for result in successful_results:
-            agent_name = result.get("agent_name", "unknown")
-            categories = ", ".join(result.get("categories", []))
+            agent_name = _sanitize_agent_name(result.get("agent_name", "unknown"))
+            categories = ", ".join(
+                _sanitize_agent_name(c) for c in result.get("categories", [])
+            )
             analysis = _sanitize_for_boundary(
                 result.get("analysis", ""), boundary_start, boundary_end
             )
@@ -200,18 +204,20 @@ class SummarizationAgent:
 
     def _parse_response(self, response_content: str) -> tuple[str, List[Finding]]:
         """Parse AI response into summary text and findings list."""
-        from cicaddy.delegation.triage import TriageAgent
-
-        content = TriageAgent._extract_json(response_content)
+        content = extract_json(response_content)
 
         data = json.loads(content)
+        if not isinstance(data, dict):
+            raise ValueError("AI response is not a JSON object")
 
         summary = data.get("summary", "")
-        if not summary:
+        if not summary or not summary.strip():
             raise ValueError("AI response missing 'summary' field")
 
         findings = []
         for entry in data.get("findings", []):
+            if not isinstance(entry, dict):
+                continue
             finding = self._validate_finding(entry)
             if finding:
                 findings.append(finding)
@@ -233,9 +239,15 @@ class SummarizationAgent:
         if not message:
             return None
 
+        raw_line = entry.get("line")
+        try:
+            line = int(raw_line) if raw_line is not None else None
+        except (TypeError, ValueError):
+            line = None
+
         return Finding(
             file=file_path,
-            line=entry.get("line"),
+            line=line,
             severity=severity,
             message=message,
             suggestion=entry.get("suggestion"),
@@ -278,7 +290,9 @@ class SummarizationAgent:
         )
         total_time = sum(r.get("execution_time", 0) for r in agent_results)
         agent_names = [
-            r["agent_name"] for r in agent_results if r.get("status") != "skipped"
+            r.get("agent_name", "unknown")
+            for r in agent_results
+            if r.get("status") != "skipped"
         ]
 
         footer = f"*Delegation summary: {succeeded} agent(s) succeeded"

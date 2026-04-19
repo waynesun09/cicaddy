@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 from abc import ABC, abstractmethod
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -1037,7 +1038,6 @@ Detailed Execution Logs
         )
 
         # 5. Build standard analysis_result dict
-        from dataclasses import asdict
 
         return {
             "ai_analysis": result.aggregated_analysis,

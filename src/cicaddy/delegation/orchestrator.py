@@ -289,7 +289,11 @@ class DelegationOrchestrator:
             1 for r in results if r.get("status") not in ("success", "skipped")
         )
         total_time = sum(r.get("execution_time", 0) for r in results)
-        agent_names = [r["agent_name"] for r in results if r.get("status") != "skipped"]
+        agent_names = [
+            r.get("agent_name", "unknown")
+            for r in results
+            if r.get("status") != "skipped"
+        ]
 
         footer = f"\n\n---\n\n*Delegation summary: {succeeded} agent(s) succeeded"
         if failed:

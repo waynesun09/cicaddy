@@ -50,6 +50,33 @@ def _sanitize_agent_name(name: str) -> str:
     return "".join(c for c in name if c.isalnum() or c in "-_. ").strip()[:64]
 
 
+def extract_json(content: str) -> str:
+    """Extract JSON from AI response, stripping markdown code blocks.
+
+    Handles cases where the LLM includes preamble text before the code
+    block.  Shared by ``TriageAgent`` and ``SummarizationAgent``.
+    """
+    content = content.strip()
+
+    # Find first code block (may not be at start due to LLM preamble)
+    block_start = content.find("```")
+    if block_start == -1:
+        return content
+
+    lines = content[block_start:].splitlines()
+    json_lines: list[str] = []
+    in_block = False
+    for line in lines:
+        if line.strip().startswith("```") and not in_block:
+            in_block = True
+            continue
+        if line.strip() == "```" and in_block:
+            break
+        if in_block:
+            json_lines.append(line)
+    return "\n".join(json_lines) if json_lines else content
+
+
 _BUILTIN_GENERAL_AGENTS = ("general-reviewer", "general-task")
 
 
@@ -288,29 +315,8 @@ class TriageAgent:
 
     @staticmethod
     def _extract_json(content: str) -> str:
-        """Extract JSON from response, stripping markdown code blocks.
-
-        Handles cases where LLM includes preamble text before the code block.
-        """
-        content = content.strip()
-
-        # Find first code block (may not be at start due to LLM preamble)
-        block_start = content.find("```")
-        if block_start == -1:
-            return content
-
-        lines = content[block_start:].splitlines()
-        json_lines = []
-        in_block = False
-        for line in lines:
-            if line.strip().startswith("```") and not in_block:
-                in_block = True
-                continue
-            if line.strip() == "```" and in_block:
-                break
-            if in_block:
-                json_lines.append(line)
-        return "\n".join(json_lines) if json_lines else content
+        """Extract JSON from response, stripping markdown code blocks."""
+        return extract_json(content)
 
     @staticmethod
     def _validate_entry(

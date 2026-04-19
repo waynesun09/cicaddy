@@ -340,6 +340,43 @@ class TestSummarizationAgent:
         assert result.findings[0].file == "setup.py"
 
 
+class TestParseResponseEdgeCases:
+    """Tests for _parse_response edge cases (isinstance guards, whitespace)."""
+
+    @pytest.mark.asyncio
+    async def test_non_dict_json_raises(self, mock_ai_provider):
+        """JSON array response should raise ValueError."""
+        agent = SummarizationAgent(mock_ai_provider)
+        with pytest.raises(ValueError, match="not a JSON object"):
+            agent._parse_response('["not", "a", "dict"]')
+
+    @pytest.mark.asyncio
+    async def test_whitespace_only_summary_raises(self, mock_ai_provider):
+        """Whitespace-only summary should raise ValueError."""
+        agent = SummarizationAgent(mock_ai_provider)
+        with pytest.raises(ValueError, match="missing 'summary' field"):
+            agent._parse_response('{"summary": "   ", "findings": []}')
+
+    @pytest.mark.asyncio
+    async def test_non_dict_findings_skipped(self, mock_ai_provider):
+        """Non-dict entries in findings array should be silently skipped."""
+        response = json.dumps(
+            {
+                "summary": "Valid summary",
+                "findings": [
+                    "not a dict",
+                    {"file": "a.py", "severity": "major", "message": "real finding"},
+                    42,
+                ],
+            }
+        )
+        agent = SummarizationAgent(mock_ai_provider)
+        summary, findings = agent._parse_response(response)
+        assert summary == "Valid summary"
+        assert len(findings) == 1
+        assert findings[0].file == "a.py"
+
+
 class TestValidateFinding:
     """Tests for SummarizationAgent._validate_finding."""
 
@@ -373,6 +410,28 @@ class TestValidateFinding:
         f = SummarizationAgent._validate_finding(entry)
         assert f is not None
         assert f.severity == "minor"
+
+    def test_string_line_coerced_to_int(self):
+        entry = {
+            "file": "foo.py",
+            "line": "42",
+            "severity": "major",
+            "message": "issue",
+        }
+        f = SummarizationAgent._validate_finding(entry)
+        assert f is not None
+        assert f.line == 42
+
+    def test_non_numeric_line_becomes_none(self):
+        entry = {
+            "file": "foo.py",
+            "line": "not-a-number",
+            "severity": "major",
+            "message": "issue",
+        }
+        f = SummarizationAgent._validate_finding(entry)
+        assert f is not None
+        assert f.line is None
 
 
 class TestBuildIndividualSections:

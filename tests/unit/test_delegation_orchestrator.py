@@ -446,8 +446,8 @@ class TestAggregateResults:
         assert summarized is False
 
     @pytest.mark.asyncio
-    async def test_summarization_with_single_agent_falls_back(self, mock_settings):
-        """summarize=True but only 1 successful agent should fall back."""
+    async def test_summarization_with_single_agent_skips_ai(self, mock_settings):
+        """summarize=True but only 1 successful agent should skip AI call."""
         mock_provider = MagicMock()
         orch = DelegationOrchestrator(mock_settings, ai_provider=mock_provider)
         results = [
@@ -499,6 +499,57 @@ class TestAggregateResults:
         assert len(findings) == 1
         assert findings[0].file == "x.py"
         assert summarized is True
+
+    @pytest.mark.asyncio
+    async def test_execute_end_to_end_with_summarization(
+        self, mock_settings, sample_plan, sample_registry, sample_context
+    ):
+        """End-to-end: execute() with summarize_results=True flows findings through."""
+        mock_provider = MagicMock()
+        mock_provider.chat_completion = AsyncMock(
+            return_value=MagicMock(
+                content='{"summary": "E2E summary", "findings": [{"file": "a.py", "line": 10, "severity": "critical", "message": "bug", "agent_source": "security-reviewer"}]}'
+            )
+        )
+
+        mock_sub_agent = MagicMock()
+        mock_sub_agent.initialize = AsyncMock()
+        mock_sub_agent.execute = AsyncMock(
+            return_value={
+                "agent_name": "test",
+                "status": "success",
+                "analysis": "Agent analysis",
+                "categories": ["security"],
+                "rationale": "test",
+                "execution_time": 1.0,
+                "tokens": 100,
+            }
+        )
+        mock_sub_agent.cleanup = AsyncMock()
+
+        orch = DelegationOrchestrator(
+            mock_settings, max_concurrent=3, ai_provider=mock_provider
+        )
+        with patch(
+            "cicaddy.delegation.orchestrator.DelegationSubAgent",
+            return_value=mock_sub_agent,
+        ):
+            result = await orch.execute(
+                plan=sample_plan,
+                registry=sample_registry,
+                context=sample_context,
+                parent_tools=[],
+                mcp_manager=None,
+                local_registry=None,
+                summarize_results=True,
+            )
+
+        assert result.summarized is True
+        assert "E2E summary" in result.aggregated_analysis
+        assert len(result.findings) == 1
+        assert result.findings[0].file == "a.py"
+        assert result.findings[0].severity == "critical"
+        assert result.agents_succeeded == 2
 
 
 class TestOrchestratorWorkspaceContextForwarding:
