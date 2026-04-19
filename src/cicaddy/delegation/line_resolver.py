@@ -114,22 +114,28 @@ def parse_diff(diff: str) -> List[DiffFile]:
     state = _ParseState()
 
     for raw_line in diff.splitlines():
-        if raw_line.startswith("+++ b/"):
-            state.current_file = DiffFile(path=raw_line[6:])
-            state.files.append(state.current_file)
+        # File boundary — starts with 'd', never valid hunk content
+        if raw_line.startswith("diff --git"):
             state.current_hunk = None
             continue
 
-        if raw_line.startswith("--- ") or raw_line.startswith("diff --git"):
-            continue
-
+        # Hunk header — starts with '@', never valid hunk content
         match = _RE_HUNK_HEADER.match(raw_line)
         if match and state.current_file is not None:
             _parse_hunk_header(match, state)
             continue
 
+        # Inside a hunk: all remaining lines are content
+        # (guards against --- /+++ content being misread as headers)
         if state.current_hunk is not None:
             _parse_content_line(raw_line, state)
+            continue
+
+        # Outside hunk: file headers
+        if raw_line.startswith("+++ b/"):
+            state.current_file = DiffFile(path=raw_line[6:])
+            state.files.append(state.current_file)
+            continue
 
     return state.files
 
@@ -195,7 +201,11 @@ def find_line_in_diff(
     return (
         _find_exact_matches(new_lines, first_line, snippet_lines)
         or _find_normalized_matches(new_lines, _normalize(first_line), snippet_lines)
-        or _find_fuzzy_match(new_lines, first_line)
+        or (
+            _find_fuzzy_match(new_lines, first_line)
+            if len(snippet_lines) == 1
+            else None
+        )
     )
 
 
@@ -203,19 +213,27 @@ def _verify_subsequent_lines(
     new_lines: List[Tuple[int, str]],
     start_idx: int,
     snippet_lines: List[str],
-) -> bool:
-    """Verify that subsequent snippet lines match subsequent new-side lines."""
+) -> Optional[int]:
+    """Verify subsequent snippet lines match consecutive new-side lines.
+
+    Returns the end line number if all lines match consecutively, or None.
+    Rejects matches that span non-consecutive line numbers (e.g., across hunks).
+    """
+    start_lineno = new_lines[start_idx][0]
     if len(snippet_lines) <= 1:
-        return True
+        return start_lineno
     for offset in range(1, len(snippet_lines)):
         next_idx = start_idx + offset
         if next_idx >= len(new_lines):
-            return False
-        _, next_content = new_lines[next_idx]
+            return None
+        next_lineno, next_content = new_lines[next_idx]
+        # Reject gaps in line numbers (e.g., across hunks)
+        if next_lineno != start_lineno + offset:
+            return None
         expected = snippet_lines[offset].strip()
         if expected not in next_content and next_content.strip() != expected:
-            return False
-    return True
+            return None
+    return new_lines[start_idx + len(snippet_lines) - 1][0]
 
 
 def _find_exact_matches(
@@ -231,15 +249,15 @@ def _find_exact_matches(
     # Pass 1: exact equality (stripped)
     for idx, (lineno, content) in enumerate(new_lines):
         if content.strip() == first_line:
-            if _verify_subsequent_lines(new_lines, idx, snippet_lines):
-                end = lineno + len(snippet_lines) - 1
+            end = _verify_subsequent_lines(new_lines, idx, snippet_lines)
+            if end is not None:
                 return (lineno, end)
 
     # Pass 2: substring containment
     for idx, (lineno, content) in enumerate(new_lines):
         if first_line in content:
-            if _verify_subsequent_lines(new_lines, idx, snippet_lines):
-                end = lineno + len(snippet_lines) - 1
+            end = _verify_subsequent_lines(new_lines, idx, snippet_lines)
+            if end is not None:
                 return (lineno, end)
 
     return None
@@ -256,8 +274,8 @@ def _find_normalized_matches(
     """
     for idx, (lineno, content) in enumerate(new_lines):
         if _normalize(content) == first_norm:
-            if _verify_subsequent_lines(new_lines, idx, snippet_lines):
-                end = lineno + len(snippet_lines) - 1
+            end = _verify_subsequent_lines(new_lines, idx, snippet_lines)
+            if end is not None:
                 return (lineno, end)
     return None
 
@@ -365,11 +383,13 @@ def annotate_diff_with_line_numbers(diff: str) -> str:
     in_hunk = False
 
     for raw_line in diff.splitlines():
-        if raw_line.startswith(("diff --git", "---", "+++ ")):
+        # File boundary — starts with 'd', never valid hunk content
+        if raw_line.startswith("diff --git"):
             output_lines.append(raw_line)
             in_hunk = False
             continue
 
+        # Hunk header — starts with '@', never valid hunk content
         match = _RE_HUNK_HEADER.match(raw_line)
         if match:
             new_lineno = int(match.group(3))
@@ -377,12 +397,15 @@ def annotate_diff_with_line_numbers(diff: str) -> str:
             in_hunk = True
             continue
 
-        if not in_hunk:
-            output_lines.append(raw_line)
+        # Inside hunk: annotate content lines
+        # (guards against ---/+++ content being misread as headers)
+        if in_hunk:
+            annotated, delta = _annotate_hunk_line(raw_line, new_lineno)
+            output_lines.append(annotated)
+            new_lineno += delta
             continue
 
-        annotated, delta = _annotate_hunk_line(raw_line, new_lineno)
-        output_lines.append(annotated)
-        new_lineno += delta
+        # Outside hunk: pass through (--- a/..., +++ b/..., etc.)
+        output_lines.append(raw_line)
 
     return "\n".join(output_lines)

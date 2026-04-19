@@ -99,6 +99,30 @@ class TestParseDiff:
         assert parse_diff("") == []
         assert parse_diff("   ") == []
 
+    def test_parse_content_resembling_headers(self):
+        """Content lines that look like diff headers should be parsed as content."""
+        diff = """\
+diff --git a/x.py b/x.py
+--- a/x.py
++++ b/x.py
+@@ -1,4 +1,4 @@
+ normal line
+--- some old delimiter
++++ b/not-a-header
+ end
+"""
+        files = parse_diff(diff)
+        assert len(files) == 1
+        hunk = files[0].hunks[0]
+        # "-- some old delimiter" should be parsed as a removal, not skipped
+        remove_lines = [dl for dl in hunk.lines if dl.type == "remove"]
+        assert len(remove_lines) == 1
+        assert "some old delimiter" in remove_lines[0].content
+        # "++ b/not-a-header" should be parsed as an addition
+        add_lines = [dl for dl in hunk.lines if dl.type == "add"]
+        assert len(add_lines) == 1
+        assert "b/not-a-header" in add_lines[0].content
+
     def test_parse_no_count_hunk(self):
         """Handle @@ -1 +1 @@ (no comma count)."""
         diff = """\
@@ -219,8 +243,8 @@ diff --git a/src/foo.py b/src/foo.py
         assert result[0] == 3
         assert result[1] == 4
 
-    def test_multiline_falls_back_to_fuzzy_single_line(self):
-        """Multi-line snippet with mismatched subsequent lines falls to fuzzy first-line match."""
+    def test_multiline_skips_fuzzy_fallback(self):
+        """Multi-line snippet skips fuzzy fallback to avoid false positives."""
         diff = """\
 diff --git a/src/foo.py b/src/foo.py
 --- a/src/foo.py
@@ -232,11 +256,33 @@ diff --git a/src/foo.py b/src/foo.py
  end
 """
         files = parse_diff(diff)
-        # Exact/normalized won't match (subsequent line differs),
-        # but fuzzy fallback matches "if data:" as single-line
+        # Multi-line snippet with mismatched subsequent lines: exact/normalized
+        # won't match, and fuzzy fallback is skipped for multi-line snippets
+        # so the AI fallback path can handle it instead of false-resolving
         result = find_line_in_diff(files, "src/foo.py", "if data:\n    nonexistent()")
-        assert result is not None
-        assert result[0] == result[1]  # single-line match from fuzzy
+        assert result is None
+
+    def test_multiline_rejects_cross_hunk_gap(self):
+        """Multi-line snippet should not match across non-consecutive hunks."""
+        diff = """\
+diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -10,2 +10,2 @@
+     if data:
+-        old()
++        new()
+@@ -50,2 +50,2 @@
+         validate(result)
+-        old_validate()
++        new_validate()
+"""
+        files = parse_diff(diff)
+        # "new()" is at new line 11 (end of hunk 1)
+        # "validate(result)" is at new line 50 (start of hunk 2)
+        # These are not consecutive (11 -> 50), so multi-line should not match
+        result = find_line_in_diff(files, "src/foo.py", "new()\n    validate(result)")
+        assert result is None
 
     def test_multiline_no_match_at_all(self):
         """Multi-line snippet with no matching first line returns None."""
@@ -367,6 +413,29 @@ class TestAnnotateDiffWithLineNumbers:
         annotated = annotate_diff_with_line_numbers(SAMPLE_DIFF)
         assert "diff --git" in annotated
         assert "+++ b/src/foo.py" in annotated
+
+    def test_annotate_content_resembling_headers(self):
+        """Content lines resembling headers inside hunks should be annotated."""
+        diff = """\
+diff --git a/x.py b/x.py
+--- a/x.py
++++ b/x.py
+@@ -1,4 +1,4 @@
+ normal line
+--- old delimiter
++++ new delimiter
+ end
+"""
+        annotated = annotate_diff_with_line_numbers(diff)
+        lines = annotated.splitlines()
+        # The "--- old delimiter" is a removal — should be blank-padded
+        removal_lines = [ln for ln in lines if "old delimiter" in ln]
+        assert len(removal_lines) == 1
+        assert removal_lines[0].startswith("     ")  # blank-padded removal
+        # The "+++ new delimiter" is an addition — should be line-numbered
+        addition_lines = [ln for ln in lines if "new delimiter" in ln]
+        assert len(addition_lines) == 1
+        assert addition_lines[0].strip()[0].isdigit()
 
     def test_empty_diff(self):
         assert annotate_diff_with_line_numbers("") == ""

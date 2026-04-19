@@ -317,15 +317,27 @@ class SummarizationAgent:
         """Filter a unified diff to only include hunks for relevant files."""
         filtered_lines: list[str] = []
         include_file = False
+        pending_headers: list[str] = []
         for line in diff.splitlines():
             if line.startswith("diff --git"):
                 include_file = False
-            if line.startswith("+++ b/"):
-                path = line[6:]
-                include_file = any(
-                    path == rf or path.endswith(rf) or rf.endswith(path)
-                    for rf in relevant_files
-                )
+                pending_headers = [line]
+                continue
+            if pending_headers:
+                if line.startswith("+++ b/"):
+                    path = line[6:]
+                    include_file = any(
+                        path == rf or path.endswith(rf) or rf.endswith(path)
+                        for rf in relevant_files
+                    )
+                    if include_file:
+                        filtered_lines.extend(pending_headers)
+                        filtered_lines.append(line)
+                    pending_headers = []
+                else:
+                    # Accumulate metadata (--- a/..., index, mode changes)
+                    pending_headers.append(line)
+                continue
             if include_file:
                 filtered_lines.append(line)
         return "\n".join(filtered_lines)

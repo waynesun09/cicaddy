@@ -28,7 +28,7 @@ Prefixes: `task_`, `mr_`, `githubpr_`, `branch_`
 
 ## JSON Report Structure
 
-```
+```jsonc
 {
   "report_id": "githubpr_20260418_153528",
   "generated_at": "2026-04-18T15:35:28",

@@ -273,7 +273,8 @@ problematic_function(arg, None)
 ```
 Missing null check before calling `problematic_function`.
 
-This is more useful than citing line numbers.
+Accurate snippets are the primary signal for inline placement; include line \
+numbers as well when you are confident about them.
 
 ## Context
 
