@@ -286,7 +286,7 @@ class TestResolveFindings:
                 message="Style issue",
             ),
         ]
-        resolved, unresolved = resolve_findings(findings, SAMPLE_DIFF)
+        resolved, _ = resolve_findings(findings, SAMPLE_DIFF)
         assert len(resolved) == 1
         assert resolved[0].line == 42
 

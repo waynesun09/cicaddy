@@ -312,6 +312,40 @@ class SummarizationAgent:
 
         return resolved
 
+    @staticmethod
+    def _filter_diff_for_files(diff: str, relevant_files: set[str]) -> str:
+        """Filter a unified diff to only include hunks for relevant files."""
+        filtered_lines: list[str] = []
+        include_file = False
+        for line in diff.splitlines():
+            if line.startswith("diff --git"):
+                include_file = False
+            if line.startswith("+++ b/"):
+                path = line[6:]
+                include_file = any(
+                    path == rf or path.endswith(rf) or rf.endswith(path)
+                    for rf in relevant_files
+                )
+            if include_file:
+                filtered_lines.append(line)
+        return "\n".join(filtered_lines)
+
+    @staticmethod
+    def _apply_line_mappings(mappings: list, unresolved: List[Finding]) -> None:
+        """Apply AI-resolved line mappings to unresolved findings in-place."""
+        for mapping in mappings:
+            if not isinstance(mapping, dict):
+                continue
+            idx = mapping.get("index")
+            if not isinstance(idx, int) or idx < 0 or idx >= len(unresolved):
+                continue
+            start = mapping.get("start_line")
+            end = mapping.get("end_line", start)
+            if isinstance(start, int) and start > 0:
+                unresolved[idx].line = start
+                unresolved[idx].start_line = start
+                unresolved[idx].end_line = int(end) if isinstance(end, int) else start
+
     async def _ai_resolve_lines(
         self, unresolved: List[Finding], diff: str
     ) -> List[Finding]:
@@ -320,33 +354,13 @@ class SummarizationAgent:
             from cicaddy.ai_providers.base import ProviderMessage
             from cicaddy.delegation.line_resolver import annotate_diff_with_line_numbers
 
-            # Filter diff to relevant files only
             relevant_files = {f.file for f in unresolved}
-            filtered_lines: list[str] = []
-            include_file = False
-            for line in diff.splitlines():
-                if line.startswith("diff --git"):
-                    include_file = False
-                if line.startswith("+++ b/"):
-                    path = line[6:]
-                    include_file = any(
-                        path == rf or path.endswith(rf) or rf.endswith(path)
-                        for rf in relevant_files
-                    )
-                if include_file:
-                    filtered_lines.append(line)
-
-            filtered_diff = "\n".join(filtered_lines)
+            filtered_diff = self._filter_diff_for_files(diff, relevant_files)
             annotated = annotate_diff_with_line_numbers(filtered_diff)
 
-            # Build compact findings list for the prompt
             findings_for_prompt = []
             for i, f in enumerate(unresolved):
-                entry = {
-                    "index": i,
-                    "file": f.file,
-                    "message": f.message[:200],
-                }
+                entry = {"index": i, "file": f.file, "message": f.message[:200]}
                 if f.existing_code:
                     entry["existing_code"] = f.existing_code
                 findings_for_prompt.append(entry)
@@ -368,23 +382,8 @@ class SummarizationAgent:
 
             content = extract_json(response.content)
             mappings = json.loads(content)
-            if not isinstance(mappings, list):
-                return unresolved
-
-            for mapping in mappings:
-                if not isinstance(mapping, dict):
-                    continue
-                idx = mapping.get("index")
-                if not isinstance(idx, int) or idx < 0 or idx >= len(unresolved):
-                    continue
-                start = mapping.get("start_line")
-                end = mapping.get("end_line", start)
-                if isinstance(start, int) and start > 0:
-                    unresolved[idx].line = start
-                    unresolved[idx].start_line = start
-                    unresolved[idx].end_line = (
-                        int(end) if isinstance(end, int) else start
-                    )
+            if isinstance(mappings, list):
+                self._apply_line_mappings(mappings, unresolved)
 
             ai_resolved_count = sum(1 for f in unresolved if f.line is not None)
             logger.info(

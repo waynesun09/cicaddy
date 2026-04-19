@@ -50,6 +50,58 @@ class DiffFile:
     hunks: List[DiffHunk] = field(default_factory=list)
 
 
+@dataclass
+class _ParseState:
+    """Mutable state for the diff parser."""
+
+    files: List[DiffFile] = field(default_factory=list)
+    current_file: Optional[DiffFile] = None
+    current_hunk: Optional[DiffHunk] = None
+    old_lineno: int = 0
+    new_lineno: int = 0
+
+
+def _parse_hunk_header(match: re.Match, state: _ParseState) -> None:
+    """Parse a hunk header and update parser state."""
+    state.current_hunk = DiffHunk(
+        old_start=int(match.group(1)),
+        old_count=int(match.group(2)) if match.group(2) else 1,
+        new_start=int(match.group(3)),
+        new_count=int(match.group(4)) if match.group(4) else 1,
+    )
+    assert state.current_file is not None
+    state.current_file.hunks.append(state.current_hunk)
+    state.old_lineno = state.current_hunk.old_start
+    state.new_lineno = state.current_hunk.new_start
+
+
+def _parse_content_line(raw_line: str, state: _ParseState) -> None:
+    """Parse a diff content line (+/-/context) and append to current hunk."""
+    assert state.current_hunk is not None
+    if raw_line.startswith("+"):
+        state.current_hunk.lines.append(
+            DiffLine(type="add", content=raw_line[1:], new_lineno=state.new_lineno)
+        )
+        state.new_lineno += 1
+    elif raw_line.startswith("-"):
+        state.current_hunk.lines.append(
+            DiffLine(type="remove", content=raw_line[1:], old_lineno=state.old_lineno)
+        )
+        state.old_lineno += 1
+    elif raw_line.startswith(" ") or raw_line == "":
+        content = raw_line[1:] if raw_line.startswith(" ") else ""
+        state.current_hunk.lines.append(
+            DiffLine(
+                type="context",
+                content=content,
+                old_lineno=state.old_lineno,
+                new_lineno=state.new_lineno,
+            )
+        )
+        state.old_lineno += 1
+        state.new_lineno += 1
+
+
 def parse_diff(diff: str) -> List[DiffFile]:
     """Parse a unified diff string into structured DiffFile objects.
 
@@ -59,78 +111,53 @@ def parse_diff(diff: str) -> List[DiffFile]:
     if not diff or not diff.strip():
         return []
 
-    files: List[DiffFile] = []
-    current_file: Optional[DiffFile] = None
-    current_hunk: Optional[DiffHunk] = None
-    old_lineno = 0
-    new_lineno = 0
+    state = _ParseState()
 
     for raw_line in diff.splitlines():
-        # New file header (---/+++ pair or diff --git)
         if raw_line.startswith("+++ b/"):
-            path = raw_line[6:]
-            current_file = DiffFile(path=path)
-            files.append(current_file)
-            current_hunk = None
+            state.current_file = DiffFile(path=raw_line[6:])
+            state.files.append(state.current_file)
+            state.current_hunk = None
             continue
 
         if raw_line.startswith("--- ") or raw_line.startswith("diff --git"):
             continue
 
-        # Hunk header
         match = _RE_HUNK_HEADER.match(raw_line)
-        if match and current_file is not None:
-            old_start = int(match.group(1))
-            old_count = int(match.group(2)) if match.group(2) else 1
-            new_start = int(match.group(3))
-            new_count = int(match.group(4)) if match.group(4) else 1
-            current_hunk = DiffHunk(
-                old_start=old_start,
-                old_count=old_count,
-                new_start=new_start,
-                new_count=new_count,
-            )
-            current_file.hunks.append(current_hunk)
-            old_lineno = old_start
-            new_lineno = new_start
+        if match and state.current_file is not None:
+            _parse_hunk_header(match, state)
             continue
 
-        if current_hunk is None:
-            continue
+        if state.current_hunk is not None:
+            _parse_content_line(raw_line, state)
 
-        # Diff content lines
-        if raw_line.startswith("+"):
-            content = raw_line[1:]
-            current_hunk.lines.append(
-                DiffLine(type="add", content=content, new_lineno=new_lineno)
-            )
-            new_lineno += 1
-        elif raw_line.startswith("-"):
-            content = raw_line[1:]
-            current_hunk.lines.append(
-                DiffLine(type="remove", content=content, old_lineno=old_lineno)
-            )
-            old_lineno += 1
-        elif raw_line.startswith(" ") or raw_line == "":
-            content = raw_line[1:] if raw_line.startswith(" ") else ""
-            current_hunk.lines.append(
-                DiffLine(
-                    type="context",
-                    content=content,
-                    old_lineno=old_lineno,
-                    new_lineno=new_lineno,
-                )
-            )
-            old_lineno += 1
-            new_lineno += 1
-        # Skip \ No newline at end of file and other metadata
-
-    return files
+    return state.files
 
 
 def _normalize(text: str) -> str:
     """Normalize whitespace for fuzzy matching."""
     return " ".join(text.split())
+
+
+def _find_target_file(diff_files: List[DiffFile], file_path: str) -> Optional[DiffFile]:
+    """Find the DiffFile matching file_path (exact path, then suffix match)."""
+    for df in diff_files:
+        if df.path == file_path:
+            return df
+    for df in diff_files:
+        if df.path.endswith(file_path) or file_path.endswith(df.path):
+            return df
+    return None
+
+
+def _collect_new_lines(target_file: DiffFile) -> List[Tuple[int, str]]:
+    """Collect new-side lines (context + additions) with line numbers."""
+    new_lines: List[Tuple[int, str]] = []
+    for hunk in target_file.hunks:
+        for dl in hunk.lines:
+            if dl.type in ("context", "add") and dl.new_lineno is not None:
+                new_lines.append((dl.new_lineno, dl.content))
+    return new_lines
 
 
 def find_line_in_diff(
@@ -151,28 +178,11 @@ def find_line_in_diff(
     if not code_snippet or not code_snippet.strip():
         return None
 
-    # Find matching file (try exact path, then basename match)
-    target_file = None
-    for df in diff_files:
-        if df.path == file_path:
-            target_file = df
-            break
-    if target_file is None:
-        # Try basename/suffix match
-        for df in diff_files:
-            if df.path.endswith(file_path) or file_path.endswith(df.path):
-                target_file = df
-                break
+    target_file = _find_target_file(diff_files, file_path)
     if target_file is None:
         return None
 
-    # Collect new-side lines with their line numbers
-    new_lines: List[Tuple[int, str]] = []
-    for hunk in target_file.hunks:
-        for dl in hunk.lines:
-            if dl.type in ("context", "add") and dl.new_lineno is not None:
-                new_lines.append((dl.new_lineno, dl.content))
-
+    new_lines = _collect_new_lines(target_file)
     if not new_lines:
         return None
 
@@ -180,20 +190,13 @@ def find_line_in_diff(
     if not snippet_lines:
         return None
 
-    # Strategy 1: Exact substring match on first snippet line
     first_line = snippet_lines[0].strip()
-    matches = _find_exact_matches(new_lines, first_line, snippet_lines)
-    if matches:
-        return matches
 
-    # Strategy 2: Normalized whitespace match
-    first_norm = _normalize(first_line)
-    matches = _find_normalized_matches(new_lines, first_norm, snippet_lines)
-    if matches:
-        return matches
-
-    # Strategy 3: Fuzzy match (single line)
-    return _find_fuzzy_match(new_lines, first_line)
+    return (
+        _find_exact_matches(new_lines, first_line, snippet_lines)
+        or _find_normalized_matches(new_lines, _normalize(first_line), snippet_lines)
+        or _find_fuzzy_match(new_lines, first_line)
+    )
 
 
 def _verify_subsequent_lines(
@@ -334,34 +337,41 @@ def resolve_findings(
     return resolved, unresolved
 
 
+def _annotate_hunk_line(raw_line: str, new_lineno: int) -> Tuple[str, int]:
+    """Annotate a single hunk content line with its line number.
+
+    Returns (annotated_line, new_lineno_delta) where delta is 0 or 1.
+    """
+    if raw_line.startswith("+"):
+        return f"{new_lineno:>4} {raw_line}", 1
+    if raw_line.startswith("-"):
+        return f"     {raw_line}", 0
+    if raw_line.startswith(" ") or raw_line == "":
+        return f"{new_lineno:>4} {raw_line}", 1
+    return raw_line, 0
+
+
 def annotate_diff_with_line_numbers(diff: str) -> str:
     """Add line number annotations to diff for AI line-mapping fallback.
 
     Prefixes each diff content line with its new-file line number
-    (for + and context lines) or old-file line number (for - lines).
+    (for + and context lines) or blank padding (for - lines).
     """
     if not diff or not diff.strip():
         return diff
 
     output_lines: List[str] = []
     new_lineno = 0
-    old_lineno = 0
     in_hunk = False
 
     for raw_line in diff.splitlines():
-        if raw_line.startswith("diff --git") or raw_line.startswith("---"):
-            output_lines.append(raw_line)
-            in_hunk = False
-            continue
-
-        if raw_line.startswith("+++ "):
+        if raw_line.startswith(("diff --git", "---", "+++ ")):
             output_lines.append(raw_line)
             in_hunk = False
             continue
 
         match = _RE_HUNK_HEADER.match(raw_line)
         if match:
-            old_lineno = int(match.group(1))
             new_lineno = int(match.group(3))
             output_lines.append(raw_line)
             in_hunk = True
@@ -371,17 +381,8 @@ def annotate_diff_with_line_numbers(diff: str) -> str:
             output_lines.append(raw_line)
             continue
 
-        if raw_line.startswith("+"):
-            output_lines.append(f"{new_lineno:>4} {raw_line}")
-            new_lineno += 1
-        elif raw_line.startswith("-"):
-            output_lines.append(f"     {raw_line}")
-            old_lineno += 1
-        elif raw_line.startswith(" ") or raw_line == "":
-            output_lines.append(f"{new_lineno:>4} {raw_line}")
-            old_lineno += 1
-            new_lineno += 1
-        else:
-            output_lines.append(raw_line)
+        annotated, delta = _annotate_hunk_line(raw_line, new_lineno)
+        output_lines.append(annotated)
+        new_lineno += delta
 
     return "\n".join(output_lines)
