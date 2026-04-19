@@ -233,7 +233,7 @@ async def retry_async(
                             f"Reduced retry delay to {delay:.2f}s due to time limit for {context_name}"
                         )
 
-                logger.debug(
+                logger.info(
                     f"Retrying {context_name} (attempt {attempt + 1}/{config.max_retries + 1}) "
                     f"after {delay:.2f}s delay"
                 )
@@ -377,7 +377,7 @@ def retry_sync(
                             f"Reduced retry delay to {delay:.2f}s due to time limit for {context_name}"
                         )
 
-                logger.debug(
+                logger.info(
                     f"Retrying {context_name} (attempt {attempt + 1}/{config.max_retries + 1}) "
                     f"after {delay:.2f}s delay"
                 )
