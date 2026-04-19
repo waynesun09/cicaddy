@@ -82,6 +82,8 @@ class TestDelegationResult:
         assert result.agents_succeeded == 0
         assert result.agents_failed == 0
         assert result.categories_covered == []
+        assert result.summarized is False
+        assert result.ai_summarized is False
 
 
 class TestDelegationOrchestrator:
@@ -412,13 +414,14 @@ class TestAggregateResults:
                 "execution_time": 2,
             },
         ]
-        output, findings, summarized = await orch._aggregate_results(
+        output, findings, summarized, ai_summarized = await orch._aggregate_results(
             results, summarize=False
         )
         assert "## a" in output
         assert "## b" in output
         assert findings == []
         assert summarized is False
+        assert ai_summarized is False
 
     @pytest.mark.asyncio
     async def test_summarization_without_provider_falls_back(self, mock_settings):
@@ -438,12 +441,13 @@ class TestAggregateResults:
                 "execution_time": 2,
             },
         ]
-        output, findings, summarized = await orch._aggregate_results(
+        output, findings, summarized, ai_summarized = await orch._aggregate_results(
             results, summarize=True
         )
         assert "## a" in output
         assert findings == []
         assert summarized is False
+        assert ai_summarized is False
 
     @pytest.mark.asyncio
     async def test_summarization_with_single_agent_skips_ai(self, mock_settings):
@@ -458,13 +462,14 @@ class TestAggregateResults:
                 "execution_time": 1,
             },
         ]
-        output, findings, summarized = await orch._aggregate_results(
+        output, findings, summarized, ai_summarized = await orch._aggregate_results(
             results, summarize=True
         )
         # Single agent goes through SummarizationAgent which returns analysis directly
         assert "A" in output
         assert findings == []
         assert summarized is False
+        assert ai_summarized is False
 
     @pytest.mark.asyncio
     async def test_summarization_enabled(self, mock_settings):
@@ -492,7 +497,7 @@ class TestAggregateResults:
                 "execution_time": 2,
             },
         ]
-        output, findings, summarized = await orch._aggregate_results(
+        output, findings, summarized, ai_summarized = await orch._aggregate_results(
             results, summarize=True
         )
         assert "Consolidated summary" in output
@@ -500,6 +505,7 @@ class TestAggregateResults:
         assert len(findings) == 1
         assert findings[0].file == "x.py"
         assert summarized is True
+        assert ai_summarized is True
 
     @pytest.mark.asyncio
     async def test_summarization_success_with_empty_findings(self, mock_settings):
@@ -527,16 +533,19 @@ class TestAggregateResults:
                 "execution_time": 2,
             },
         ]
-        output, findings, summarized = await orch._aggregate_results(
+        output, findings, summarized, ai_summarized = await orch._aggregate_results(
             results, summarize=True
         )
         assert "LGTM" in output
         assert findings == []
         assert summarized is True
+        assert ai_summarized is True
 
     @pytest.mark.asyncio
-    async def test_summarization_fallback_returns_not_summarized(self, mock_settings):
-        """AI failure in summarizer should result in summarized=False."""
+    async def test_summarization_fallback_returns_not_ai_summarized(
+        self, mock_settings
+    ):
+        """AI failure in summarizer should result in ai_summarized=False."""
         mock_provider = MagicMock()
         mock_provider.chat_completion = AsyncMock(side_effect=RuntimeError("API error"))
         orch = DelegationOrchestrator(mock_settings, ai_provider=mock_provider)
@@ -556,13 +565,14 @@ class TestAggregateResults:
                 "execution_time": 2,
             },
         ]
-        output, findings, summarized = await orch._aggregate_results(
+        output, findings, summarized, ai_summarized = await orch._aggregate_results(
             results, summarize=True
         )
         assert "## a" in output
         assert "## b" in output
         assert findings == []
-        assert summarized is False
+        assert summarized is True
+        assert ai_summarized is False
 
     @pytest.mark.asyncio
     async def test_diff_threaded_to_summarizer(self, mock_settings):
@@ -654,6 +664,7 @@ class TestAggregateResults:
             )
 
         assert result.summarized is True
+        assert result.ai_summarized is True
         assert "E2E summary" in result.aggregated_analysis
         assert len(result.findings) == 1
         assert result.findings[0].file == "a.py"

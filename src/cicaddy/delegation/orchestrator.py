@@ -40,6 +40,7 @@ class DelegationResult:
     categories_covered: List[str] = field(default_factory=list)
     findings: List[Finding] = field(default_factory=list)
     summarized: bool = False
+    ai_summarized: bool = False
 
 
 class DelegationOrchestrator:
@@ -197,7 +198,7 @@ class DelegationOrchestrator:
 
         elapsed = time.monotonic() - start
 
-        aggregated, findings, summarized = await self._aggregate_results(
+        aggregated, findings, summarized, ai_summarized = await self._aggregate_results(
             agent_results,
             summarize=summarize_results,
             summarization_prompt=summarization_prompt,
@@ -219,6 +220,7 @@ class DelegationOrchestrator:
             categories_covered=sorted(all_categories),
             findings=findings,
             summarized=summarized,
+            ai_summarized=ai_summarized,
         )
 
     async def _aggregate_results(
@@ -227,7 +229,7 @@ class DelegationOrchestrator:
         summarize: bool = False,
         summarization_prompt: str = "",
         diff: str = "",
-    ) -> tuple[str, list, bool]:
+    ) -> tuple[str, list, bool, bool]:
         """Aggregate sub-agent results into unified markdown output.
 
         When summarize=True and an AI provider is available with 2+
@@ -236,7 +238,8 @@ class DelegationOrchestrator:
         structured concatenation.
 
         Returns:
-            Tuple of (aggregated_analysis, findings, summarized).
+            Tuple of (aggregated_analysis, findings, summarized,
+            ai_summarized).
         """
         num_successful = sum(1 for r in results if r.get("status") == "success")
 
@@ -258,11 +261,12 @@ class DelegationOrchestrator:
             return (
                 "\n\n".join(parts),
                 result.findings,
+                True,  # summarized (path was taken)
                 result.ai_summarized,
             )
 
         # Deterministic concatenation (original behavior)
-        return self._concat_results(results), [], False
+        return self._concat_results(results), [], False, False
 
     @staticmethod
     def _concat_results(results: List[Dict[str, Any]]) -> str:

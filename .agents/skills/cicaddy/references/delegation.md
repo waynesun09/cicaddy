@@ -70,3 +70,14 @@ priority: 15
 3. **Aggregation** -- Results merged into unified output with per-agent sections
 
 Sub-agents share parent's MCP connections and tool registry (no new server processes). They also inherit the parent's workspace context: bundled skills, per-repo agent rules (`AGENT.md`/`CLAUDE.md`/`GEMINI.md`), and per-repo skills (`.agents/skills/`). Side-effect tools (post comments, merge PRs) are blocked by default via plugin entry points.
+
+## Review summarization (v0.10.0+)
+
+When 2+ sub-agents produce reviews, the **SummarizationAgent** condenses output into a ~300-500 word summary with structured `Finding` objects (file, line, severity, message). Line numbers are resolved via a two-step process: deterministic diff snippet matching, then AI fallback.
+
+```bash
+DELEGATION_SUMMARIZE=true                         # Enable (default: true)
+DELEGATION_SUMMARIZATION_PROMPT=""                # Optional custom instructions
+```
+
+See `docs/sub-agent-delegation.md` for full details on findings, line resolution, and fallback behavior.

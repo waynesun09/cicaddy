@@ -1061,6 +1061,7 @@ Detailed Execution Logs
             "categories_covered": result.categories_covered,
             "findings": [asdict(f) for f in result.findings],
             "summarized": result.summarized,
+            "ai_summarized": result.ai_summarized,
             "model_used": self.settings.ai_model
             or get_default_model(self.settings.ai_provider),
             "ai_provider": self.settings.ai_provider or DEFAULT_AI_PROVIDER,

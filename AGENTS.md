@@ -11,183 +11,21 @@ Cicaddy is a platform-agnostic pipeline AI agent library. It provides the core a
 - Claude via Vertex AI (`anthropic-vertex` provider) — uses Google Cloud ADC, no API key needed (v0.7.0+)
 - Bundled knowledge and skills shipped with the package for model guidance and config reference (v0.8.0+)
 - AI-powered sub-agent delegation with parallel execution, triage, sibling awareness, and context-aware review triage (v0.8.0+)
+- AI-powered review summarization with structured findings and inline comment support (v0.10.0+)
 
 ## Architecture
 
-### Agent & Factory System
+Cicaddy uses a registry-based factory pattern for agents, pydantic-settings for configuration, and async execution with MCP tool servers.
 
-The agent system uses a **registry-based factory** pattern:
+For detailed architecture documentation, see:
+- **Core architecture**: `.agents/skills/cicaddy/references/architecture.md`
+- **Factory extension guide**: `.agents/skills/cicaddy/references/factory-extension.md`
+- **Sub-agent delegation**: `.agents/skills/cicaddy/references/delegation.md` and `docs/sub-agent-delegation.md`
+- **Security scanning**: `.agents/skills/cicaddy/references/security-scanning.md` and `docs/mcp-security-scanning.md`
+- **DSPy task format**: `.agents/skills/cicaddy/references/dspy-task-yaml.md`
+- **Local testing**: `.agents/skills/cicaddy/references/local-testing.md`
 
-- `BaseAIAgent` (in `agent/base.py`) — abstract base with shared init, AI provider setup, MCP manager, execution engine, Slack notifier, and the `analyze()` template method
-- `AgentFactory` (in `agent/factory.py`) — class-level registry mapping type strings to agent classes, with pluggable type detectors
-- Built-in agents: `BranchReviewAgent`, `TaskAgent`. Platform packages register their own (e.g., `MergeRequestAgent`)
-
-#### Extending with a platform-specific agent
-
-1. **Subclass `BaseAIAgent`** (or `BaseReviewAgent` for code review agents)
-2. **Override `_setup_platform_integration()`** to inject platform-specific analyzers (the base implementation is a no-op)
-3. **Register the agent** with `AgentFactory.register("my_type", MyAgent)`
-4. **Register a detector** with `AgentFactory.register_detector(my_detector_fn, priority=40)` — detectors receive `Settings` and return an agent type string or `None`
-
-```python
-from cicaddy.agent.base import BaseAIAgent
-from cicaddy.agent.factory import AgentFactory
-
-class MyPlatformAgent(BaseAIAgent):
-    async def _setup_platform_integration(self):
-        # Set up platform-specific analyzer
-        self.gitlab_analyzer = MyAnalyzer(...)
-
-    async def _gather_context(self):
-        ...
-
-    async def _build_prompt(self, context):
-        ...
-
-AgentFactory.register("my_platform", MyPlatformAgent)
-```
-
-**Factory detection priority**: Detectors run in priority order (lower = first). Built-in CI detector runs at priority 50. Platform packages should use 30-40 for their detectors so they take precedence.
-
-### Settings
-
-- `CoreSettings` (pydantic-settings) — base config with AI provider, model, MCP, Slack, logging fields. Reads from env vars
-- Platform packages extend `CoreSettings` with platform-specific fields (tokens, project IDs, etc.)
-- `load_core_settings()` / `load_settings()` — factory functions for instantiation
-
-### Key Subpackages
-
-| Package | Purpose |
-|---------|---------|
-| `ai_providers/` | Provider abstraction (Gemini, Claude, Claude via Vertex AI, OpenAI) |
-| `execution/` | Token-aware multi-step executor, recovery, context compaction |
-| `mcp_client/` | MCP client with SSE, HTTP, stdio, WebSocket transports + security scanning |
-| `tools/` | Local file tool registry with decorator-based registration + scanning |
-| `security/` | Provenance detection and security utilities |
-| `dspy/` | DSPy task loading and prompt building |
-| `notifications/` | Slack (webhook + rich blocks) and email notifiers |
-| `reports/` | HTML report generation |
-| `config/` | Settings and advanced configuration |
-| `delegation/` | AI-powered sub-agent triage, orchestration, and registry |
-| `knowledge.py` | Bundled knowledge context (model reference, config guidance) |
-| `rules.py` | Agent rules auto-loading with external content scanning |
-| `skills.py` | Skills discovery with supply chain protection |
-
-### Agent Rules & Skills (v0.6.0+)
-
-Cicaddy automatically loads:
-- **Rule files**: `AGENT.md`/`AGENTS.md` (generic), `CLAUDE.md`, `GEMINI.md`, `COPILOT.md` (provider-specific)
-- **Skills**: From `.agents/skills/` (cross-tool), `.claude/skills/`, `.gemini/skills/`, `.github/skills/` (provider-specific)
-
-Rules and skills are injected into agent prompts during initialization. See `src/cicaddy/rules.py` and `src/cicaddy/skills.py`.
-
-### Sub-Agent Delegation (v0.8.0+)
-
-The delegation framework enables AI-powered multi-agent analysis. Any agent type can opt in by setting `DELEGATION_MODE=auto`.
-
-#### Architecture
-
-```
-BaseAIAgent.analyze()
-  ├── DELEGATION_MODE=none → single-agent pipeline (unchanged)
-  └── DELEGATION_MODE=auto → _analyze_delegate()
-        ├── _get_agent_type()               # hook: returns type for registry lookup
-        ├── _get_delegation_context()      # hook: shape context for triage
-        ├── TriageAgent.triage(agent_type) # AI selects sub-agents (context-aware prompt)
-        ├── _post_process_plan()           # hook: enforce agent-type guarantees
-        ├── DelegationOrchestrator.execute()
-        │     └── DelegationSubAgent × N   # parallel via asyncio.gather + Semaphore
-        │           ├── filtered tools (shared parent backends)
-        │           ├── focused prompt (persona + context subset)
-        │           ├── workspace context (bundled skills, rules, repo skills)
-        │           ├── sibling awareness (knows other agents' categories)
-        │           └── reduced token budget (parent / N)
-        └── aggregate results → unified output
-```
-
-#### Key modules
-
-| Module | Purpose |
-|--------|---------|
-| `delegation/triage.py` | AI-powered triage: context-aware prompts (review vs. generic), `DelegationPlan`, `SiblingInfo`, agent name sanitization |
-| `delegation/registry.py` | `SubAgentSpec` model + `SubAgentRegistry` loader (built-in + YAML + JSON) |
-| `delegation/sub_agent.py` | Lightweight executor: prompt composition, tool filtering, workspace context, sibling awareness, budget division |
-| `delegation/orchestrator.py` | Parallel execution with `Semaphore`, workspace context + sibling info propagation, result aggregation |
-
-#### Delegation hooks in BaseAIAgent
-
-Subclasses override these to provide agent-type-specific behavior:
-
-- `_should_delegate()` → returns `True` when `DELEGATION_MODE=auto`; subclasses can override for custom gating
-- `_get_delegation_context(analysis_context)` → shapes context for triage (e.g., review agents extract diff + MR info, task agents inject DSPy task metadata)
-- `_post_process_plan(plan, registry)` → post-process the triage plan before execution (v0.9.0+); `BaseReviewAgent` overrides this to guarantee `general-reviewer` is always included in review plans
-
-#### Tool filtering
-
-Sub-agents receive a filtered subset of parent's tools:
-
-1. **Base blocked**: `delegate_task` (prevents recursion)
-2. **Plugin blocked**: plugins register side-effect tools via `cicaddy.delegation_blocked_tools` entry point
-3. **Per-agent**: `SubAgentSpec.allowed_tools` (strict whitelist) and `blocked_tools` (additional blocks)
-
-Sub-agents share the parent's `OfficialMCPClientManager` and `ToolRegistry` — no new MCP connections.
-
-#### Extending with custom sub-agents
-
-Place YAML files in `.agents/delegation/{agent_type}/` or `.agents/delegation/` (for `agent_type: *`). See `delegation/registry.py` for the `SubAgentSpec` dataclass fields.
-
-Plugin packages register blocked tools via entry points:
-
-```toml
-# pyproject.toml
-[project.entry-points."cicaddy.delegation_blocked_tools"]
-my_platform = "my_plugin.plugin:get_delegation_blocked_tools"
-```
-
-```python
-def get_delegation_blocked_tools() -> set[str]:
-    return {"create_comment", "merge_pr", "update_issue"}
-```
-
-### Security Scanning (v0.6.1+)
-
-Cicaddy provides comprehensive prompt injection protection across all content sources:
-
-**What gets scanned:**
-- **MCP tool responses** — External API responses (enforce mode by default)
-- **Local file tools** — File reads that could access external content (audit mode by default)
-- **External rules** — Rule files from git submodules or untracked sources (audit mode)
-- **External skills** — Skills from dependencies or global directories (enforce mode)
-
-**Provenance-based policies:**
-- **Local/git-tracked content** — Trusted via code review, skips scanning
-- **Submodule content** — Detected via `.gitmodules`, scanned as external
-- **Untracked content** — Detected via `git ls-files`, scanned as external
-- **Global skills** — Always treated as external (supply chain risk)
-
-**Configuration:**
-```bash
-# Local file tools
-LOCAL_TOOLS_SCAN_MODE=audit                    # disabled|audit|enforce
-LOCAL_TOOLS_BLOCKING_THRESHOLD=0.3             # 0.0-1.0
-
-# Rules (AGENT.md, CLAUDE.md from submodules)
-RULES_SCAN_MODE=audit
-RULES_BLOCKING_THRESHOLD=0.3
-
-# Skills (.agents/skills/ from dependencies)
-SKILLS_SCAN_MODE=enforce                       # Stricter for supply chain
-SKILLS_BLOCKING_THRESHOLD=0.2
-```
-
-**Scan modes:**
-- `disabled` — No scanning
-- `audit` — Log warnings, don't block
-- `enforce` — Block content above threshold
-
-See `docs/mcp-security-scanning.md` and `docs/SCANNING-REVIEW.md` for details.
-
-### Local Testing & Evaluation
+## Local Testing & Evaluation
 
 Two sub-agents in `.agents/agents/` support local cicaddy testing without flooding the context window:
 
@@ -201,7 +39,7 @@ Run outputs are stored in `_cicaddy_runs/` (gitignored). **Never read cicaddy ou
 ## Code Quality
 
 - Run `pre-commit run --files <changed-files>` before committing
-- Run `uv run pytest tests/unit/ -q` before committing (must pass 935+ tests)
+- Run `uv run pytest tests/unit/ -q` before committing (must pass 1170+ tests)
 - Prefer shared/utility modules over code duplication
 - Follow type hints, Google-style docstrings, async where appropriate
 

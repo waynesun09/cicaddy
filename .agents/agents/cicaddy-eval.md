@@ -61,7 +61,8 @@ Prefixes: `task_`, `mr_`, `githubpr_`, `branch_`
     "agents_succeeded": 2,
     "agents_failed": 0,
     "categories_covered": ["security", "architecture"],
-    "summarized": true,                 // True = AI summarized, False = fallback concatenation
+    "summarized": true,                 // True = any summarization (AI or fallback)
+    "ai_summarized": true,              // True = AI summarization succeeded (v0.10.0+)
     "findings": [                       // Structured findings for inline comments
       {
         "file": "path/to/file.py",
@@ -108,6 +109,7 @@ print(f'- **Status**: {ar.get(\"status\", \"unknown\")}')
 print(f'- **Exec Time**: {d.get(\"execution_time\", 0):.1f}s')
 print(f'- **Delegation**: {ar.get(\"delegation_mode\", \"none\")}')
 print(f'- **Summarized**: {ar.get(\"summarized\", \"N/A\")}')
+print(f'- **AI Summarized**: {ar.get(\"ai_summarized\", \"N/A\")}')
 
 # Structured findings metrics
 findings = ar.get('findings', [])
@@ -178,6 +180,7 @@ for d in dirs:
             ar = data['analysis_result']
             analysis = ar.get('ai_analysis', '')
             lines = analysis.split('\n') if isinstance(analysis, str) else []
+            findings = ar.get('findings', [])
             runs.append({
                 'file': os.path.basename(f),
                 'dir': os.path.basename(d),
@@ -195,6 +198,10 @@ for d in dirs:
                 'agents_fail': ar.get('agents_failed'),
                 'complexity': (ar.get('delegation_plan') or {}).get('estimated_complexity'),
                 'n_agents': len((ar.get('delegation_plan') or {}).get('agents', [])),
+                'summarized': ar.get('summarized'),
+                'ai_summarized': ar.get('ai_summarized'),
+                'n_findings': len(findings),
+                'findings_with_line': sum(1 for f in findings if f.get('line') is not None),
             })
         except Exception as e:
             print(f'Error reading {f}: {e}', file=sys.stderr)
@@ -205,13 +212,15 @@ if not runs:
 
 print('## Comparison')
 print()
-print('| Run | Model | Delegation | Status | Time | Analysis | Items | Critical |')
-print('|-----|-------|------------|--------|------|----------|-------|----------|')
+print('| Run | Model | Delegation | Status | Time | Analysis | Items | Findings | AI Sum |')
+print('|-----|-------|------------|--------|------|----------|-------|----------|--------|')
 for r in runs:
     deleg = r['delegation']
     if deleg == 'auto' and r['n_agents']:
         deleg = f'auto({r[\"n_agents\"]})'
-    print(f'| {r[\"dir\"]} | {r[\"model\"]} | {deleg} | {r[\"status\"]} | {r[\"time\"]:.0f}s | {r[\"chars\"]:,}ch | {r[\"bullets\"]} | {r[\"critical\"]} |')
+    findings_str = f'{r[\"n_findings\"]}({r[\"findings_with_line\"]}L)' if r['n_findings'] else '-'
+    ai_sum = {True: 'Y', False: 'N', None: '-'}.get(r['ai_summarized'], '-')
+    print(f'| {r[\"dir\"]} | {r[\"model\"]} | {deleg} | {r[\"status\"]} | {r[\"time\"]:.0f}s | {r[\"chars\"]:,}ch | {r[\"bullets\"]} | {findings_str} | {ai_sum} |')
 
 # Key differences
 if len(runs) > 1:
