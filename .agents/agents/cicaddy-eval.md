@@ -28,7 +28,7 @@ Prefixes: `task_`, `mr_`, `githubpr_`, `branch_`
 
 ## JSON Report Structure
 
-```json
+```
 {
   "report_id": "githubpr_20260418_153528",
   "generated_at": "2026-04-18T15:35:28",
@@ -60,16 +60,24 @@ Prefixes: `task_`, `mr_`, `githubpr_`, `branch_`
     }],
     "agents_succeeded": 2,
     "agents_failed": 0,
-    "categories_covered": ["security", "architecture"]
+    "categories_covered": ["security", "architecture"],
+    "summarized": true,                 // True = AI summarized, False = fallback concatenation
+    "findings": [                       // Structured findings for inline comments
+      {
+        "file": "path/to/file.py",
+        "line": 42,                     // Resolved line number (null if unresolved)
+        "start_line": 42,
+        "end_line": 44,
+        "severity": "major",           // critical|major|minor|nit
+        "message": "Description",
+        "suggestion": "Fix or null",
+        "agent_source": "agent-name",
+        "existing_code": "code snippet" // Used for line resolution
+      }
+    ]
   }
 }
 ```
-
-## Trust Boundary
-
-This agent operates on paths provided by the parent agent or user.
-Only process files inside `_cicaddy_runs/` or known cicaddy output directories.
-Do not open arbitrary paths outside the project workspace.
 
 ## CRITICAL RULES
 
@@ -89,17 +97,9 @@ Use this extraction script to analyze one run:
 ```bash
 python3 -c "
 import json, sys, os
-if len(sys.argv) < 2:
-    print('Usage: python3 -c ... <REPORT_PATH>', file=sys.stderr)
-    sys.exit(1)
 f = sys.argv[1]
-try:
-    with open(f) as fh:
-        d = json.load(fh)
-except Exception as e:
-    print(f'Error reading {f}: {e}', file=sys.stderr)
-    sys.exit(1)
-ar = d.get('analysis_result', {})
+d = json.load(open(f))
+ar = d['analysis_result']
 print('## Run Summary')
 print(f'- **Report**: {os.path.basename(f)}')
 print(f'- **Model**: {ar.get(\"model_used\", \"unknown\")}')
@@ -107,6 +107,14 @@ print(f'- **Provider**: {ar.get(\"ai_provider\", \"unknown\")}')
 print(f'- **Status**: {ar.get(\"status\", \"unknown\")}')
 print(f'- **Exec Time**: {d.get(\"execution_time\", 0):.1f}s')
 print(f'- **Delegation**: {ar.get(\"delegation_mode\", \"none\")}')
+print(f'- **Summarized**: {ar.get(\"summarized\", \"N/A\")}')
+
+# Structured findings metrics
+findings = ar.get('findings', [])
+with_line = sum(1 for f in findings if f.get('line') is not None)
+with_start = sum(1 for f in findings if f.get('start_line') is not None)
+with_code = sum(1 for f in findings if f.get('existing_code'))
+print(f'- **Findings**: {len(findings)} total, {with_line} with line, {with_start} with start_line, {with_code} with existing_code')
 
 # Analysis metrics
 analysis = ar.get('ai_analysis', '')
@@ -137,9 +145,18 @@ if ar.get('sub_agent_details'):
     print('| Agent | Status | Time | Output |')
     print('|-------|--------|------|--------|')
     for s in ar['sub_agent_details']:
-        a_lines = s.get('analysis', '').split('\n') if isinstance(s.get('analysis', ''), str) else []
+        a_lines = s['analysis'].split('\n') if isinstance(s['analysis'], str) else []
         a_bullets = sum(1 for l in a_lines if l.strip().startswith('- '))
-        print(f'| {s.get(\"agent_name\", \"?\")} | {s.get(\"status\", \"?\")} | {s.get(\"execution_time\", 0):.1f}s | {len(s.get(\"analysis\", \"\")):,} chars, {a_bullets} items |')
+        print(f'| {s[\"agent_name\"]} | {s[\"status\"]} | {s[\"execution_time\"]:.1f}s | {len(s[\"analysis\"]):,} chars, {a_bullets} items |')
+
+# Extract opening summary (first non-empty paragraph, max 200 chars)
+paras = [p.strip() for p in analysis.split('\n\n') if p.strip() and not p.strip().startswith('#')]
+if paras:
+    opener = paras[0][:200]
+    if len(paras[0]) > 200:
+        opener += '...'
+    print(f'\n### Opening')
+    print(opener)
 " "$REPORT_PATH"
 ```
 
@@ -150,18 +167,15 @@ When comparing multiple runs, use this pattern:
 ```bash
 python3 -c "
 import json, sys, os, glob
-if len(sys.argv) < 2:
-    print('Usage: python3 -c ... <DIR1> [DIR2 ...]', file=sys.stderr)
-    sys.exit(1)
+
 dirs = sys.argv[1:]
 runs = []
 for d in dirs:
     jsons = sorted(glob.glob(os.path.join(d, '*.json')))
     for f in jsons:
         try:
-            with open(f) as fh:
-                data = json.load(fh)
-            ar = data.get('analysis_result', {})
+            data = json.load(open(f))
+            ar = data['analysis_result']
             analysis = ar.get('ai_analysis', '')
             lines = analysis.split('\n') if isinstance(analysis, str) else []
             runs.append({
@@ -223,9 +237,7 @@ For session JSONL files, extract aggregate statistics:
 ```bash
 python3 -c "
 import json, glob, os, sys
-if len(sys.argv) < 2:
-    print('Usage: python3 -c ... <OUTPUT_DIR>', file=sys.stderr)
-    sys.exit(1)
+
 pattern = os.path.join(sys.argv[1], 'session_*.jsonl')
 files = sorted(glob.glob(pattern))
 if not files:
@@ -238,19 +250,18 @@ total_tools = 0
 tool_names = set()
 
 for f in files:
-    with open(f) as fh:
-        for line in fh:
-            try:
-                e = json.loads(line)
-                total_events += 1
-                et = e.get('event_type', '')
-                if et == 'ai_inference':
-                    total_inferences += 1
-                elif et == 'tool_execution':
-                    total_tools += 1
-                    tool_names.add(e.get('tool', 'unknown'))
-            except Exception:
-                pass
+    for line in open(f):
+        try:
+            e = json.loads(line)
+            total_events += 1
+            et = e.get('event_type', '')
+            if et == 'ai_inference':
+                total_inferences += 1
+            elif et == 'tool_execution':
+                total_tools += 1
+                tool_names.add(e.get('tool', 'unknown'))
+        except:
+            pass
 
 print(f'Session files: {len(files)}')
 print(f'Total events: {total_events}')
@@ -270,9 +281,10 @@ if tool_names:
 - **Model**: gemini-3-flash-preview
 - **Status**: success
 - **Exec Time**: 25.5s
-- **Delegation**: none
-- **Analysis Length**: 3,282 chars
-- **Sections**: 4
+- **Delegation**: auto | **Summarized**: True
+- **Findings**: 4 total, 4 with line, 4 with start_line, 4 with existing_code
+- **Analysis Length**: 9,996 chars
+- **Sections**: 6
 - **Suggestions**: 3
 - **Critical Items**: 0
 ```
