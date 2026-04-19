@@ -229,7 +229,7 @@ class DelegationOrchestrator:
         summarize: bool = False,
         summarization_prompt: str = "",
         diff: str = "",
-    ) -> tuple[str, list, bool]:
+    ) -> tuple[str, list, bool, bool]:
         """Aggregate sub-agent results into unified markdown output.
 
         When summarize=True and an AI provider is available with 2+
@@ -238,7 +238,8 @@ class DelegationOrchestrator:
         structured concatenation.
 
         Returns:
-            Tuple of (aggregated_analysis, findings, summarized).
+            Tuple of (aggregated_analysis, findings, summarized,
+            ai_summarized).
         """
         num_successful = sum(1 for r in results if r.get("status") == "success")
 
