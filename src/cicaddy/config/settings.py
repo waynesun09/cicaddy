@@ -318,6 +318,16 @@ class CoreSettings(BaseSettings):
         validation_alias="TRIAGE_PROMPT",
         description="Optional custom instructions for the triage AI.",
     )
+    delegation_summarize: bool = Field(
+        default=True,
+        validation_alias="DELEGATION_SUMMARIZE",
+        description="When delegation_mode=auto with 2+ agents, use AI to summarize results into a concise review.",
+    )
+    delegation_summarization_prompt: str = Field(
+        default="",
+        validation_alias="DELEGATION_SUMMARIZATION_PROMPT",
+        description="Optional custom instructions for the AI review summarizer.",
+    )
 
     # Execution configuration
     max_infer_iters: int = Field(
@@ -450,6 +460,7 @@ class CoreSettings(BaseSettings):
         "dynamic_token_limits",
         "enable_local_tools",
         "agent_rules_enabled",
+        "delegation_summarize",
         mode="before",
     )
     @classmethod

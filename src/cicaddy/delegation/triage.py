@@ -50,6 +50,33 @@ def _sanitize_agent_name(name: str) -> str:
     return "".join(c for c in name if c.isalnum() or c in "-_. ").strip()[:64]
 
 
+def extract_json(content: str) -> str:
+    """Extract JSON from AI response, stripping markdown code blocks.
+
+    Handles cases where the LLM includes preamble text before the code
+    block.  Shared by ``TriageAgent`` and ``SummarizationAgent``.
+    """
+    content = content.strip()
+
+    # Find first code block (may not be at start due to LLM preamble)
+    block_start = content.find("```")
+    if block_start == -1:
+        return content
+
+    lines = content[block_start:].splitlines()
+    json_lines: list[str] = []
+    in_block = False
+    for line in lines:
+        if line.strip().startswith("```") and not in_block:
+            in_block = True
+            continue
+        if line.strip() == "```" and in_block:
+            break
+        if in_block:
+            json_lines.append(line)
+    return "\n".join(json_lines) if json_lines else content
+
+
 _BUILTIN_GENERAL_AGENTS = ("general-reviewer", "general-task")
 
 
@@ -165,8 +192,9 @@ class TriageAgent:
         for name, spec in sorted(available_agents.items()):
             safe_name = _sanitize_agent_name(name)
             safe_cats = ", ".join(_sanitize_agent_name(c) for c in spec.categories)
+            safe_desc = _sanitize_for_boundary(spec.description, "", "")[:200]
             agents_desc.append(
-                f"- **{safe_name}**: {spec.description} (categories: {safe_cats})"
+                f"- **{safe_name}**: {safe_desc} (categories: {safe_cats})"
             )
         agents_section = "\n".join(agents_desc)
 
@@ -272,8 +300,9 @@ class TriageAgent:
 
         general_note = ""
         if general_agent_name:
+            safe_general = _sanitize_agent_name(general_agent_name)
             general_note = (
-                f"\n**Important**: `{general_agent_name}` provides baseline "
+                f"\n**Important**: `{safe_general}` provides baseline "
                 f"code quality coverage (correctness, clarity, tests) and "
                 f"should ALWAYS be included alongside any specialist reviewers.\n"
             )
@@ -288,29 +317,8 @@ class TriageAgent:
 
     @staticmethod
     def _extract_json(content: str) -> str:
-        """Extract JSON from response, stripping markdown code blocks.
-
-        Handles cases where LLM includes preamble text before the code block.
-        """
-        content = content.strip()
-
-        # Find first code block (may not be at start due to LLM preamble)
-        block_start = content.find("```")
-        if block_start == -1:
-            return content
-
-        lines = content[block_start:].splitlines()
-        json_lines = []
-        in_block = False
-        for line in lines:
-            if line.strip().startswith("```") and not in_block:
-                in_block = True
-                continue
-            if line.strip() == "```" and in_block:
-                break
-            if in_block:
-                json_lines.append(line)
-        return "\n".join(json_lines) if json_lines else content
+        """Extract JSON from response, stripping markdown code blocks."""
+        return extract_json(content)
 
     @staticmethod
     def _validate_entry(

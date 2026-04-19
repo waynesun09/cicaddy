@@ -305,16 +305,14 @@ class TestDelegationOrchestrator:
         assert result.delegation_plan is sample_plan
 
 
-class TestAggregateResults:
-    """Tests for DelegationOrchestrator._aggregate_results()."""
+class TestConcatResults:
+    """Tests for DelegationOrchestrator._concat_results()."""
 
-    def test_empty_results(self, mock_settings):
-        orch = DelegationOrchestrator(mock_settings)
-        output = orch._aggregate_results([])
+    def test_empty_results(self):
+        output = DelegationOrchestrator._concat_results([])
         assert output == "No sub-agent results available."
 
-    def test_single_success(self, mock_settings):
-        orch = DelegationOrchestrator(mock_settings)
+    def test_single_success(self):
         results = [
             {
                 "agent_name": "security-reviewer",
@@ -323,13 +321,12 @@ class TestAggregateResults:
                 "execution_time": 2.5,
             }
         ]
-        output = orch._aggregate_results(results)
+        output = DelegationOrchestrator._concat_results(results)
         assert "## security-reviewer" in output
         assert "No vulnerabilities found." in output
         assert "1 agent(s) succeeded" in output
 
-    def test_skipped_not_included(self, mock_settings):
-        orch = DelegationOrchestrator(mock_settings)
+    def test_skipped_not_included(self):
         results = [
             {
                 "agent_name": "skipped-agent",
@@ -338,11 +335,10 @@ class TestAggregateResults:
                 "execution_time": 0,
             },
         ]
-        output = orch._aggregate_results(results)
+        output = DelegationOrchestrator._concat_results(results)
         assert output == "No sub-agent results available."
 
-    def test_failed_shown_with_status(self, mock_settings):
-        orch = DelegationOrchestrator(mock_settings)
+    def test_failed_shown_with_status(self):
         results = [
             {
                 "agent_name": "broken-agent",
@@ -351,11 +347,10 @@ class TestAggregateResults:
                 "execution_time": 0.1,
             }
         ]
-        output = orch._aggregate_results(results)
+        output = DelegationOrchestrator._concat_results(results)
         assert "## broken-agent (error)" in output
 
-    def test_multiple_agents_separated(self, mock_settings):
-        orch = DelegationOrchestrator(mock_settings)
+    def test_multiple_agents_separated(self):
         results = [
             {
                 "agent_name": "agent-a",
@@ -370,14 +365,13 @@ class TestAggregateResults:
                 "execution_time": 2,
             },
         ]
-        output = orch._aggregate_results(results)
+        output = DelegationOrchestrator._concat_results(results)
         assert "## agent-a" in output
         assert "## agent-b" in output
         assert "---" in output
         assert "2 agent(s) succeeded" in output
 
-    def test_summary_footer_includes_agent_names(self, mock_settings):
-        orch = DelegationOrchestrator(mock_settings)
+    def test_summary_footer_includes_agent_names(self):
         results = [
             {
                 "agent_name": "sec",
@@ -392,9 +386,171 @@ class TestAggregateResults:
                 "execution_time": 0.5,
             },
         ]
-        output = orch._aggregate_results(results)
+        output = DelegationOrchestrator._concat_results(results)
         assert "Agents: sec, gen" in output
         assert "1 failed" in output
+
+
+class TestAggregateResults:
+    """Tests for DelegationOrchestrator._aggregate_results() with summarization."""
+
+    @pytest.mark.asyncio
+    async def test_no_summarization_uses_concat(self, mock_settings):
+        """summarize=False should use deterministic concatenation."""
+        orch = DelegationOrchestrator(mock_settings)
+        results = [
+            {
+                "agent_name": "a",
+                "status": "success",
+                "analysis": "A",
+                "execution_time": 1,
+            },
+            {
+                "agent_name": "b",
+                "status": "success",
+                "analysis": "B",
+                "execution_time": 2,
+            },
+        ]
+        output, findings, summarized = await orch._aggregate_results(
+            results, summarize=False
+        )
+        assert "## a" in output
+        assert "## b" in output
+        assert findings == []
+        assert summarized is False
+
+    @pytest.mark.asyncio
+    async def test_summarization_without_provider_falls_back(self, mock_settings):
+        """summarize=True but no ai_provider should fall back to concat."""
+        orch = DelegationOrchestrator(mock_settings, ai_provider=None)
+        results = [
+            {
+                "agent_name": "a",
+                "status": "success",
+                "analysis": "A",
+                "execution_time": 1,
+            },
+            {
+                "agent_name": "b",
+                "status": "success",
+                "analysis": "B",
+                "execution_time": 2,
+            },
+        ]
+        output, findings, summarized = await orch._aggregate_results(
+            results, summarize=True
+        )
+        assert "## a" in output
+        assert findings == []
+        assert summarized is False
+
+    @pytest.mark.asyncio
+    async def test_summarization_with_single_agent_skips_ai(self, mock_settings):
+        """summarize=True but only 1 successful agent should skip AI call."""
+        mock_provider = MagicMock()
+        orch = DelegationOrchestrator(mock_settings, ai_provider=mock_provider)
+        results = [
+            {
+                "agent_name": "a",
+                "status": "success",
+                "analysis": "A",
+                "execution_time": 1,
+            },
+        ]
+        output, findings, summarized = await orch._aggregate_results(
+            results, summarize=True
+        )
+        # Single agent goes through SummarizationAgent which returns analysis directly
+        assert "A" in output
+        assert findings == []
+        assert summarized is False
+
+    @pytest.mark.asyncio
+    async def test_summarization_enabled(self, mock_settings):
+        """summarize=True with provider and 2+ agents should use AI."""
+        mock_provider = MagicMock()
+        mock_provider.chat_completion = AsyncMock(
+            return_value=MagicMock(
+                content='{"summary": "Consolidated summary", "findings": [{"file": "x.py", "line": 1, "severity": "major", "message": "issue", "agent_source": "a"}]}'
+            )
+        )
+        orch = DelegationOrchestrator(mock_settings, ai_provider=mock_provider)
+        results = [
+            {
+                "agent_name": "a",
+                "status": "success",
+                "analysis": "A output",
+                "categories": ["code"],
+                "execution_time": 1,
+            },
+            {
+                "agent_name": "b",
+                "status": "success",
+                "analysis": "B output",
+                "categories": ["arch"],
+                "execution_time": 2,
+            },
+        ]
+        output, findings, summarized = await orch._aggregate_results(
+            results, summarize=True
+        )
+        assert "Consolidated summary" in output
+        assert "<details>" in output
+        assert len(findings) == 1
+        assert findings[0].file == "x.py"
+        assert summarized is True
+
+    @pytest.mark.asyncio
+    async def test_execute_end_to_end_with_summarization(
+        self, mock_settings, sample_plan, sample_registry, sample_context
+    ):
+        """End-to-end: execute() with summarize_results=True flows findings through."""
+        mock_provider = MagicMock()
+        mock_provider.chat_completion = AsyncMock(
+            return_value=MagicMock(
+                content='{"summary": "E2E summary", "findings": [{"file": "a.py", "line": 10, "severity": "critical", "message": "bug", "agent_source": "security-reviewer"}]}'
+            )
+        )
+
+        mock_sub_agent = MagicMock()
+        mock_sub_agent.initialize = AsyncMock()
+        mock_sub_agent.execute = AsyncMock(
+            return_value={
+                "agent_name": "test",
+                "status": "success",
+                "analysis": "Agent analysis",
+                "categories": ["security"],
+                "rationale": "test",
+                "execution_time": 1.0,
+                "tokens": 100,
+            }
+        )
+        mock_sub_agent.cleanup = AsyncMock()
+
+        orch = DelegationOrchestrator(
+            mock_settings, max_concurrent=3, ai_provider=mock_provider
+        )
+        with patch(
+            "cicaddy.delegation.orchestrator.DelegationSubAgent",
+            return_value=mock_sub_agent,
+        ):
+            result = await orch.execute(
+                plan=sample_plan,
+                registry=sample_registry,
+                context=sample_context,
+                parent_tools=[],
+                mcp_manager=None,
+                local_registry=None,
+                summarize_results=True,
+            )
+
+        assert result.summarized is True
+        assert "E2E summary" in result.aggregated_analysis
+        assert len(result.findings) == 1
+        assert result.findings[0].file == "a.py"
+        assert result.findings[0].severity == "critical"
+        assert result.agents_succeeded == 2
 
 
 class TestOrchestratorWorkspaceContextForwarding:

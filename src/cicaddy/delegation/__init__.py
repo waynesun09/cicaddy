@@ -8,6 +8,11 @@ in BaseAIAgent.
 from cicaddy.delegation.orchestrator import DelegationOrchestrator, DelegationResult
 from cicaddy.delegation.registry import SubAgentRegistry, SubAgentSpec
 from cicaddy.delegation.sub_agent import DelegationSubAgent
+from cicaddy.delegation.summarizer import (
+    Finding,
+    SummarizationAgent,
+    SummarizationResult,
+)
 from cicaddy.delegation.triage import (
     DelegationEntry,
     DelegationPlan,
@@ -21,8 +26,11 @@ __all__ = [
     "DelegationPlan",
     "DelegationResult",
     "DelegationSubAgent",
+    "Finding",
     "SiblingInfo",
     "SubAgentRegistry",
     "SubAgentSpec",
+    "SummarizationAgent",
+    "SummarizationResult",
     "TriageAgent",
 ]
