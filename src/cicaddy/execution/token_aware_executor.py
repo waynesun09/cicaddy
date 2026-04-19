@@ -109,7 +109,7 @@ class ExecutionLimits:
                     )
                 else:
                     self.max_execution_time = timeout
-                    logger.info(
+                    logger.debug(
                         f"Overriding max_execution_time from environment: {self.max_execution_time}s"
                     )
             except ValueError:
@@ -347,7 +347,7 @@ class TokenAwareExecutor:
         self.event_log: Optional[EventLog] = None
         try:
             self.event_log = EventLog(report_id)
-            logger.info(f"EventLog enabled for session {report_id}")
+            logger.debug(f"EventLog enabled for session {report_id}")
         except Exception as e:
             logger.warning(f"EventLog initialization failed, continuing without: {e}")
 
@@ -377,9 +377,9 @@ class TokenAwareExecutor:
                 event_log=self.event_log,
                 max_recovery_attempts=self.limits.max_recovery_attempts,
             )
-            logger.info("Early Break Recovery mechanism enabled")
+            logger.debug("Early Break Recovery mechanism enabled")
 
-        logger.info(
+        logger.debug(
             f"TokenAwareExecutor initialized with limits: "
             f"max_infer_iters={self.limits.max_infer_iters}, "
             f"max_tokens_total={self._effective_token_budget} (original: {self._original_token_limit}, "
@@ -400,7 +400,7 @@ class TokenAwareExecutor:
         """
         # Check iteration limit (LlamaStack max_infer_iters pattern)
         if self.state.current_iteration >= self.limits.max_infer_iters:
-            logger.info(
+            logger.warning(
                 f"Maximum iterations reached: {self.state.current_iteration}/{self.limits.max_infer_iters}"
             )
             return StopReason.max_iterations
@@ -408,14 +408,14 @@ class TokenAwareExecutor:
         # Check token limits (LlamaStack out_of_tokens pattern)
         # Phase 4: Use effective budget instead of raw limit
         if self.state.total_tokens_used >= self._effective_token_budget:
-            logger.info(
+            logger.warning(
                 f"Total token budget exhausted: {self.state.total_tokens_used}/{self._effective_token_budget} "
                 f"(effective budget, original limit: {self._original_token_limit})"
             )
             return StopReason.out_of_tokens
 
         if self.state.current_iteration_tokens >= self.limits.max_tokens_per_iteration:
-            logger.info(
+            logger.warning(
                 f"Iteration token budget exhausted: "
                 f"{self.state.current_iteration_tokens}/{self.limits.max_tokens_per_iteration}"
             )
@@ -423,14 +423,14 @@ class TokenAwareExecutor:
 
         # Check tool limits
         if self.state.current_iteration_tools >= self.limits.max_tools_per_iteration:
-            logger.info(
+            logger.warning(
                 f"Tool limit per iteration reached: "
                 f"{self.state.current_iteration_tools}/{self.limits.max_tools_per_iteration}"
             )
             return StopReason.max_tools
 
         if self.state.total_tools_executed >= self.limits.max_total_tools:
-            logger.info(
+            logger.warning(
                 f"Total tool limit reached: "
                 f"{self.state.total_tools_executed}/{self.limits.max_total_tools}"
             )
@@ -441,7 +441,7 @@ class TokenAwareExecutor:
             self.state.total_result_size_bytes
             >= self.limits.max_total_result_size_bytes
         ):
-            logger.info(
+            logger.warning(
                 f"Total result size limit reached: "
                 f"{self.state.total_result_size_bytes}/{self.limits.max_total_result_size_bytes} bytes"
             )
@@ -450,7 +450,7 @@ class TokenAwareExecutor:
         # Check time limits
         elapsed_time = self.state.get_elapsed_time()
         if elapsed_time >= self.limits.max_execution_time:
-            logger.info(
+            logger.warning(
                 f"Execution time limit reached: {elapsed_time:.1f}/{self.limits.max_execution_time}s"
             )
             return StopReason.timeout
@@ -516,7 +516,7 @@ class TokenAwareExecutor:
             and not self.state.degradation_active
             and not self.state._degradation_skip_logged
         ):
-            logger.info(
+            logger.debug(
                 "Skipping degradation for iteration/token limits - recovery enabled"
             )
             self.state._degradation_skip_logged = True
@@ -837,7 +837,7 @@ class TokenAwareExecutor:
             # Phase 4: Identify tool pairs before compaction to preserve them
             tool_pairs = self._identify_tool_pairs(conversation_messages)
 
-            logger.info(
+            logger.debug(
                 f"Triggering compaction at iteration {self.state.current_iteration} (trigger: {trigger_reason})"
             )
             (
@@ -857,7 +857,7 @@ class TokenAwareExecutor:
                 trigger_reason,
             )
 
-            logger.info(
+            logger.debug(
                 f"Conversation compacted: {compression_result.compression_ratio:.2f}x compression, "
                 f"{compression_result.information_preserved:.1%} information preserved "
                 f"(trigger: {trigger_reason})"
@@ -893,7 +893,7 @@ class TokenAwareExecutor:
                 self.state.current_iteration += 1
                 self.state.reset_iteration()
 
-                logger.info(
+                logger.debug(
                     f"Starting iteration {self.state.current_iteration}/{self.limits.max_infer_iters}"
                 )
 
@@ -932,7 +932,7 @@ class TokenAwareExecutor:
                             self.state.stop_reason = stop_reason
                             break
 
-                        logger.info(
+                        logger.debug(
                             f"Token budget exhausted at iteration "
                             f"{self.state.current_iteration}. "
                             f"Tokens used: {self.state.total_tokens_used}/"
@@ -965,7 +965,7 @@ class TokenAwareExecutor:
 
                             # Log captured tool calls from recovery AI (for debugging)
                             if recovery_result.recovery_tool_calls:
-                                logger.info(
+                                logger.debug(
                                     f"Recovery AI made {len(recovery_result.recovery_tool_calls)} "
                                     f"tool calls: {[tc['name'] for tc in recovery_result.recovery_tool_calls]}"
                                 )
@@ -995,7 +995,7 @@ class TokenAwareExecutor:
                             prev_iteration = self.state.current_iteration
                             self.state.reset_for_fresh_context()
 
-                            logger.info(
+                            logger.debug(
                                 f"Fresh context reset: tokens 0/{self._effective_token_budget}, "
                                 f"iterations reset (was {prev_iteration}, cumulative: "
                                 f"{self.state.cumulative_iterations_all_inferences})"
@@ -1069,7 +1069,7 @@ class TokenAwareExecutor:
                             self.state.stop_reason = stop_reason
                             break
 
-                        logger.info(
+                        logger.debug(
                             f"Iteration limit reached at iteration "
                             f"{self.state.current_iteration}. "
                             f"Token budget remaining: {remaining_tokens}. "
@@ -1103,7 +1103,7 @@ class TokenAwareExecutor:
 
                             # Log captured tool calls from recovery AI (for debugging)
                             if recovery_result.recovery_tool_calls:
-                                logger.info(
+                                logger.debug(
                                     f"Recovery AI made {len(recovery_result.recovery_tool_calls)} "
                                     f"tool calls: {[tc['name'] for tc in recovery_result.recovery_tool_calls]}"
                                 )
@@ -1133,7 +1133,7 @@ class TokenAwareExecutor:
                             prev_iteration = self.state.current_iteration
                             self.state.reset_for_fresh_context()
 
-                            logger.info(
+                            logger.debug(
                                 f"Fresh context reset: tokens 0/{self._effective_token_budget}, "
                                 f"iterations reset (was {prev_iteration}, cumulative: "
                                 f"{self.state.cumulative_iterations_all_inferences})"
@@ -1221,7 +1221,7 @@ class TokenAwareExecutor:
                     # Clear fresh context recovery mode - AI is exploring, not synthesizing
                     # If AI made tool calls after recovery, it's no longer in synthesis mode
                     if self.state.in_fresh_context_recovery:
-                        logger.info(
+                        logger.debug(
                             f"AI made {len(tool_calls)} tool calls after fresh context recovery - "
                             f"exiting synthesis mode (now in exploration mode)"
                         )
@@ -1250,7 +1250,7 @@ class TokenAwareExecutor:
                         )
                     )
 
-                    logger.info(
+                    logger.debug(
                         f"Executed {len(tool_calls)} tools in iteration {self.state.current_iteration}"
                     )
                     continue
@@ -1313,7 +1313,7 @@ class TokenAwareExecutor:
                         # FALSE POSITIVE PREVENTION:
                         # Don't trigger recovery on iteration 1 - code reviews often complete in first iteration
                         if self.state.current_iteration == 1:
-                            logger.info(
+                            logger.debug(
                                 f"Premature completion indicator detected in iteration 1 ({response_length} chars) "
                                 f"- allowing completion (code reviews typically finish in iteration 1)"
                             )
@@ -1665,7 +1665,7 @@ class TokenAwareExecutor:
                     messages[-1] = ProviderMessage(
                         content=compressed_prompt, role=last_message.role
                     )
-                    logger.info(
+                    logger.debug(
                         f"Prompt compressed: {compression_result.compression_ratio:.2f}x compression, "
                         f"{compression_result.information_preserved:.1%} information preserved"
                     )
@@ -1872,7 +1872,7 @@ class TokenAwareExecutor:
 
             # Log tool addition with unique reference
             latest_tool = self.knowledge_store.tool_results[-1]
-            logger.info(
+            logger.debug(
                 f"Tool [{latest_tool['unique_ref']}]: {tool_call['tool_name']} added to knowledge store. "
                 f"Total tools: {len(self.knowledge_store.tool_results)}"
             )
@@ -1911,7 +1911,7 @@ class TokenAwareExecutor:
                         max_tokens=self.limits.max_tokens_per_tool_result,
                     )
                 )
-                logger.info(
+                logger.debug(
                     f"Tool result compressed: {compression_result.compression_ratio:.2f}x compression, "
                     f"{compression_result.information_preserved:.1%} information preserved"
                 )

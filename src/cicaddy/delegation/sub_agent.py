@@ -70,7 +70,7 @@ def collect_blocked_tools() -> Set[str]:
             )
 
     _plugin_blocked_tools = blocked
-    logger.info(f"Total blocked tools for sub-agents: {len(blocked)}")
+    logger.debug(f"Total blocked tools for sub-agents: {len(blocked)}")
     return blocked
 
 

@@ -61,7 +61,7 @@ class ExecutionEngine:
         # Use default formatter limits so integration tests see truncation at ~2KB
         self.result_formatter = GenericResultFormatter()
 
-        logger.info("ExecutionEngine initialized with token-aware execution")
+        logger.debug("ExecutionEngine initialized with token-aware execution")
 
     async def execute_turn(
         self,
@@ -89,7 +89,7 @@ class ExecutionEngine:
             - Structured result formatting with BEGIN/END markers
             - Intelligent truncation and prioritization
         """
-        logger.info(f"Starting token-aware execution for session {self.session_id}")
+        logger.debug(f"Starting token-aware execution for session {self.session_id}")
 
         # Update limits only if caller provided an override
         if (
