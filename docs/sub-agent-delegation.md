@@ -145,7 +145,7 @@ When multiple sub-agents review code, the combined output can exceed 2000 words.
 1. **Sub-agents quote code** — Instead of guessing line numbers, reviewers quote `existing_code` snippets from the diff
 2. **Deterministic resolution** — `find_line_in_diff()` matches snippets to diff line numbers using exact, normalized, and fuzzy matching (93% cutoff, single-line only)
 3. **AI fallback** — Unresolved snippets trigger a lightweight AI call with annotated diff context
-4. **Structured output** — Findings include file path, line range, severity, category, and message
+4. **Structured output** — Findings include file path, line range, severity, message, and suggestion
 
 ### Configuration
 
