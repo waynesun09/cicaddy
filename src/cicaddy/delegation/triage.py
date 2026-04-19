@@ -41,6 +41,28 @@ def _sanitize_for_boundary(text: str, start: str, end: str) -> str:
     return text.replace(start, "").replace(end, "")
 
 
+def _sanitize_agent_name(name: str) -> str:
+    """Sanitize agent name for safe interpolation into prompts.
+
+    Strips control characters, newlines, and limits length to prevent
+    prompt injection via malicious agent names in registry data.
+    """
+    return "".join(c for c in name if c.isalnum() or c in "-_. ").strip()[:64]
+
+
+def find_general_agent(registry: Dict[str, Any]) -> Optional[str]:
+    """Find the general/baseline agent in a registry.
+
+    Matches agents whose name starts with ``general-`` (e.g.
+    ``general-reviewer``, ``general-task``).  Returns the first
+    match in sorted order for deterministic results, or ``None``.
+    """
+    for name in sorted(registry):
+        if name.startswith("general-"):
+            return name
+    return None
+
+
 @dataclass
 class DelegationEntry:
     """A single sub-agent activation entry in a delegation plan."""
@@ -228,13 +250,15 @@ class TriageAgent:
     ) -> str:
         """Build review-specific triage guidance from available agents."""
         category_hints = []
-        general_agent_name = None
+        general_agent_name = find_general_agent(available_agents)
         for name, spec in sorted(available_agents.items()):
-            if "general" in name:
-                general_agent_name = name
+            if name == general_agent_name:
                 continue
-            cats = ", ".join(spec.categories)
-            category_hints.append(f"- **{name}**: look for changes related to {cats}")
+            safe_name = _sanitize_agent_name(name)
+            cats = ", ".join(_sanitize_agent_name(c) for c in spec.categories)
+            category_hints.append(
+                f"- **{safe_name}**: look for changes related to {cats}"
+            )
 
         hints_section = "\n".join(category_hints)
 
@@ -336,12 +360,7 @@ class TriageAgent:
         self, available_agents: Dict[str, "SubAgentSpec"]
     ) -> DelegationPlan:
         """Create fallback plan using the general agent."""
-        # Find a general/catch-all agent
-        general_name = None
-        for name in available_agents:
-            if "general" in name:
-                general_name = name
-                break
+        general_name = find_general_agent(available_agents)
 
         if not general_name:
             if not available_agents:

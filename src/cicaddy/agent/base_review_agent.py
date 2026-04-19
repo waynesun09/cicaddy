@@ -5,7 +5,10 @@ from typing import Any, Dict, Optional
 
 from cicaddy.agent.base import BaseAIAgent
 from cicaddy.config.settings import Settings
-from cicaddy.delegation.triage import DelegationEntry, DelegationPlan
+from cicaddy.delegation.triage import (
+    DelegationEntry,
+    DelegationPlan,
+)
 from cicaddy.git.diff_analyzer import DiffAnalyzer
 from cicaddy.utils.logger import get_logger
 
@@ -205,12 +208,9 @@ class BaseReviewAgent(BaseAIAgent):
         self, plan: DelegationPlan, registry: Dict[str, Any]
     ) -> DelegationPlan:
         """Ensure general-reviewer is always included in review plans."""
-        # Find the general reviewer in registry
-        general_name = None
-        for name in registry:
-            if "general" in name:
-                general_name = name
-                break
+        from cicaddy.delegation.triage import find_general_agent
+
+        general_name = find_general_agent(registry)
 
         if general_name is None:
             return plan
