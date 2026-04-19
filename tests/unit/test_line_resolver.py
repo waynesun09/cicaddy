@@ -177,6 +177,85 @@ class TestFindLineInDiff:
     def test_empty_files(self):
         assert find_line_in_diff([], "src/foo.py", "code") is None
 
+    def test_exact_equality_preferred_over_substring(self):
+        """Short snippet should match the exact line, not a substring of a longer line."""
+        diff = """\
+diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -1,4 +1,4 @@
+ x = 10
+ x = 1
+-old_line
++new_line
+ other
+"""
+        files = parse_diff(diff)
+        result = find_line_in_diff(files, "src/foo.py", "x = 1")
+        assert result is not None
+        # Should match line 2 (exact "x = 1"), not line 1 ("x = 10" which contains "x = 1")
+        assert result[0] == 2
+
+    def test_multiline_snippet_verifies_subsequent_lines(self):
+        """Multi-line snippet must verify all lines, not just the first."""
+        diff = """\
+diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -1,7 +1,7 @@
+ if data:
+     wrong_body()
+ if data:
+-    old_body()
++    correct_body()
+ if data:
+     another_body()
+ end
+"""
+        files = parse_diff(diff)
+        # Should match the second "if data:" (line 3) because "correct_body()" follows it
+        result = find_line_in_diff(files, "src/foo.py", "if data:\n    correct_body()")
+        assert result is not None
+        assert result[0] == 3
+        assert result[1] == 4
+
+    def test_multiline_falls_back_to_fuzzy_single_line(self):
+        """Multi-line snippet with mismatched subsequent lines falls to fuzzy first-line match."""
+        diff = """\
+diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -1,3 +1,3 @@
+ if data:
+-    old()
++    new()
+ end
+"""
+        files = parse_diff(diff)
+        # Exact/normalized won't match (subsequent line differs),
+        # but fuzzy fallback matches "if data:" as single-line
+        result = find_line_in_diff(files, "src/foo.py", "if data:\n    nonexistent()")
+        assert result is not None
+        assert result[0] == result[1]  # single-line match from fuzzy
+
+    def test_multiline_no_match_at_all(self):
+        """Multi-line snippet with no matching first line returns None."""
+        diff = """\
+diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -1,3 +1,3 @@
+ if data:
+-    old()
++    new()
+ end
+"""
+        files = parse_diff(diff)
+        result = find_line_in_diff(
+            files, "src/foo.py", "totally_different:\n    nonexistent()"
+        )
+        assert result is None
+
 
 class TestResolveFindings:
     """Tests for resolve_findings()."""

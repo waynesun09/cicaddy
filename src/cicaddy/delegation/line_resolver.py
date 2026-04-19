@@ -196,17 +196,49 @@ def find_line_in_diff(
     return _find_fuzzy_match(new_lines, first_line)
 
 
+def _verify_subsequent_lines(
+    new_lines: List[Tuple[int, str]],
+    start_idx: int,
+    snippet_lines: List[str],
+) -> bool:
+    """Verify that subsequent snippet lines match subsequent new-side lines."""
+    if len(snippet_lines) <= 1:
+        return True
+    for offset in range(1, len(snippet_lines)):
+        next_idx = start_idx + offset
+        if next_idx >= len(new_lines):
+            return False
+        _, next_content = new_lines[next_idx]
+        expected = snippet_lines[offset].strip()
+        if expected not in next_content and next_content.strip() != expected:
+            return False
+    return True
+
+
 def _find_exact_matches(
     new_lines: List[Tuple[int, str]],
     first_line: str,
     snippet_lines: List[str],
 ) -> Optional[Tuple[int, int]]:
-    """Find exact substring match for snippet in new-side lines."""
-    for lineno, content in new_lines:
-        if first_line in content or content.strip() == first_line:
-            start = lineno
-            end = start + len(snippet_lines) - 1
-            return (start, end)
+    """Find exact match for snippet in new-side lines.
+
+    Prefers exact equality (stripped) over substring containment.
+    Verifies subsequent lines for multi-line snippets.
+    """
+    # Pass 1: exact equality (stripped)
+    for idx, (lineno, content) in enumerate(new_lines):
+        if content.strip() == first_line:
+            if _verify_subsequent_lines(new_lines, idx, snippet_lines):
+                end = lineno + len(snippet_lines) - 1
+                return (lineno, end)
+
+    # Pass 2: substring containment
+    for idx, (lineno, content) in enumerate(new_lines):
+        if first_line in content:
+            if _verify_subsequent_lines(new_lines, idx, snippet_lines):
+                end = lineno + len(snippet_lines) - 1
+                return (lineno, end)
+
     return None
 
 
@@ -215,12 +247,15 @@ def _find_normalized_matches(
     first_norm: str,
     snippet_lines: List[str],
 ) -> Optional[Tuple[int, int]]:
-    """Find normalized whitespace match for snippet in new-side lines."""
-    for lineno, content in new_lines:
+    """Find normalized whitespace match for snippet in new-side lines.
+
+    Verifies subsequent lines for multi-line snippets.
+    """
+    for idx, (lineno, content) in enumerate(new_lines):
         if _normalize(content) == first_norm:
-            start = lineno
-            end = start + len(snippet_lines) - 1
-            return (start, end)
+            if _verify_subsequent_lines(new_lines, idx, snippet_lines):
+                end = lineno + len(snippet_lines) - 1
+                return (lineno, end)
     return None
 
 
