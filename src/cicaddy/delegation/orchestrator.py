@@ -40,6 +40,7 @@ class DelegationResult:
     categories_covered: List[str] = field(default_factory=list)
     findings: List[Finding] = field(default_factory=list)
     summarized: bool = False
+    ai_summarized: bool = False
 
 
 class DelegationOrchestrator:
@@ -197,7 +198,7 @@ class DelegationOrchestrator:
 
         elapsed = time.monotonic() - start
 
-        aggregated, findings, summarized = await self._aggregate_results(
+        aggregated, findings, summarized, ai_summarized = await self._aggregate_results(
             agent_results,
             summarize=summarize_results,
             summarization_prompt=summarization_prompt,
@@ -219,6 +220,7 @@ class DelegationOrchestrator:
             categories_covered=sorted(all_categories),
             findings=findings,
             summarized=summarized,
+            ai_summarized=ai_summarized,
         )
 
     async def _aggregate_results(
@@ -258,11 +260,12 @@ class DelegationOrchestrator:
             return (
                 "\n\n".join(parts),
                 result.findings,
+                True,  # summarized (path was taken)
                 result.ai_summarized,
             )
 
         # Deterministic concatenation (original behavior)
-        return self._concat_results(results), [], False
+        return self._concat_results(results), [], False, False
 
     @staticmethod
     def _concat_results(results: List[Dict[str, Any]]) -> str:
