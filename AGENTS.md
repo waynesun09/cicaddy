@@ -113,6 +113,8 @@ BaseAIAgent.analyze()
 | `delegation/registry.py` | `SubAgentSpec` model + `SubAgentRegistry` loader (built-in + YAML + JSON) |
 | `delegation/sub_agent.py` | Lightweight executor: prompt composition, tool filtering, workspace context, sibling awareness, budget division |
 | `delegation/orchestrator.py` | Parallel execution with `Semaphore`, workspace context + sibling info propagation, result aggregation |
+| `delegation/summarizer.py` | AI-powered review summarization: condenses multi-agent output with structured findings (v0.10.0+) |
+| `delegation/line_resolver.py` | Two-step line number resolution: deterministic diff matching + AI fallback for inline comments (v0.10.0+) |
 
 #### Delegation hooks in BaseAIAgent
 
@@ -148,6 +150,37 @@ my_platform = "my_plugin.plugin:get_delegation_blocked_tools"
 def get_delegation_blocked_tools() -> set[str]:
     return {"create_comment", "merge_pr", "update_issue"}
 ```
+
+#### Review summarization and inline comment support (v0.10.0+)
+
+When delegation produces multiple sub-agent reviews, the combined output can be verbose (2000+ words). The **SummarizationAgent** condenses multi-agent results into a concise ~300-500 word summary with structured findings:
+
+- **Severity-grouped summary** — Critical/Major/Minor/Nit findings grouped and prioritized
+- **Structured findings** — `Finding` dataclass with file, line, severity, message, suggestion, agent_source
+- **Inline comment support** — Two-step line resolution maps findings to precise diff line numbers
+- **Graceful fallback** — Falls back to deterministic concatenation if AI summarization fails
+- **Single-agent bypass** — No overhead for single sub-agent results
+
+**Two-step line number resolution:**
+
+1. **AI-generated snippets** — Sub-agents quote `existing_code` snippets instead of guessing line numbers
+2. **Deterministic resolution** — `find_line_in_diff()` matches snippets to diff lines using exact, normalized, and fuzzy matching (93% cutoff, single-line only to avoid false positives)
+3. **AI fallback** — Unresolved snippets trigger a lightweight AI call with annotated diff context
+
+**Configuration:**
+
+```bash
+DELEGATION_SUMMARIZE=true                         # Enable multi-agent summarization (default: true)
+DELEGATION_SUMMARIZATION_PROMPT=""                # Optional custom summarization instructions
+```
+
+**Result fields:**
+
+- `summarized: bool` — True if any summarization was performed (AI or fallback)
+- `ai_summarized: bool` — True only if AI summarization succeeded (v0.10.0+)
+- `findings: list[Finding]` — Structured findings with line numbers for inline comments
+
+See `docs/sub-agent-delegation.md` for full details.
 
 ### Security Scanning (v0.6.1+)
 

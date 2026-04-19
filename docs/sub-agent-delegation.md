@@ -22,6 +22,8 @@ Sub-agents share the parent's MCP connections and tool registry — no new serve
 | `DELEGATION_AGENTS` | `""` | JSON config for custom sub-agent definitions |
 | `DELEGATION_AGENTS_DIR` | `.agents/delegation` | Directory for user-defined sub-agent YAML files |
 | `TRIAGE_PROMPT` | `""` | Optional custom instructions for the triage AI |
+| `DELEGATION_SUMMARIZE` | `true` | Enable AI-powered review summarization for multi-agent results (v0.10.0+) |
+| `DELEGATION_SUMMARIZATION_PROMPT` | `""` | Optional custom instructions for the summarization AI (v0.10.0+) |
 
 ### CLI flags
 
@@ -133,6 +135,56 @@ my_platform = "my_plugin.plugin:get_delegation_blocked_tools"
 def get_delegation_blocked_tools() -> set[str]:
     return {"create_comment", "merge_pr", "update_issue"}
 ```
+
+## Review Summarization & Inline Comments (v0.10.0+)
+
+When multiple sub-agents review code, the combined output can exceed 2000 words. The **SummarizationAgent** condenses multi-agent reviews into a concise ~300-500 word summary with structured findings for inline comment placement.
+
+### How It Works
+
+1. **Sub-agents quote code** — Instead of guessing line numbers, reviewers quote `existing_code` snippets from the diff
+2. **Deterministic resolution** — `find_line_in_diff()` matches snippets to diff line numbers using exact, normalized, and fuzzy matching (93% cutoff, single-line only)
+3. **AI fallback** — Unresolved snippets trigger a lightweight AI call with annotated diff context
+4. **Structured output** — Findings include file path, line range, severity, category, and message
+
+### Configuration
+
+```bash
+DELEGATION_SUMMARIZE=true                         # Enable multi-agent summarization (default)
+DELEGATION_SUMMARIZATION_PROMPT=""                # Optional custom instructions
+```
+
+### Result Fields
+
+The delegation result includes:
+
+- `summarized: bool` — True if any summarization was performed (AI or fallback concatenation)
+- `ai_summarized: bool` — True only if AI summarization succeeded (distinguishes from fallback)
+- `findings: list[Finding]` — Structured findings with line numbers for inline comments
+
+Each `Finding` includes:
+
+```python
+@dataclass
+class Finding:
+    file: str                    # File path relative to repo root
+    line: int | None             # Best-effort line number (null for file-level)
+    severity: str                # critical | major | minor | nit
+    message: str                 # Human-readable finding description
+    suggestion: str | None       # Concrete fix or null if none
+    agent_source: str            # Which sub-agent identified this
+    existing_code: str | None    # Code snippet quoted by reviewer
+    start_line: int | None       # Start line in diff (null for file-level)
+    end_line: int | None         # End line in diff (null for single-line)
+```
+
+### Single-Agent Bypass
+
+When delegation selects only one sub-agent (common for small changes), summarization is skipped to avoid AI overhead. The single agent's output is used directly with `summarized=False`.
+
+### Fallback Behavior
+
+If AI summarization fails (JSON parse error, empty response, timeout), the orchestrator falls back to deterministic concatenation with `ai_summarized=False` but `summarized=True` to indicate the result was processed.
 
 ## DSPy Task Files + Delegation
 

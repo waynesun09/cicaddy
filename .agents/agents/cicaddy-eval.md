@@ -61,7 +61,8 @@ Prefixes: `task_`, `mr_`, `githubpr_`, `branch_`
     "agents_succeeded": 2,
     "agents_failed": 0,
     "categories_covered": ["security", "architecture"],
-    "summarized": true,                 // True = AI summarized, False = fallback concatenation
+    "summarized": true,                 // True = any summarization (AI or fallback)
+    "ai_summarized": true,              // True = AI summarization succeeded (v0.10.0+)
     "findings": [                       // Structured findings for inline comments
       {
         "file": "path/to/file.py",
@@ -108,6 +109,7 @@ print(f'- **Status**: {ar.get(\"status\", \"unknown\")}')
 print(f'- **Exec Time**: {d.get(\"execution_time\", 0):.1f}s')
 print(f'- **Delegation**: {ar.get(\"delegation_mode\", \"none\")}')
 print(f'- **Summarized**: {ar.get(\"summarized\", \"N/A\")}')
+print(f'- **AI Summarized**: {ar.get(\"ai_summarized\", \"N/A\")}')
 
 # Structured findings metrics
 findings = ar.get('findings', [])
