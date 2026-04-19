@@ -17,3 +17,4 @@ venv/
 htmlcov/
 .coverage
 *.so
+_cicaddy_runs/
