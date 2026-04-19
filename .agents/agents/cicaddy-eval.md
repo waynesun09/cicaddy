@@ -89,9 +89,16 @@ Use this extraction script to analyze one run:
 ```bash
 python3 -c "
 import json, sys, os
+if len(sys.argv) < 2:
+    print('Usage: python3 -c ... <REPORT_PATH>', file=sys.stderr)
+    sys.exit(1)
 f = sys.argv[1]
-with open(f) as fh:
-    d = json.load(fh)
+try:
+    with open(f) as fh:
+        d = json.load(fh)
+except Exception as e:
+    print(f'Error reading {f}: {e}', file=sys.stderr)
+    sys.exit(1)
 ar = d.get('analysis_result', {})
 print('## Run Summary')
 print(f'- **Report**: {os.path.basename(f)}')
@@ -133,16 +140,7 @@ if ar.get('sub_agent_details'):
         a_lines = s['analysis'].split('\n') if isinstance(s['analysis'], str) else []
         a_bullets = sum(1 for l in a_lines if l.strip().startswith('- '))
         print(f'| {s[\"agent_name\"]} | {s[\"status\"]} | {s[\"execution_time\"]:.1f}s | {len(s[\"analysis\"]):,} chars, {a_bullets} items |')
-
-# Extract opening summary (first non-empty paragraph, max 200 chars)
-paras = [p.strip() for p in analysis.split('\n\n') if p.strip() and not p.strip().startswith('#')]
-if paras:
-    opener = paras[0][:200]
-    if len(paras[0]) > 200:
-        opener += '...'
-    print(f'\n### Opening')
-    print(opener)
-" <REPORT_PATH>
+" "$REPORT_PATH"
 ```
 
 ## Multi-Run Comparison
@@ -152,7 +150,9 @@ When comparing multiple runs, use this pattern:
 ```bash
 python3 -c "
 import json, sys, os, glob
-
+if len(sys.argv) < 2:
+    print('Usage: python3 -c ... <DIR1> [DIR2 ...]', file=sys.stderr)
+    sys.exit(1)
 dirs = sys.argv[1:]
 runs = []
 for d in dirs:
@@ -213,7 +213,7 @@ if len(runs) > 1:
         avg_d = sum(r['chars'] for r in deleg_runs) / len(deleg_runs)
         avg_s = sum(r['chars'] for r in single_runs) / len(single_runs)
         print(f'- Delegation produces {avg_d/max(avg_s,1):.1f}x more analysis content')
-" <DIR1> <DIR2>
+" "$DIR1" "$DIR2"
 ```
 
 ## Session File Analysis
@@ -223,7 +223,9 @@ For session JSONL files, extract aggregate statistics:
 ```bash
 python3 -c "
 import json, glob, os, sys
-
+if len(sys.argv) < 2:
+    print('Usage: python3 -c ... <OUTPUT_DIR>', file=sys.stderr)
+    sys.exit(1)
 pattern = os.path.join(sys.argv[1], 'session_*.jsonl')
 files = sorted(glob.glob(pattern))
 if not files:
@@ -256,7 +258,7 @@ print(f'AI inferences: {total_inferences}')
 print(f'Tool calls: {total_tools}')
 if tool_names:
     print(f'Tools used: {sorted(tool_names)}')
-" <OUTPUT_DIR>
+" "$OUTPUT_DIR"
 ```
 
 ## Output Format

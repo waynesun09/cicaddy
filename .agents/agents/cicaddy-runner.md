@@ -186,3 +186,7 @@ ls -la *.json *.html *.log 2>/dev/null | wc -l
    ```bash
    uv run cicaddy run --env-file .env > /dev/null 2>&1
    ```
+
+7. **Clean up `.env` files** in `_cicaddy_runs/` after testing. They contain
+   resolved API keys in plaintext. The directory is gitignored but files persist
+   on disk until manually removed.

@@ -187,6 +187,15 @@ SKILLS_BLOCKING_THRESHOLD=0.2
 
 See `docs/mcp-security-scanning.md` and `docs/SCANNING-REVIEW.md` for details.
 
+### Local Testing & Evaluation
+
+Two sub-agents in `.agents/agents/` support local cicaddy testing without flooding the context window:
+
+- **cicaddy-runner** — Executes cicaddy runs locally, manages env files and output directories. Returns compact summary tables only.
+- **cicaddy-eval** — Analyzes cicaddy JSON reports and session files via `python3 -c` extraction scripts. Produces structured metrics and comparisons.
+
+Run outputs are stored in `_cicaddy_runs/` (gitignored). **Never read cicaddy output files directly** — always delegate to the sub-agents.
+
 ## Code Quality
 
 - Run `pre-commit run --files <changed-files>` before committing
