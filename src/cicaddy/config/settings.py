@@ -496,11 +496,18 @@ class CoreSettings(BaseSettings):
             # Add environment variable information for stdio servers (for debugging)
             if config.protocol == "stdio" and config.env_vars:
                 env_info = {}
+                _sensitive_markers = (
+                    "key",
+                    "token",
+                    "password",
+                    "secret",
+                    "credential",
+                    "auth",
+                    "bearer",
+                )
                 for key, value in config.env_vars.items():
-                    if (
-                        key.lower() in ["api_key", "token", "password"]
-                        or "key" in key.lower()
-                    ):
+                    key_lower = key.lower()
+                    if any(marker in key_lower for marker in _sensitive_markers):
                         # Mask sensitive values
                         env_info[key] = f"<{len(value)} chars>" if value else "<empty>"
                     else:

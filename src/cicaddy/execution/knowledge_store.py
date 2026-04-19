@@ -244,9 +244,9 @@ class AccumulatedKnowledge:
         """
         Convert to dictionary for JSON serialization.
 
-        Returns complete knowledge store including all tool results, indices, and
-        metadata. This dictionary can be included in analysis results for report
-        generation and notification formatting.
+        Returns serialized knowledge store with tool results and metadata.
+        Runtime indices (results_by_server, results_by_tool) are excluded
+        and rebuilt from tool_results in from_dict().
         """
         return {
             "tool_results": self.tool_results,
