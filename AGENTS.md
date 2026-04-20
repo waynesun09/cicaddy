@@ -113,6 +113,19 @@ When testing security features:
 - Test threshold behavior: content below threshold should not be blocked
 - Run tests: `uv run pytest tests/unit/test_*scanning*.py tests/unit/test_provenance.py -v`
 
+<important if="you are modifying skills discovery, loading, or rendering in src/cicaddy/skills.py or adding new skill capabilities">
+## Skills Loading Boundaries
+
+When cicaddy loads skills from a workspace it reviews, the skill loader (`src/cicaddy/skills.py`) treats them as **pure prompt context** — only the SKILL.md body is read and rendered into the AI prompt. Cicaddy has no bash tool or script execution engine, so execution-oriented skill features are ignored:
+
+- `scripts/` and `references/` subdirectories — logged at INFO level, not loaded
+- `$SKILL_DIR` template variable — not substituted (would leak filesystem paths)
+- Skill activation via tool call — not supported; all discovered skills are rendered eagerly at init
+- Skill-provided tool definitions — ignored; cicaddy tools come from MCP servers only
+
+Cross-tool skills from `.agents/skills/` (agentskills.io) work — SKILL.md body loads normally; the ignored subdirectories are inert. Delegation is handled by `DelegationOrchestrator`, not by skill instructions.
+</important>
+
 ## Release Process
 
 1. Bump version in `pyproject.toml`
