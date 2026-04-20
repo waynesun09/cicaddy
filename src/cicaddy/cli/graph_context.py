@@ -53,8 +53,6 @@ def cmd_graph_context(args: argparse.Namespace) -> int:
         return 0
 
     try:
-        store = GraphStore(repo_path)
-
         if args.update:
             try:
                 from code_review_graph.incremental import incremental_update
@@ -66,19 +64,27 @@ def cmd_graph_context(args: argparse.Namespace) -> int:
                 )
                 return 1
 
-            update_result = incremental_update(
-                repo_path, store, base=base_ref, changed_files=changed_files
-            )
-            print(
-                f"Graph updated: {update_result.get('files_updated', 0)} files",
-                file=sys.stderr,
-            )
+            store = GraphStore(repo_path)
+            try:
+                update_result = incremental_update(
+                    repo_path, store, base=base_ref, changed_files=changed_files
+                )
+                print(
+                    f"Graph updated: {update_result.get('files_updated', 0)} files",
+                    file=sys.stderr,
+                )
+            finally:
+                store.close()
 
-        context = store.get_review_context(
-            changed_files,
+        from code_review_graph.tools.review import get_review_context
+
+        context = get_review_context(
+            changed_files=changed_files,
             max_depth=max_depth,
             include_source=True,
             max_lines_per_file=max_lines,
+            repo_root=str(repo_path),
+            base=base_ref,
         )
         _write_output(context, output_file)
         return 0
