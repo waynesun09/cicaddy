@@ -84,7 +84,7 @@ vertex = [
     "anthropic[vertex]>=0.21.0",
 ]
 graph = [
-    "code-review-graph>=1.2.0",
+    "code-review-graph>=2.3.2",
 ]
 
 [project.urls]
