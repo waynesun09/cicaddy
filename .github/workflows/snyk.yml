@@ -24,6 +24,8 @@ jobs:
         uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
 
       - name: Export and install requirements for Snyk
+        env:
+          UV_EXCLUDE_NEWER: "2099-12-31"
         run: |
           uv export --no-hashes --no-dev --no-editable | grep -v '^\.$' > requirements.txt
           uv pip install --system -r requirements.txt
