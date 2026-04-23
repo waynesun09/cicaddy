@@ -50,7 +50,7 @@ class TestClaudeVertexInitialization:
                 {
                     "model_id": "claude-sonnet-4-6",
                     "vertex_project_id": "my-project",
-                    "region": "us-east5",
+                    "region": "global",
                     "temperature": 0.0,
                 }
             )
@@ -58,7 +58,7 @@ class TestClaudeVertexInitialization:
 
             mock_cls.assert_called_once_with(
                 project_id="my-project",
-                region="us-east5",
+                region="global",
             )
             assert provider.client is mock_vertex_client
 
@@ -87,7 +87,7 @@ class TestClaudeVertexInitialization:
 
     @pytest.mark.asyncio
     async def test_vertex_initialize_default_region(self):
-        """Should default to us-east5 when region not specified."""
+        """Should default to global when region not specified."""
         with (
             patch("cicaddy.ai_providers.claude.VERTEX_AVAILABLE", True),
             patch(
@@ -105,7 +105,7 @@ class TestClaudeVertexInitialization:
             await provider.initialize()
 
             call_kwargs = mock_cls.call_args[1]
-            assert call_kwargs["region"] == "us-east5"
+            assert call_kwargs["region"] == "global"
 
     @pytest.mark.asyncio
     async def test_vertex_initialize_raises_when_extra_missing(self):
@@ -163,7 +163,7 @@ class TestClaudeVertexInitialization:
                     "model_id": "claude-sonnet-4-6",
                     "vertex_project_id": "my-project",
                     "api_key": "not-a-real-key",  # noqa: S106
-                    "region": "us-east5",
+                    "region": "global",
                     "temperature": 0.0,
                 }
             )
@@ -227,7 +227,7 @@ class TestClaudeVertexChatCompletion:
                 {
                     "model_id": "claude-sonnet-4-6",
                     "vertex_project_id": "my-project",
-                    "region": "us-east5",
+                    "region": "global",
                     "temperature": 0.0,
                 }
             )

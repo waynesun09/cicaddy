@@ -18,9 +18,9 @@ def _make_settings(**overrides):
         "openai_api_key": None,
         "anthropic_api_key": None,
         "anthropic_vertex_project_id": None,
-        "cloud_ml_region": "us-east5",
+        "cloud_ml_region": "global",
         "google_cloud_project": None,
-        "google_cloud_location": "us-central1",
+        "google_cloud_location": "global",
     }
     defaults.update(overrides)
     settings = MagicMock()
@@ -96,7 +96,7 @@ class TestGetProviderConfigVertex:
         config = get_provider_config(settings)
         assert config["ai_provider"] == "anthropic-vertex"
         assert config["vertex_project_id"] == "my-gcp-project"
-        assert config["region"] == "us-east5"
+        assert config["region"] == "global"
         assert "api_key" not in config
 
     def test_vertex_with_custom_region(self):
@@ -164,7 +164,7 @@ class TestGetProviderConfigVertex:
             cloud_ml_region=None,
         )
         config = get_provider_config(settings)
-        assert config["region"] == "us-east5"
+        assert config["region"] == "global"
 
     def test_vertex_whitespace_region_falls_back_to_default(self):
         settings = _make_settings(
@@ -173,7 +173,7 @@ class TestGetProviderConfigVertex:
             cloud_ml_region="   ",
         )
         config = get_provider_config(settings)
-        assert config["region"] == "us-east5"
+        assert config["region"] == "global"
 
 
 class TestGetProviderConfigGeminiVertex:
@@ -188,7 +188,7 @@ class TestGetProviderConfigGeminiVertex:
         assert config["ai_provider"] == "gemini-vertex"
         assert config["vertexai"] is True
         assert config["google_cloud_project"] == "my-gcp-project"
-        assert config["google_cloud_location"] == "us-central1"
+        assert config["google_cloud_location"] == "global"
         assert "api_key" not in config
 
     def test_gemini_vertex_with_custom_location(self):
@@ -239,7 +239,7 @@ class TestGetProviderConfigGeminiVertex:
             google_cloud_location=None,
         )
         config = get_provider_config(settings)
-        assert config["google_cloud_location"] == "us-central1"
+        assert config["google_cloud_location"] == "global"
 
     def test_gemini_vertex_whitespace_location_falls_back_to_default(self):
         settings = _make_settings(
@@ -248,7 +248,7 @@ class TestGetProviderConfigGeminiVertex:
             google_cloud_location="   ",
         )
         config = get_provider_config(settings)
-        assert config["google_cloud_location"] == "us-central1"
+        assert config["google_cloud_location"] == "global"
 
 
 class TestGeminiAutoFallbackToVertex:
@@ -264,7 +264,7 @@ class TestGeminiAutoFallbackToVertex:
         assert config["ai_provider"] == "gemini-vertex"
         assert config["vertexai"] is True
         assert config["google_cloud_project"] == "my-gcp-project"
-        assert config["google_cloud_location"] == "us-central1"
+        assert config["google_cloud_location"] == "global"
         assert "api_key" not in config
 
     def test_gemini_fallback_respects_custom_location(self):
@@ -330,7 +330,7 @@ class TestCreateProviderRouting:
             "ai_provider": "anthropic-vertex",
             "model_id": "claude-sonnet-4-6",
             "vertex_project_id": "my-project",
-            "region": "us-east5",
+            "region": "global",
             "temperature": 0.0,
         }
         provider = create_provider("anthropic-vertex", config)
@@ -344,7 +344,7 @@ class TestCreateProviderRouting:
             "model_id": "gemini-3-flash-preview",
             "vertexai": True,
             "google_cloud_project": "my-project",
-            "google_cloud_location": "us-central1",
+            "google_cloud_location": "global",
             "temperature": 0.0,
         }
         provider = create_provider("gemini-vertex", config)

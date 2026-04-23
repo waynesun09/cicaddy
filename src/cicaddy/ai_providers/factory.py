@@ -15,8 +15,8 @@ logger = get_logger(__name__)
 DEFAULT_AI_PROVIDER = "gemini"
 
 # Default Vertex AI region/location
-DEFAULT_VERTEX_REGION = "us-east5"
-DEFAULT_GEMINI_VERTEX_LOCATION = "us-central1"
+DEFAULT_VERTEX_REGION = "global"
+DEFAULT_GEMINI_VERTEX_LOCATION = "global"
 
 # Default model mappings for each provider
 DEFAULT_MODELS = {

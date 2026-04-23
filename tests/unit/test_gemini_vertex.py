@@ -39,7 +39,7 @@ class TestGeminiVertexInitialization:
                     "model_id": "gemini-3-flash-preview",
                     "vertexai": True,
                     "google_cloud_project": "my-project",
-                    "google_cloud_location": "us-central1",
+                    "google_cloud_location": "global",
                     "temperature": 0.0,
                 }
             )
@@ -48,7 +48,7 @@ class TestGeminiVertexInitialization:
             mock_cls.assert_called_once_with(
                 vertexai=True,
                 project="my-project",
-                location="us-central1",
+                location="global",
             )
             assert provider.client is mock_client
 
@@ -78,7 +78,7 @@ class TestGeminiVertexInitialization:
 
     @pytest.mark.asyncio
     async def test_vertex_initialize_default_location(self):
-        """Should default to us-central1 when location is not set."""
+        """Should default to global when location is not set."""
         with patch(
             "cicaddy.ai_providers.gemini.genai.Client",
             return_value=MagicMock(),
@@ -96,7 +96,7 @@ class TestGeminiVertexInitialization:
             mock_cls.assert_called_once_with(
                 vertexai=True,
                 project="my-project",
-                location="us-central1",
+                location="global",
             )
 
     @pytest.mark.asyncio

@@ -162,13 +162,13 @@ class CoreSettings(BaseSettings):
         None, validation_alias="ANTHROPIC_VERTEX_PROJECT_ID"
     )
     cloud_ml_region: Optional[str] = Field(
-        default="us-east5", validation_alias="CLOUD_ML_REGION"
+        default="global", validation_alias="CLOUD_ML_REGION"
     )
     google_cloud_project: Optional[str] = Field(
         None, validation_alias="GOOGLE_CLOUD_PROJECT"
     )
     google_cloud_location: Optional[str] = Field(
-        default="us-central1", validation_alias="GOOGLE_CLOUD_LOCATION"
+        default="global", validation_alias="GOOGLE_CLOUD_LOCATION"
     )
     azure_openai_key: Optional[str] = Field(None, validation_alias="AZURE_OPENAI_KEY")
     azure_endpoint: Optional[str] = Field(None, validation_alias="AZURE_ENDPOINT")
