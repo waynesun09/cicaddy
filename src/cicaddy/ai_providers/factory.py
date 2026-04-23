@@ -140,22 +140,14 @@ def get_provider_config(settings) -> Dict[str, Any]:
             settings.anthropic_api_key, "Anthropic", "ANTHROPIC_API_KEY"
         )
     elif provider == "anthropic-vertex":
-        project_id = (
-            settings.anthropic_vertex_project_id.strip()
-            if isinstance(settings.anthropic_vertex_project_id, str)
-            else settings.anthropic_vertex_project_id
-        )
+        project_id = _safe_strip(settings.anthropic_vertex_project_id)
         if not project_id:
             raise ValueError(
                 "Anthropic Vertex project ID not provided. "
                 "Set the ANTHROPIC_VERTEX_PROJECT_ID environment variable."
             )
         config["vertex_project_id"] = project_id
-        region = (
-            settings.cloud_ml_region.strip()
-            if isinstance(settings.cloud_ml_region, str)
-            else settings.cloud_ml_region
-        )
+        region = _safe_strip(settings.cloud_ml_region)
         config["region"] = region or DEFAULT_VERTEX_REGION
 
     logger.info(
