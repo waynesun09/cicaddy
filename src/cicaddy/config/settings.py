@@ -87,6 +87,7 @@ SENSITIVE_ENV_VAR_NAMES: frozenset = frozenset(
         "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
         "ANTHROPIC_VERTEX_PROJECT_ID",
+        "GOOGLE_CLOUD_PROJECT",
         "AZURE_OPENAI_KEY",
         "OLLAMA_API_KEY",
         "SLACK_WEBHOOK_URL",
