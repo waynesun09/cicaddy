@@ -141,10 +141,7 @@ class TestGeminiVertexInitialization:
     @pytest.mark.asyncio
     async def test_no_key_no_vertex_falls_back_to_mock(self):
         """Without vertexai flag and no API key, should fall back to mock mode."""
-        with patch.dict("os.environ", {}, clear=False):
-            import os
-
-            os.environ.pop("GEMINI_API_KEY", None)
+        with patch.dict("os.environ", {}, clear=True):
             provider = GeminiProvider(
                 {
                     "model_id": "gemini-3-flash-preview",
@@ -153,6 +150,19 @@ class TestGeminiVertexInitialization:
             )
             await provider.initialize()
             assert provider.client is None
+
+    @pytest.mark.asyncio
+    async def test_vertex_raises_when_project_missing(self):
+        """Should raise ValueError when vertexai=True but no project."""
+        provider = GeminiProvider(
+            {
+                "model_id": "gemini-3-flash-preview",
+                "vertexai": True,
+                "temperature": 0.0,
+            }
+        )
+        with pytest.raises(ValueError, match="google_cloud_project is required"):
+            await provider.initialize()
 
     @pytest.mark.asyncio
     async def test_vertex_raises_when_google_auth_missing(self):
