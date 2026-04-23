@@ -59,7 +59,7 @@ class GeminiProvider(BaseProvider):
                     "Install it with: uv pip install google-auth"
                 )
             project = self.config.get("google_cloud_project")
-            location = self.config.get("google_cloud_location", "us-central1")
+            location = self.config.get("google_cloud_location", "global")
             self.client = genai.Client(
                 vertexai=True,
                 project=project,
