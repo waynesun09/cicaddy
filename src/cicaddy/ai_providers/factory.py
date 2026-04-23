@@ -88,6 +88,53 @@ def _apply_gemini_vertex_config(
     config["google_cloud_location"] = location or DEFAULT_GEMINI_VERTEX_LOCATION
 
 
+def _configure_gemini(config: Dict[str, Any], settings: Any) -> None:
+    """Configure Gemini provider, with auto-fallback to Vertex AI."""
+    api_key = _safe_strip(settings.gemini_api_key)
+    if api_key:
+        config["api_key"] = api_key
+        return
+
+    project = _safe_strip(settings.google_cloud_project)
+    if not project:
+        raise ValueError(
+            "Gemini API key not provided. "
+            "Set GEMINI_API_KEY for API key auth, or set "
+            "GOOGLE_CLOUD_PROJECT for Vertex AI with ADC."
+        )
+
+    logger.warning(
+        "GEMINI_API_KEY not set; falling back to Vertex AI with ADC "
+        "(set AI_PROVIDER=gemini-vertex to silence this warning)"
+    )
+    config["ai_provider"] = "gemini-vertex"
+    _apply_gemini_vertex_config(config, project, settings)
+
+
+def _configure_gemini_vertex(config: Dict[str, Any], settings: Any) -> None:
+    """Configure explicit Gemini Vertex AI provider."""
+    project = _safe_strip(settings.google_cloud_project)
+    if not project:
+        raise ValueError(
+            "Google Cloud project not provided for gemini-vertex. "
+            "Set the GOOGLE_CLOUD_PROJECT environment variable."
+        )
+    _apply_gemini_vertex_config(config, project, settings)
+
+
+def _configure_anthropic_vertex(config: Dict[str, Any], settings: Any) -> None:
+    """Configure Anthropic Vertex AI provider."""
+    project_id = _safe_strip(settings.anthropic_vertex_project_id)
+    if not project_id:
+        raise ValueError(
+            "Anthropic Vertex project ID not provided. "
+            "Set the ANTHROPIC_VERTEX_PROJECT_ID environment variable."
+        )
+    config["vertex_project_id"] = project_id
+    region = _safe_strip(settings.cloud_ml_region)
+    config["region"] = region or DEFAULT_VERTEX_REGION
+
+
 def get_provider_config(settings) -> Dict[str, Any]:
     """Build provider config from settings following Llama Stack patterns."""
 
@@ -101,54 +148,21 @@ def get_provider_config(settings) -> Dict[str, Any]:
         else 0.0,
     }
 
-    # Provider-specific configurations
     if provider == "gemini":
-        api_key = _safe_strip(settings.gemini_api_key)
-        if api_key:
-            config["api_key"] = api_key
-        else:
-            # Auto-fallback to Vertex AI when no API key but project is set
-            project = _safe_strip(settings.google_cloud_project)
-            if project:
-                logger.warning(
-                    "GEMINI_API_KEY not set; falling back to Vertex AI with ADC "
-                    "(set AI_PROVIDER=gemini-vertex to silence this warning)"
-                )
-                config["ai_provider"] = "gemini-vertex"
-                _apply_gemini_vertex_config(config, project, settings)
-            else:
-                raise ValueError(
-                    "Gemini API key not provided. "
-                    "Set GEMINI_API_KEY for API key auth, or set "
-                    "GOOGLE_CLOUD_PROJECT for Vertex AI with ADC."
-                )
+        _configure_gemini(config, settings)
     elif provider == "gemini-vertex":
-        project = _safe_strip(settings.google_cloud_project)
-        if not project:
-            raise ValueError(
-                "Google Cloud project not provided for gemini-vertex. "
-                "Set the GOOGLE_CLOUD_PROJECT environment variable."
-            )
-        _apply_gemini_vertex_config(config, project, settings)
+        _configure_gemini_vertex(config, settings)
     elif provider == "openai":
         config["api_key"] = _require_api_key(
             settings.openai_api_key, "OpenAI", "OPENAI_API_KEY"
         )
-        config["base_url"] = None  # Use default OpenAI endpoint
-    elif provider in ["claude", "anthropic"]:
+        config["base_url"] = None
+    elif provider in ("claude", "anthropic"):
         config["api_key"] = _require_api_key(
             settings.anthropic_api_key, "Anthropic", "ANTHROPIC_API_KEY"
         )
     elif provider == "anthropic-vertex":
-        project_id = _safe_strip(settings.anthropic_vertex_project_id)
-        if not project_id:
-            raise ValueError(
-                "Anthropic Vertex project ID not provided. "
-                "Set the ANTHROPIC_VERTEX_PROJECT_ID environment variable."
-            )
-        config["vertex_project_id"] = project_id
-        region = _safe_strip(settings.cloud_ml_region)
-        config["region"] = region or DEFAULT_VERTEX_REGION
+        _configure_anthropic_vertex(config, settings)
 
     logger.info(
         f"Created provider config for {provider} with model {config['model_id']}"
