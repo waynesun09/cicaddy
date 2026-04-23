@@ -38,6 +38,7 @@ RUN_ARG_MAPPINGS: List[ArgMapping] = [
             "gemini-vertex",
             "openai",
             "claude",
+            "anthropic",
             "azure",
             "ollama",
             "anthropic-vertex",

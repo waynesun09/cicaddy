@@ -34,17 +34,17 @@ class TestGetProviderConfigMissingKey:
 
     def test_gemini_missing_key_no_project_raises(self):
         settings = _make_settings(ai_provider="gemini", gemini_api_key=None)
-        with pytest.raises(ValueError, match="GEMINI_API_KEY.*GOOGLE_CLOUD_PROJECT"):
+        with pytest.raises(ValueError, match=r"GEMINI_API_KEY.*GOOGLE_CLOUD_PROJECT"):
             get_provider_config(settings)
 
     def test_gemini_empty_key_no_project_raises(self):
         settings = _make_settings(ai_provider="gemini", gemini_api_key="")
-        with pytest.raises(ValueError, match="GEMINI_API_KEY.*GOOGLE_CLOUD_PROJECT"):
+        with pytest.raises(ValueError, match=r"GEMINI_API_KEY.*GOOGLE_CLOUD_PROJECT"):
             get_provider_config(settings)
 
     def test_gemini_whitespace_key_no_project_raises(self):
         settings = _make_settings(ai_provider="gemini", gemini_api_key="   ")
-        with pytest.raises(ValueError, match="GEMINI_API_KEY.*GOOGLE_CLOUD_PROJECT"):
+        with pytest.raises(ValueError, match=r"GEMINI_API_KEY.*GOOGLE_CLOUD_PROJECT"):
             get_provider_config(settings)
 
     def test_openai_missing_key_raises(self):
@@ -360,5 +360,5 @@ class TestGetProviderConfigNoFallback:
             gemini_api_key=None,
             openai_api_key="openai-key-present",
         )
-        with pytest.raises(ValueError, match="GEMINI_API_KEY.*GOOGLE_CLOUD_PROJECT"):
+        with pytest.raises(ValueError, match=r"GEMINI_API_KEY.*GOOGLE_CLOUD_PROJECT"):
             get_provider_config(settings)

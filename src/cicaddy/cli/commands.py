@@ -155,8 +155,8 @@ def cmd_validate(args: Namespace) -> int:
         required_project = vertex_project_map.get(provider_lower)
         if provider_lower == "gemini":
             # Gemini accepts either API key or project (ADC fallback)
-            has_key = bool(config.get("GEMINI_API_KEY"))
-            has_project = bool(config.get("GOOGLE_CLOUD_PROJECT"))
+            has_key = bool((config.get("GEMINI_API_KEY") or "").strip())
+            has_project = bool((config.get("GOOGLE_CLOUD_PROJECT") or "").strip())
             if has_key:
                 print(
                     f"  GEMINI_API_KEY: {mask_sensitive_value(config.get('GEMINI_API_KEY'))} ✓"
@@ -172,7 +172,7 @@ def cmd_validate(args: Namespace) -> int:
                 print("  GEMINI_API_KEY: (not set) ✗")
                 print("  GOOGLE_CLOUD_PROJECT: (not set) ✗")
         elif required_project:
-            if config.get(required_project):
+            if (config.get(required_project) or "").strip():
                 print(f"  {required_project}: {config.get(required_project)} ✓")
             else:
                 errors.append(
@@ -180,7 +180,7 @@ def cmd_validate(args: Namespace) -> int:
                 )
                 print(f"  {required_project}: (not set) ✗")
         elif required_key:
-            if config.get(required_key):
+            if (config.get(required_key) or "").strip():
                 print(
                     f"  {required_key}: {mask_sensitive_value(config.get(required_key))} ✓"
                 )
