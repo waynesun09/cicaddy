@@ -146,13 +146,8 @@ def cmd_validate(args: Namespace) -> int:
             "azure": "AZURE_OPENAI_KEY",
             "ollama": None,  # Ollama doesn't require API key
         }
-        vertex_project_map = {
-            "gemini-vertex": "GOOGLE_CLOUD_PROJECT",
-            "anthropic-vertex": "ANTHROPIC_VERTEX_PROJECT_ID",
-        }
         provider_lower = ai_provider.lower()
         required_key = api_key_map.get(provider_lower)
-        required_project = vertex_project_map.get(provider_lower)
         if provider_lower == "gemini":
             # Gemini accepts either API key or project (ADC fallback)
             has_key = bool(config.get("GEMINI_API_KEY"))
@@ -171,16 +166,33 @@ def cmd_validate(args: Namespace) -> int:
                 )
                 print("  GEMINI_API_KEY: (not set) ✗")
                 print("  GOOGLE_CLOUD_PROJECT: (not set) ✗")
-        elif required_project:
-            if config.get(required_project):
+        elif provider_lower == "gemini-vertex":
+            if config.get("GOOGLE_CLOUD_PROJECT"):
                 print(
-                    f"  {required_project}: {mask_sensitive_value(config.get(required_project))} ✓"
+                    f"  GOOGLE_CLOUD_PROJECT: {mask_sensitive_value(config.get('GOOGLE_CLOUD_PROJECT'))} ✓"
                 )
             else:
                 errors.append(
-                    f"{required_project} is required for {ai_provider} provider"
+                    "GOOGLE_CLOUD_PROJECT is required for gemini-vertex provider"
                 )
-                print(f"  {required_project}: (not set) ✗")
+                print("  GOOGLE_CLOUD_PROJECT: (not set) ✗")
+        elif provider_lower == "anthropic-vertex":
+            # Accepts ANTHROPIC_VERTEX_PROJECT_ID or falls back to GOOGLE_CLOUD_PROJECT
+            project_var = None
+            if config.get("ANTHROPIC_VERTEX_PROJECT_ID"):
+                project_var = "ANTHROPIC_VERTEX_PROJECT_ID"
+            elif config.get("GOOGLE_CLOUD_PROJECT"):
+                project_var = "GOOGLE_CLOUD_PROJECT"
+            if project_var:
+                print(
+                    f"  {project_var}: {mask_sensitive_value(config.get(project_var))} ✓"
+                )
+            else:
+                errors.append(
+                    "ANTHROPIC_VERTEX_PROJECT_ID or GOOGLE_CLOUD_PROJECT is required for anthropic-vertex provider"
+                )
+                print("  ANTHROPIC_VERTEX_PROJECT_ID: (not set) ✗")
+                print("  GOOGLE_CLOUD_PROJECT: (not set) ✗")
         elif required_key:
             if config.get(required_key):
                 print(

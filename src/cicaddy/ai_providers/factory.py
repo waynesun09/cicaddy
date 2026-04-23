@@ -14,9 +14,8 @@ logger = get_logger(__name__)
 # Default AI provider
 DEFAULT_AI_PROVIDER = "gemini"
 
-# Default Vertex AI region/location
-DEFAULT_VERTEX_REGION = "global"
-DEFAULT_GEMINI_VERTEX_LOCATION = "global"
+# Default Vertex AI location (shared by all Vertex providers)
+DEFAULT_VERTEX_LOCATION = "global"
 
 # Default model mappings for each provider
 DEFAULT_MODELS = {
@@ -67,6 +66,15 @@ def _safe_strip(value: Optional[str]) -> Optional[str]:
     return value.strip() if isinstance(value, str) else value
 
 
+def _resolve_setting(settings: Any, *attrs: str) -> Optional[str]:
+    """Resolve a setting by trying attributes in priority order."""
+    for attr in attrs:
+        value = _safe_strip(getattr(settings, attr, None))
+        if value:
+            return value
+    return None
+
+
 def _require_api_key(raw_key: Optional[str], provider_label: str, env_var: str) -> str:
     """Validate and return a stripped API key, or raise ValueError."""
     key = _safe_strip(raw_key)
@@ -84,8 +92,8 @@ def _apply_gemini_vertex_config(
     """Apply Gemini Vertex AI config (shared by explicit and auto-fallback paths)."""
     config["vertexai"] = True
     config["google_cloud_project"] = project
-    location = _safe_strip(settings.google_cloud_location)
-    config["google_cloud_location"] = location or DEFAULT_GEMINI_VERTEX_LOCATION
+    location = _resolve_setting(settings, "google_cloud_location")
+    config["google_cloud_location"] = location or DEFAULT_VERTEX_LOCATION
 
 
 def _configure_gemini(config: Dict[str, Any], settings: Any) -> None:
@@ -95,7 +103,7 @@ def _configure_gemini(config: Dict[str, Any], settings: Any) -> None:
         config["api_key"] = api_key
         return
 
-    project = _safe_strip(settings.google_cloud_project)
+    project = _resolve_setting(settings, "google_cloud_project")
     if not project:
         raise ValueError(
             "Gemini API key not provided. "
@@ -113,7 +121,7 @@ def _configure_gemini(config: Dict[str, Any], settings: Any) -> None:
 
 def _configure_gemini_vertex(config: Dict[str, Any], settings: Any) -> None:
     """Configure explicit Gemini Vertex AI provider."""
-    project = _safe_strip(settings.google_cloud_project)
+    project = _resolve_setting(settings, "google_cloud_project")
     if not project:
         raise ValueError(
             "Google Cloud project not provided for gemini-vertex. "
@@ -124,15 +132,19 @@ def _configure_gemini_vertex(config: Dict[str, Any], settings: Any) -> None:
 
 def _configure_anthropic_vertex(config: Dict[str, Any], settings: Any) -> None:
     """Configure Anthropic Vertex AI provider."""
-    project_id = _safe_strip(settings.anthropic_vertex_project_id)
+    project_id = _resolve_setting(
+        settings, "anthropic_vertex_project_id", "google_cloud_project"
+    )
     if not project_id:
         raise ValueError(
             "Anthropic Vertex project ID not provided. "
-            "Set the ANTHROPIC_VERTEX_PROJECT_ID environment variable."
+            "Set ANTHROPIC_VERTEX_PROJECT_ID or GOOGLE_CLOUD_PROJECT."
         )
     config["vertex_project_id"] = project_id
-    region = _safe_strip(settings.cloud_ml_region)
-    config["region"] = region or DEFAULT_VERTEX_REGION
+    config["region"] = (
+        _resolve_setting(settings, "cloud_ml_region", "google_cloud_location")
+        or DEFAULT_VERTEX_LOCATION
+    )
 
 
 def get_provider_config(settings) -> Dict[str, Any]:
