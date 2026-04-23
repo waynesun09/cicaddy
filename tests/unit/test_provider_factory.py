@@ -19,6 +19,8 @@ def _make_settings(**overrides):
         "anthropic_api_key": None,
         "anthropic_vertex_project_id": None,
         "cloud_ml_region": "us-east5",
+        "google_cloud_project": None,
+        "google_cloud_location": "us-central1",
     }
     defaults.update(overrides)
     settings = MagicMock()
@@ -30,19 +32,19 @@ def _make_settings(**overrides):
 class TestGetProviderConfigMissingKey:
     """When the configured provider's API key is missing, raise ValueError."""
 
-    def test_gemini_missing_key_raises(self):
+    def test_gemini_missing_key_no_project_raises(self):
         settings = _make_settings(ai_provider="gemini", gemini_api_key=None)
-        with pytest.raises(ValueError, match="Gemini API key not provided"):
+        with pytest.raises(ValueError, match="GEMINI_API_KEY.*GOOGLE_CLOUD_PROJECT"):
             get_provider_config(settings)
 
-    def test_gemini_empty_key_raises(self):
+    def test_gemini_empty_key_no_project_raises(self):
         settings = _make_settings(ai_provider="gemini", gemini_api_key="")
-        with pytest.raises(ValueError, match="Gemini API key not provided"):
+        with pytest.raises(ValueError, match="GEMINI_API_KEY.*GOOGLE_CLOUD_PROJECT"):
             get_provider_config(settings)
 
-    def test_gemini_whitespace_key_raises(self):
+    def test_gemini_whitespace_key_no_project_raises(self):
         settings = _make_settings(ai_provider="gemini", gemini_api_key="   ")
-        with pytest.raises(ValueError, match="Gemini API key not provided"):
+        with pytest.raises(ValueError, match="GEMINI_API_KEY.*GOOGLE_CLOUD_PROJECT"):
             get_provider_config(settings)
 
     def test_openai_missing_key_raises(self):
@@ -174,6 +176,129 @@ class TestGetProviderConfigVertex:
         assert config["region"] == "us-east5"
 
 
+class TestGetProviderConfigGeminiVertex:
+    """Gemini Vertex AI provider config tests."""
+
+    def test_gemini_vertex_with_project(self):
+        settings = _make_settings(
+            ai_provider="gemini-vertex",
+            google_cloud_project="my-gcp-project",
+        )
+        config = get_provider_config(settings)
+        assert config["ai_provider"] == "gemini-vertex"
+        assert config["vertexai"] is True
+        assert config["google_cloud_project"] == "my-gcp-project"
+        assert config["google_cloud_location"] == "us-central1"
+        assert "api_key" not in config
+
+    def test_gemini_vertex_with_custom_location(self):
+        settings = _make_settings(
+            ai_provider="gemini-vertex",
+            google_cloud_project="my-gcp-project",
+            google_cloud_location="europe-west4",
+        )
+        config = get_provider_config(settings)
+        assert config["google_cloud_location"] == "europe-west4"
+
+    def test_gemini_vertex_missing_project_raises(self):
+        settings = _make_settings(
+            ai_provider="gemini-vertex",
+            google_cloud_project=None,
+        )
+        with pytest.raises(ValueError, match="GOOGLE_CLOUD_PROJECT"):
+            get_provider_config(settings)
+
+    def test_gemini_vertex_empty_project_raises(self):
+        settings = _make_settings(
+            ai_provider="gemini-vertex",
+            google_cloud_project="",
+        )
+        with pytest.raises(ValueError, match="GOOGLE_CLOUD_PROJECT"):
+            get_provider_config(settings)
+
+    def test_gemini_vertex_whitespace_project_raises(self):
+        settings = _make_settings(
+            ai_provider="gemini-vertex",
+            google_cloud_project="   ",
+        )
+        with pytest.raises(ValueError, match="GOOGLE_CLOUD_PROJECT"):
+            get_provider_config(settings)
+
+    def test_gemini_vertex_default_model(self):
+        settings = _make_settings(
+            ai_provider="gemini-vertex",
+            google_cloud_project="my-gcp-project",
+        )
+        config = get_provider_config(settings)
+        assert config["model_id"] == "gemini-3-flash-preview"
+
+    def test_gemini_vertex_none_location_falls_back_to_default(self):
+        settings = _make_settings(
+            ai_provider="gemini-vertex",
+            google_cloud_project="my-gcp-project",
+            google_cloud_location=None,
+        )
+        config = get_provider_config(settings)
+        assert config["google_cloud_location"] == "us-central1"
+
+    def test_gemini_vertex_whitespace_location_falls_back_to_default(self):
+        settings = _make_settings(
+            ai_provider="gemini-vertex",
+            google_cloud_project="my-gcp-project",
+            google_cloud_location="   ",
+        )
+        config = get_provider_config(settings)
+        assert config["google_cloud_location"] == "us-central1"
+
+
+class TestGeminiAutoFallbackToVertex:
+    """When AI_PROVIDER=gemini and no API key, auto-fallback to Vertex AI."""
+
+    def test_gemini_falls_back_to_vertex_when_project_set(self):
+        settings = _make_settings(
+            ai_provider="gemini",
+            gemini_api_key=None,
+            google_cloud_project="my-gcp-project",
+        )
+        config = get_provider_config(settings)
+        assert config["ai_provider"] == "gemini-vertex"
+        assert config["vertexai"] is True
+        assert config["google_cloud_project"] == "my-gcp-project"
+        assert config["google_cloud_location"] == "us-central1"
+        assert "api_key" not in config
+
+    def test_gemini_fallback_respects_custom_location(self):
+        settings = _make_settings(
+            ai_provider="gemini",
+            gemini_api_key=None,
+            google_cloud_project="my-gcp-project",
+            google_cloud_location="asia-southeast1",
+        )
+        config = get_provider_config(settings)
+        assert config["google_cloud_location"] == "asia-southeast1"
+
+    def test_gemini_api_key_takes_precedence_over_project(self):
+        settings = _make_settings(
+            ai_provider="gemini",
+            gemini_api_key="my-api-key",
+            google_cloud_project="my-gcp-project",
+        )
+        config = get_provider_config(settings)
+        assert config["ai_provider"] == "gemini"
+        assert config["api_key"] == "my-api-key"
+        assert "vertexai" not in config
+
+    def test_gemini_empty_key_with_project_falls_back(self):
+        settings = _make_settings(
+            ai_provider="gemini",
+            gemini_api_key="",
+            google_cloud_project="my-gcp-project",
+        )
+        config = get_provider_config(settings)
+        assert config["ai_provider"] == "gemini-vertex"
+        assert config["vertexai"] is True
+
+
 class TestCreateProviderRouting:
     """Verify create_provider returns the correct provider class."""
 
@@ -188,6 +313,20 @@ class TestCreateProviderRouting:
         provider = create_provider("anthropic-vertex", config)
         assert isinstance(provider, ClaudeProvider)
 
+    def test_gemini_vertex_returns_gemini_provider(self):
+        from cicaddy.ai_providers.gemini import GeminiProvider
+
+        config = {
+            "ai_provider": "gemini-vertex",
+            "model_id": "gemini-3-flash-preview",
+            "vertexai": True,
+            "google_cloud_project": "my-project",
+            "google_cloud_location": "us-central1",
+            "temperature": 0.0,
+        }
+        provider = create_provider("gemini-vertex", config)
+        assert isinstance(provider, GeminiProvider)
+
 
 class TestGetProviderConfigNoFallback:
     """Gemini with missing key must NOT fall back to OpenAI."""
@@ -198,5 +337,5 @@ class TestGetProviderConfigNoFallback:
             gemini_api_key=None,
             openai_api_key="openai-key-present",
         )
-        with pytest.raises(ValueError, match="Gemini API key not provided"):
+        with pytest.raises(ValueError, match="GEMINI_API_KEY.*GOOGLE_CLOUD_PROJECT"):
             get_provider_config(settings)

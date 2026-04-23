@@ -254,6 +254,7 @@ class TokenLimitManager:
     _PROVIDER_ALIASES: Dict[str, str] = {
         "anthropic": "claude",
         "anthropic-vertex": "claude",
+        "gemini-vertex": "gemini",
     }
 
     @classmethod

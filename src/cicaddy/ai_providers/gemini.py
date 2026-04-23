@@ -48,24 +48,32 @@ class GeminiProvider(BaseProvider):
         return self.config.get("model_id", "gemini-3-flash-preview")
 
     async def initialize(self) -> None:
-        """Initialize Gemini connection."""
-        api_key = self.config.get("api_key") or os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            # In test environments, allow initialization without external API key
-            logger.warning(
-                "Gemini API key not provided; initializing in mock mode for tests"
+        """Initialize Gemini connection (API key or Vertex AI with ADC)."""
+        if self.config.get("vertexai"):
+            # Vertex AI mode: uses Google Cloud ADC, no API key needed
+            project = self.config.get("google_cloud_project")
+            location = self.config.get("google_cloud_location", "us-central1")
+            self.client = genai.Client(
+                vertexai=True,
+                project=project,
+                location=location,
             )
-            self.client = None
-            return
+            logger.info(
+                f"Initialized Gemini provider via Vertex AI "
+                f"(project={project}, location={location}, model={self.model_name})"
+            )
+        else:
+            # API key mode
+            api_key = self.config.get("api_key") or os.getenv("GEMINI_API_KEY")
+            if not api_key:
+                logger.warning(
+                    "Gemini API key not provided; initializing in mock mode for tests"
+                )
+                self.client = None
+                return
 
-        self.client = genai.Client(api_key=api_key)
-
-        # Get temperature from config (defaults to 0.0 for deterministic behavior)
-        temperature = float(self.config.get("temperature", 0.0))
-
-        logger.info(
-            f"Initialized Gemini provider with model: {self.model_name}, temperature: {temperature}"
-        )
+            self.client = genai.Client(api_key=api_key)
+            logger.info(f"Initialized Gemini provider with model: {self.model_name}")
 
     async def chat_completion(
         self,
