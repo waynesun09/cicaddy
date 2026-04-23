@@ -18,7 +18,7 @@ def _make_settings(**overrides):
         "openai_api_key": None,
         "anthropic_api_key": None,
         "anthropic_vertex_project_id": None,
-        "cloud_ml_region": "us-east5",
+        "cloud_ml_region": "global",
         "google_cloud_project": None,
         "google_cloud_location": "global",
     }
@@ -96,7 +96,7 @@ class TestGetProviderConfigVertex:
         config = get_provider_config(settings)
         assert config["ai_provider"] == "anthropic-vertex"
         assert config["vertex_project_id"] == "my-gcp-project"
-        assert config["region"] == "us-east5"
+        assert config["region"] == "global"
         assert "api_key" not in config
 
     def test_vertex_with_custom_region(self):
@@ -164,7 +164,7 @@ class TestGetProviderConfigVertex:
             cloud_ml_region=None,
         )
         config = get_provider_config(settings)
-        assert config["region"] == "us-east5"
+        assert config["region"] == "global"
 
     def test_vertex_whitespace_region_falls_back_to_default(self):
         settings = _make_settings(
@@ -173,7 +173,7 @@ class TestGetProviderConfigVertex:
             cloud_ml_region="   ",
         )
         config = get_provider_config(settings)
-        assert config["region"] == "us-east5"
+        assert config["region"] == "global"
 
 
 class TestGetProviderConfigGeminiVertex:
@@ -330,7 +330,7 @@ class TestCreateProviderRouting:
             "ai_provider": "anthropic-vertex",
             "model_id": "claude-sonnet-4-6",
             "vertex_project_id": "my-project",
-            "region": "us-east5",
+            "region": "global",
             "temperature": 0.0,
         }
         provider = create_provider("anthropic-vertex", config)

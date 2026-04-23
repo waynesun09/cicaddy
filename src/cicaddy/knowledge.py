@@ -38,7 +38,7 @@ Gemini `-preview` suffix is acceptable for Vertex AI enterprise. Claude names ac
 - Scan modes: disabled (MCP default), audit (rules/tools default), enforce (skills default)
 - Gemini Vertex: set `GOOGLE_CLOUD_PROJECT` + `GOOGLE_CLOUD_LOCATION` (default: global), uses Application Default Credentials
 - Gemini auto-fallback: `AI_PROVIDER=gemini` without `GEMINI_API_KEY` auto-switches to Vertex AI when `GOOGLE_CLOUD_PROJECT` is set
-- Anthropic Vertex: set `ANTHROPIC_VERTEX_PROJECT_ID` + `CLOUD_ML_REGION` (default: us-east5), uses Application Default Credentials
+- Anthropic Vertex: set `ANTHROPIC_VERTEX_PROJECT_ID` + `CLOUD_ML_REGION` (default: global), uses Application Default Credentials
 
 For detailed configuration, DSPy task format, and MCP server setup, see the bundled `cicaddy-config` and `model-reference` skills.
 
