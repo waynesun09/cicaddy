@@ -153,3 +153,18 @@ class TestGeminiVertexInitialization:
             )
             await provider.initialize()
             assert provider.client is None
+
+    @pytest.mark.asyncio
+    async def test_vertex_raises_when_google_auth_missing(self):
+        """Should raise ImportError when google-auth is not installed."""
+        with patch.dict("sys.modules", {"google.auth": None}):
+            provider = GeminiProvider(
+                {
+                    "model_id": "gemini-3-flash-preview",
+                    "vertexai": True,
+                    "google_cloud_project": "my-project",
+                    "temperature": 0.0,
+                }
+            )
+            with pytest.raises(ImportError, match="google-auth"):
+                await provider.initialize()

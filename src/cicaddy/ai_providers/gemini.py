@@ -51,6 +51,13 @@ class GeminiProvider(BaseProvider):
         """Initialize Gemini connection (API key or Vertex AI with ADC)."""
         if self.config.get("vertexai"):
             # Vertex AI mode: uses Google Cloud ADC, no API key needed
+            try:
+                import google.auth  # noqa: F401 -- verify google-auth is installed
+            except ImportError:
+                raise ImportError(
+                    "Vertex AI support requires google-auth. "
+                    "Install it with: uv pip install google-auth"
+                )
             project = self.config.get("google_cloud_project")
             location = self.config.get("google_cloud_location", "us-central1")
             self.client = genai.Client(
@@ -60,7 +67,7 @@ class GeminiProvider(BaseProvider):
             )
             logger.info(
                 f"Initialized Gemini provider via Vertex AI "
-                f"(project={project}, location={location}, model={self.model_name})"
+                f"(location={location}, model={self.model_name})"
             )
         else:
             # API key mode

@@ -14,8 +14,9 @@ logger = get_logger(__name__)
 # Default AI provider
 DEFAULT_AI_PROVIDER = "gemini"
 
-# Default Vertex AI region
+# Default Vertex AI region/location
 DEFAULT_VERTEX_REGION = "us-east5"
+DEFAULT_GEMINI_VERTEX_LOCATION = "us-central1"
 
 # Default model mappings for each provider
 DEFAULT_MODELS = {
@@ -61,15 +62,30 @@ def create_provider(provider_name: str, config: Dict[str, Any]) -> BaseProvider:
         return GeminiProvider(config)
 
 
+def _safe_strip(value: Optional[str]) -> Optional[str]:
+    """Strip whitespace from a string value, passing through None."""
+    return value.strip() if isinstance(value, str) else value
+
+
 def _require_api_key(raw_key: Optional[str], provider_label: str, env_var: str) -> str:
     """Validate and return a stripped API key, or raise ValueError."""
-    key = raw_key.strip() if isinstance(raw_key, str) else raw_key
+    key = _safe_strip(raw_key)
     if not key:
         raise ValueError(
             f"{provider_label} API key not provided. "
             f"Set the {env_var} environment variable."
         )
     return key
+
+
+def _apply_gemini_vertex_config(
+    config: Dict[str, Any], project: str, settings: Any
+) -> None:
+    """Apply Gemini Vertex AI config (shared by explicit and auto-fallback paths)."""
+    config["vertexai"] = True
+    config["google_cloud_project"] = project
+    location = _safe_strip(settings.google_cloud_location)
+    config["google_cloud_location"] = location or DEFAULT_GEMINI_VERTEX_LOCATION
 
 
 def get_provider_config(settings) -> Dict[str, Any]:
@@ -87,33 +103,19 @@ def get_provider_config(settings) -> Dict[str, Any]:
 
     # Provider-specific configurations
     if provider == "gemini":
-        api_key = (
-            settings.gemini_api_key.strip()
-            if isinstance(settings.gemini_api_key, str)
-            else settings.gemini_api_key
-        )
+        api_key = _safe_strip(settings.gemini_api_key)
         if api_key:
             config["api_key"] = api_key
         else:
             # Auto-fallback to Vertex AI when no API key but project is set
-            project = (
-                settings.google_cloud_project.strip()
-                if isinstance(settings.google_cloud_project, str)
-                else settings.google_cloud_project
-            )
+            project = _safe_strip(settings.google_cloud_project)
             if project:
-                logger.info(
-                    "No GEMINI_API_KEY found; falling back to Vertex AI with ADC"
+                logger.warning(
+                    "GEMINI_API_KEY not set; falling back to Vertex AI with ADC "
+                    "(set AI_PROVIDER=gemini-vertex to silence this warning)"
                 )
                 config["ai_provider"] = "gemini-vertex"
-                config["vertexai"] = True
-                config["google_cloud_project"] = project
-                location = (
-                    settings.google_cloud_location.strip()
-                    if isinstance(settings.google_cloud_location, str)
-                    else settings.google_cloud_location
-                )
-                config["google_cloud_location"] = location or "us-central1"
+                _apply_gemini_vertex_config(config, project, settings)
             else:
                 raise ValueError(
                     "Gemini API key not provided. "
@@ -121,24 +123,13 @@ def get_provider_config(settings) -> Dict[str, Any]:
                     "GOOGLE_CLOUD_PROJECT for Vertex AI with ADC."
                 )
     elif provider == "gemini-vertex":
-        project = (
-            settings.google_cloud_project.strip()
-            if isinstance(settings.google_cloud_project, str)
-            else settings.google_cloud_project
-        )
+        project = _safe_strip(settings.google_cloud_project)
         if not project:
             raise ValueError(
                 "Google Cloud project not provided for gemini-vertex. "
                 "Set the GOOGLE_CLOUD_PROJECT environment variable."
             )
-        config["vertexai"] = True
-        config["google_cloud_project"] = project
-        location = (
-            settings.google_cloud_location.strip()
-            if isinstance(settings.google_cloud_location, str)
-            else settings.google_cloud_location
-        )
-        config["google_cloud_location"] = location or "us-central1"
+        _apply_gemini_vertex_config(config, project, settings)
     elif provider == "openai":
         config["api_key"] = _require_api_key(
             settings.openai_api_key, "OpenAI", "OPENAI_API_KEY"

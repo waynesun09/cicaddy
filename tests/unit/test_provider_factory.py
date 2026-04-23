@@ -287,6 +287,7 @@ class TestGeminiAutoFallbackToVertex:
         assert config["ai_provider"] == "gemini"
         assert config["api_key"] == "my-api-key"
         assert "vertexai" not in config
+        assert "google_cloud_project" not in config
 
     def test_gemini_empty_key_with_project_falls_back(self):
         settings = _make_settings(
@@ -297,6 +298,28 @@ class TestGeminiAutoFallbackToVertex:
         config = get_provider_config(settings)
         assert config["ai_provider"] == "gemini-vertex"
         assert config["vertexai"] is True
+
+    def test_gemini_whitespace_key_with_project_falls_back(self):
+        settings = _make_settings(
+            ai_provider="gemini",
+            gemini_api_key="   ",
+            google_cloud_project="my-gcp-project",
+        )
+        config = get_provider_config(settings)
+        assert config["ai_provider"] == "gemini-vertex"
+        assert config["vertexai"] is True
+        assert "api_key" not in config
+
+    def test_explicit_gemini_vertex_ignores_api_key(self):
+        settings = _make_settings(
+            ai_provider="gemini-vertex",
+            gemini_api_key="should-be-ignored",
+            google_cloud_project="my-gcp-project",
+        )
+        config = get_provider_config(settings)
+        assert config["ai_provider"] == "gemini-vertex"
+        assert config["vertexai"] is True
+        assert "api_key" not in config
 
 
 class TestCreateProviderRouting:
