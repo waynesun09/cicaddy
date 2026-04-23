@@ -132,14 +132,19 @@ def _configure_gemini_vertex(config: Dict[str, Any], settings: Any) -> None:
 
 def _configure_anthropic_vertex(config: Dict[str, Any], settings: Any) -> None:
     """Configure Anthropic Vertex AI provider."""
-    project_id = _resolve_setting(
-        settings, "anthropic_vertex_project_id", "google_cloud_project"
-    )
+    project_id = _safe_strip(settings.anthropic_vertex_project_id)
     if not project_id:
-        raise ValueError(
-            "Anthropic Vertex project ID not provided. "
-            "Set ANTHROPIC_VERTEX_PROJECT_ID or GOOGLE_CLOUD_PROJECT."
-        )
+        project_id = _safe_strip(getattr(settings, "google_cloud_project", None))
+        if project_id:
+            logger.warning(
+                "ANTHROPIC_VERTEX_PROJECT_ID not set; using GOOGLE_CLOUD_PROJECT "
+                "(set ANTHROPIC_VERTEX_PROJECT_ID to silence this warning)"
+            )
+        else:
+            raise ValueError(
+                "Anthropic Vertex project ID not provided. "
+                "Set ANTHROPIC_VERTEX_PROJECT_ID or GOOGLE_CLOUD_PROJECT."
+            )
     config["vertex_project_id"] = project_id
     config["region"] = (
         _resolve_setting(settings, "cloud_ml_region", "google_cloud_location")

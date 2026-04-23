@@ -176,6 +176,8 @@ def cmd_validate(args: Namespace) -> int:
                     "GOOGLE_CLOUD_PROJECT is required for gemini-vertex provider"
                 )
                 print("  GOOGLE_CLOUD_PROJECT: (not set) ✗")
+            location = config.get("GOOGLE_CLOUD_LOCATION") or "global"
+            print(f"  GOOGLE_CLOUD_LOCATION: {location} ✓")
         elif provider_lower == "anthropic-vertex":
             # Accepts ANTHROPIC_VERTEX_PROJECT_ID or falls back to GOOGLE_CLOUD_PROJECT
             project_var = None
@@ -193,6 +195,12 @@ def cmd_validate(args: Namespace) -> int:
                 )
                 print("  ANTHROPIC_VERTEX_PROJECT_ID: (not set) ✗")
                 print("  GOOGLE_CLOUD_PROJECT: (not set) ✗")
+            region = (
+                config.get("CLOUD_ML_REGION")
+                or config.get("GOOGLE_CLOUD_LOCATION")
+                or "global"
+            )
+            print(f"  Region: {region} ✓")
         elif required_key:
             if config.get(required_key):
                 print(
