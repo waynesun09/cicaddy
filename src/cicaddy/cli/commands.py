@@ -109,6 +109,9 @@ def cmd_config_show(args: Namespace) -> int:
     return 0
 
 
+_GCP_NOT_SET = "  GOOGLE_CLOUD_PROJECT: (not set) ✗"
+
+
 def cmd_validate(args: Namespace) -> int:
     """Handle the 'validate' command - pre-flight configuration checks."""
     # Load env file if specified
@@ -165,7 +168,7 @@ def cmd_validate(args: Namespace) -> int:
                     "GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT is required for gemini provider"
                 )
                 print("  GEMINI_API_KEY: (not set) ✗")
-                print("  GOOGLE_CLOUD_PROJECT: (not set) ✗")
+                print(_GCP_NOT_SET)
         elif provider_lower == "gemini-vertex":
             if (config.get("GOOGLE_CLOUD_PROJECT") or "").strip():
                 print(
@@ -175,7 +178,7 @@ def cmd_validate(args: Namespace) -> int:
                 errors.append(
                     "GOOGLE_CLOUD_PROJECT is required for gemini-vertex provider"
                 )
-                print("  GOOGLE_CLOUD_PROJECT: (not set) ✗")
+                print(_GCP_NOT_SET)
             location = config.get("GOOGLE_CLOUD_LOCATION") or "global"
             print(f"  GOOGLE_CLOUD_LOCATION: {location} ✓")
         elif provider_lower == "anthropic-vertex":
@@ -193,7 +196,7 @@ def cmd_validate(args: Namespace) -> int:
                     "ANTHROPIC_VERTEX_PROJECT_ID or GOOGLE_CLOUD_PROJECT is required for anthropic-vertex provider"
                 )
                 print("  ANTHROPIC_VERTEX_PROJECT_ID: (not set) ✗")
-                print("  GOOGLE_CLOUD_PROJECT: (not set) ✗")
+                print(_GCP_NOT_SET)
             region = (
                 (config.get("CLOUD_ML_REGION") or "").strip()
                 or (config.get("GOOGLE_CLOUD_LOCATION") or "").strip()
