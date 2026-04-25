@@ -137,7 +137,7 @@ class CoreSettings(BaseSettings):
     # AI provider configuration
     ai_provider: str = Field(
         default="gemini", validation_alias="AI_PROVIDER"
-    )  # gemini, openai, claude, azure, ollama, anthropic-vertex
+    )  # gemini, gemini-vertex, openai, claude, azure, ollama, anthropic-vertex
     ai_model: str = Field(default="gemini-3-flash-preview", validation_alias="AI_MODEL")
     ai_response_format: str = Field(
         default="markdown",
@@ -162,7 +162,13 @@ class CoreSettings(BaseSettings):
         None, validation_alias="ANTHROPIC_VERTEX_PROJECT_ID"
     )
     cloud_ml_region: Optional[str] = Field(
-        default="us-east5", validation_alias="CLOUD_ML_REGION"
+        default="global", validation_alias="CLOUD_ML_REGION"
+    )
+    google_cloud_project: Optional[str] = Field(
+        None, validation_alias="GOOGLE_CLOUD_PROJECT"
+    )
+    google_cloud_location: Optional[str] = Field(
+        default="global", validation_alias="GOOGLE_CLOUD_LOCATION"
     )
     azure_openai_key: Optional[str] = Field(None, validation_alias="AZURE_OPENAI_KEY")
     azure_endpoint: Optional[str] = Field(None, validation_alias="AZURE_ENDPOINT")

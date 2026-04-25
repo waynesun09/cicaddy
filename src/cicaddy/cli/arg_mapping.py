@@ -33,7 +33,16 @@ RUN_ARG_MAPPINGS: List[ArgMapping] = [
     ArgMapping(
         cli_arg="--ai-provider",
         env_var="AI_PROVIDER",
-        choices=["gemini", "openai", "claude", "azure", "ollama", "anthropic-vertex"],
+        choices=[
+            "gemini",
+            "gemini-vertex",
+            "openai",
+            "claude",
+            "anthropic",
+            "azure",
+            "ollama",
+            "anthropic-vertex",
+        ],
         help_text="AI provider to use",
     ),
     ArgMapping(

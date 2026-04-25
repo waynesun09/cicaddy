@@ -137,7 +137,7 @@ def cmd_validate(args: Namespace) -> int:
     else:
         print(f"  AI_PROVIDER: {ai_provider} ✓")
 
-        # Check for corresponding API key
+        # Check for corresponding API key or project ID
         api_key_map = {
             "gemini": "GEMINI_API_KEY",
             "openai": "OPENAI_API_KEY",
@@ -146,16 +146,48 @@ def cmd_validate(args: Namespace) -> int:
             "azure": "AZURE_OPENAI_KEY",
             "ollama": None,  # Ollama doesn't require API key
         }
-        required_key = api_key_map.get(ai_provider.lower())
-        if required_key:
-            if config.get(required_key):
+        vertex_project_map = {
+            "gemini-vertex": "GOOGLE_CLOUD_PROJECT",
+            "anthropic-vertex": "ANTHROPIC_VERTEX_PROJECT_ID",
+        }
+        provider_lower = ai_provider.lower()
+        required_key = api_key_map.get(provider_lower)
+        required_project = vertex_project_map.get(provider_lower)
+        if provider_lower == "gemini":
+            # Gemini accepts either API key or project (ADC fallback)
+            has_key = bool((config.get("GEMINI_API_KEY") or "").strip())
+            has_project = bool((config.get("GOOGLE_CLOUD_PROJECT") or "").strip())
+            if has_key:
+                print(
+                    f"  GEMINI_API_KEY: {mask_sensitive_value(config.get('GEMINI_API_KEY'))} ✓"
+                )
+            elif has_project:
+                print(
+                    f"  GOOGLE_CLOUD_PROJECT: {config.get('GOOGLE_CLOUD_PROJECT')} ✓ (Vertex AI fallback)"
+                )
+            else:
+                errors.append(
+                    "GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT is required for gemini provider"
+                )
+                print("  GEMINI_API_KEY: (not set) ✗")
+                print("  GOOGLE_CLOUD_PROJECT: (not set) ✗")
+        elif required_project:
+            if (config.get(required_project) or "").strip():
+                print(f"  {required_project}: {config.get(required_project)} ✓")
+            else:
+                errors.append(
+                    f"{required_project} is required for {ai_provider} provider"
+                )
+                print(f"  {required_project}: (not set) ✗")
+        elif required_key:
+            if (config.get(required_key) or "").strip():
                 print(
                     f"  {required_key}: {mask_sensitive_value(config.get(required_key))} ✓"
                 )
             else:
                 errors.append(f"{required_key} is required for {ai_provider} provider")
                 print(f"  {required_key}: (not set) ✗")
-        elif ai_provider.lower() == "ollama":
+        elif provider_lower == "ollama":
             print("  API Key: (not required for Ollama) ✓")
 
     # Check Agent Type configuration

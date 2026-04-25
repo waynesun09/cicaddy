@@ -48,7 +48,7 @@ class ClaudeProvider(BaseProvider):
                     "Vertex AI support requires the 'vertex' extra. "
                     "Install it with: uv pip install 'cicaddy[vertex]'"
                 )
-            region = self.config.get("region", "us-east5")
+            region = self.config.get("region", "global")
             self.client = AsyncAnthropicVertex(
                 project_id=vertex_project_id,
                 region=region,

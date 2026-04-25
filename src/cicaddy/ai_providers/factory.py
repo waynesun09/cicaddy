@@ -14,12 +14,14 @@ logger = get_logger(__name__)
 # Default AI provider
 DEFAULT_AI_PROVIDER = "gemini"
 
-# Default Vertex AI region
-DEFAULT_VERTEX_REGION = "us-east5"
+# Default Vertex AI region/location
+DEFAULT_VERTEX_REGION = "global"
+DEFAULT_GEMINI_VERTEX_LOCATION = "global"
 
 # Default model mappings for each provider
 DEFAULT_MODELS = {
     DEFAULT_AI_PROVIDER: "gemini-3-flash-preview",
+    "gemini-vertex": "gemini-3-flash-preview",
     "openai": "gpt-5.4",
     "claude": "claude-sonnet-4-6",
     "anthropic": "claude-sonnet-4-6",
@@ -46,7 +48,7 @@ def create_provider(provider_name: str, config: Dict[str, Any]) -> BaseProvider:
     # Honor effective provider possibly adjusted in config (e.g., fallback when key missing)
     effective_provider = (config.get("ai_provider") or provider_name).lower()
 
-    if effective_provider == DEFAULT_AI_PROVIDER:
+    if effective_provider in (DEFAULT_AI_PROVIDER, "gemini-vertex"):
         return GeminiProvider(config)
     elif effective_provider == "openai":
         return OpenAIProvider(config)
@@ -60,15 +62,99 @@ def create_provider(provider_name: str, config: Dict[str, Any]) -> BaseProvider:
         return GeminiProvider(config)
 
 
+def _safe_strip(value: Optional[str]) -> Optional[str]:
+    """Strip whitespace from a string value, passing through None."""
+    return value.strip() if isinstance(value, str) else value
+
+
 def _require_api_key(raw_key: Optional[str], provider_label: str, env_var: str) -> str:
     """Validate and return a stripped API key, or raise ValueError."""
-    key = raw_key.strip() if isinstance(raw_key, str) else raw_key
+    key = _safe_strip(raw_key)
     if not key:
         raise ValueError(
             f"{provider_label} API key not provided. "
             f"Set the {env_var} environment variable."
         )
     return key
+
+
+def _apply_gemini_vertex_config(
+    config: Dict[str, Any], project: str, settings: Any
+) -> None:
+    """Apply Gemini Vertex AI config (shared by explicit and auto-fallback paths)."""
+    config["vertexai"] = True
+    config["google_cloud_project"] = project
+    location = _safe_strip(settings.google_cloud_location)
+    config["google_cloud_location"] = location or DEFAULT_GEMINI_VERTEX_LOCATION
+
+
+def _configure_gemini(config: Dict[str, Any], settings: Any) -> None:
+    """Configure Gemini provider (API key or auto-fallback to Vertex AI)."""
+    api_key = _safe_strip(settings.gemini_api_key)
+    if api_key:
+        config["api_key"] = api_key
+        return
+    project = _safe_strip(settings.google_cloud_project)
+    if not project:
+        raise ValueError(
+            "Gemini API key not provided. "
+            "Set GEMINI_API_KEY for API key auth, or set "
+            "GOOGLE_CLOUD_PROJECT for Vertex AI with ADC."
+        )
+    logger.warning(
+        "GEMINI_API_KEY not set; falling back to Vertex AI with ADC "
+        "(set AI_PROVIDER=gemini-vertex to silence this warning)"
+    )
+    config["ai_provider"] = "gemini-vertex"
+    _apply_gemini_vertex_config(config, project, settings)
+
+
+def _configure_gemini_vertex(config: Dict[str, Any], settings: Any) -> None:
+    """Configure explicit Gemini Vertex AI provider."""
+    project = _safe_strip(settings.google_cloud_project)
+    if not project:
+        raise ValueError(
+            "Google Cloud project not provided for gemini-vertex. "
+            "Set the GOOGLE_CLOUD_PROJECT environment variable."
+        )
+    _apply_gemini_vertex_config(config, project, settings)
+
+
+def _configure_openai(config: Dict[str, Any], settings: Any) -> None:
+    """Configure OpenAI provider."""
+    config["api_key"] = _require_api_key(
+        settings.openai_api_key, "OpenAI", "OPENAI_API_KEY"
+    )
+    config["base_url"] = None
+
+
+def _configure_anthropic(config: Dict[str, Any], settings: Any) -> None:
+    """Configure Anthropic (Claude) provider."""
+    config["api_key"] = _require_api_key(
+        settings.anthropic_api_key, "Anthropic", "ANTHROPIC_API_KEY"
+    )
+
+
+def _configure_anthropic_vertex(config: Dict[str, Any], settings: Any) -> None:
+    """Configure Anthropic Vertex AI provider."""
+    project_id = _safe_strip(settings.anthropic_vertex_project_id)
+    if not project_id:
+        raise ValueError(
+            "Anthropic Vertex project ID not provided. "
+            "Set the ANTHROPIC_VERTEX_PROJECT_ID environment variable."
+        )
+    config["vertex_project_id"] = project_id
+    config["region"] = _safe_strip(settings.cloud_ml_region) or DEFAULT_VERTEX_REGION
+
+
+_PROVIDER_CONFIGURATORS = {
+    "gemini": _configure_gemini,
+    "gemini-vertex": _configure_gemini_vertex,
+    "openai": _configure_openai,
+    "claude": _configure_anthropic,
+    "anthropic": _configure_anthropic,
+    "anthropic-vertex": _configure_anthropic_vertex,
+}
 
 
 def get_provider_config(settings) -> Dict[str, Any]:
@@ -84,40 +170,11 @@ def get_provider_config(settings) -> Dict[str, Any]:
         else 0.0,
     }
 
-    # Provider-specific configurations
-    if provider == "gemini":
-        config["api_key"] = _require_api_key(
-            settings.gemini_api_key, "Gemini", "GEMINI_API_KEY"
-        )
-    elif provider == "openai":
-        config["api_key"] = _require_api_key(
-            settings.openai_api_key, "OpenAI", "OPENAI_API_KEY"
-        )
-        config["base_url"] = None  # Use default OpenAI endpoint
-    elif provider in ["claude", "anthropic"]:
-        config["api_key"] = _require_api_key(
-            settings.anthropic_api_key, "Anthropic", "ANTHROPIC_API_KEY"
-        )
-    elif provider == "anthropic-vertex":
-        project_id = (
-            settings.anthropic_vertex_project_id.strip()
-            if isinstance(settings.anthropic_vertex_project_id, str)
-            else settings.anthropic_vertex_project_id
-        )
-        if not project_id:
-            raise ValueError(
-                "Anthropic Vertex project ID not provided. "
-                "Set the ANTHROPIC_VERTEX_PROJECT_ID environment variable."
-            )
-        config["vertex_project_id"] = project_id
-        region = (
-            settings.cloud_ml_region.strip()
-            if isinstance(settings.cloud_ml_region, str)
-            else settings.cloud_ml_region
-        )
-        config["region"] = region or DEFAULT_VERTEX_REGION
+    configurator = _PROVIDER_CONFIGURATORS.get(provider)
+    if configurator:
+        configurator(config, settings)
 
     logger.info(
-        f"Created provider config for {provider} with model {config['model_id']}"
+        f"Created provider config for {config['ai_provider']} with model {config['model_id']}"
     )
     return config
