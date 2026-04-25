@@ -5,6 +5,7 @@ import sys
 from argparse import Namespace
 from typing import Any, Dict
 
+from cicaddy.ai_providers.factory import DEFAULT_VERTEX_LOCATION
 from cicaddy.cli.arg_mapping import SENSITIVE_ENV_VARS
 from cicaddy.cli.env_loader import (
     apply_cli_args_to_env,
@@ -109,6 +110,9 @@ def cmd_config_show(args: Namespace) -> int:
     return 0
 
 
+_GCP_NOT_SET = "  GOOGLE_CLOUD_PROJECT: (not set) ✗"
+
+
 def cmd_validate(args: Namespace) -> int:
     """Handle the 'validate' command - pre-flight configuration checks."""
     # Load env file if specified
@@ -146,13 +150,8 @@ def cmd_validate(args: Namespace) -> int:
             "azure": "AZURE_OPENAI_KEY",
             "ollama": None,  # Ollama doesn't require API key
         }
-        vertex_project_map = {
-            "gemini-vertex": "GOOGLE_CLOUD_PROJECT",
-            "anthropic-vertex": "ANTHROPIC_VERTEX_PROJECT_ID",
-        }
         provider_lower = ai_provider.lower()
         required_key = api_key_map.get(provider_lower)
-        required_project = vertex_project_map.get(provider_lower)
         if provider_lower == "gemini":
             # Gemini accepts either API key or project (ADC fallback)
             has_key = bool((config.get("GEMINI_API_KEY") or "").strip())
@@ -170,17 +169,41 @@ def cmd_validate(args: Namespace) -> int:
                     "GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT is required for gemini provider"
                 )
                 print("  GEMINI_API_KEY: (not set) ✗")
-                print("  GOOGLE_CLOUD_PROJECT: (not set) ✗")
-        elif required_project:
-            if (config.get(required_project) or "").strip():
+                print(_GCP_NOT_SET)
+        elif provider_lower == "gemini-vertex":
+            if (config.get("GOOGLE_CLOUD_PROJECT") or "").strip():
                 print(
-                    f"  {required_project}: {mask_sensitive_value(config.get(required_project))} ✓"
+                    f"  GOOGLE_CLOUD_PROJECT: {mask_sensitive_value(config.get('GOOGLE_CLOUD_PROJECT'))} ✓"
                 )
             else:
                 errors.append(
-                    f"{required_project} is required for {ai_provider} provider"
+                    "GOOGLE_CLOUD_PROJECT is required for gemini-vertex provider"
                 )
-                print(f"  {required_project}: (not set) ✗")
+                print(_GCP_NOT_SET)
+            location = config.get("GOOGLE_CLOUD_LOCATION") or DEFAULT_VERTEX_LOCATION
+            print(f"  GOOGLE_CLOUD_LOCATION: {location} ✓")
+        elif provider_lower == "anthropic-vertex":
+            project_var = None
+            if (config.get("ANTHROPIC_VERTEX_PROJECT_ID") or "").strip():
+                project_var = "ANTHROPIC_VERTEX_PROJECT_ID"
+            elif (config.get("GOOGLE_CLOUD_PROJECT") or "").strip():
+                project_var = "GOOGLE_CLOUD_PROJECT"
+            if project_var:
+                print(
+                    f"  {project_var}: {mask_sensitive_value(config.get(project_var))} ✓"
+                )
+            else:
+                errors.append(
+                    "ANTHROPIC_VERTEX_PROJECT_ID or GOOGLE_CLOUD_PROJECT is required for anthropic-vertex provider"
+                )
+                print("  ANTHROPIC_VERTEX_PROJECT_ID: (not set) ✗")
+                print(_GCP_NOT_SET)
+            region = (
+                (config.get("CLOUD_ML_REGION") or "").strip()
+                or (config.get("GOOGLE_CLOUD_LOCATION") or "").strip()
+                or DEFAULT_VERTEX_LOCATION
+            )
+            print(f"  Region: {region} ✓")
         elif required_key:
             if (config.get(required_key) or "").strip():
                 print(

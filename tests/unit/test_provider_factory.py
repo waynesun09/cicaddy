@@ -112,9 +112,10 @@ class TestGetProviderConfigVertex:
         settings = _make_settings(
             ai_provider="anthropic-vertex",
             anthropic_vertex_project_id=None,
+            google_cloud_project=None,
         )
         with pytest.raises(
-            ValueError, match="Anthropic Vertex project ID not provided"
+            ValueError, match=r"Anthropic Vertex project ID not provided"
         ):
             get_provider_config(settings)
 
@@ -122,9 +123,10 @@ class TestGetProviderConfigVertex:
         settings = _make_settings(
             ai_provider="anthropic-vertex",
             anthropic_vertex_project_id="",
+            google_cloud_project=None,
         )
         with pytest.raises(
-            ValueError, match="Anthropic Vertex project ID not provided"
+            ValueError, match=r"Anthropic Vertex project ID not provided"
         ):
             get_provider_config(settings)
 
@@ -132,9 +134,10 @@ class TestGetProviderConfigVertex:
         settings = _make_settings(
             ai_provider="anthropic-vertex",
             anthropic_vertex_project_id="   ",
+            google_cloud_project=None,
         )
         with pytest.raises(
-            ValueError, match="Anthropic Vertex project ID not provided"
+            ValueError, match=r"Anthropic Vertex project ID not provided"
         ):
             get_provider_config(settings)
 
@@ -174,6 +177,81 @@ class TestGetProviderConfigVertex:
         )
         config = get_provider_config(settings)
         assert config["region"] == "global"
+
+    def test_vertex_falls_back_to_google_cloud_project(self):
+        """When ANTHROPIC_VERTEX_PROJECT_ID is not set, fall back to GOOGLE_CLOUD_PROJECT."""
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id=None,
+            google_cloud_project="shared-gcp-project",
+        )
+        config = get_provider_config(settings)
+        assert config["vertex_project_id"] == "shared-gcp-project"
+
+    def test_vertex_specific_project_takes_precedence(self):
+        """ANTHROPIC_VERTEX_PROJECT_ID takes precedence over GOOGLE_CLOUD_PROJECT."""
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="anthropic-project",
+            google_cloud_project="shared-project",
+        )
+        config = get_provider_config(settings)
+        assert config["vertex_project_id"] == "anthropic-project"
+
+    def test_vertex_falls_back_to_google_cloud_location(self):
+        """When CLOUD_ML_REGION is not set, fall back to GOOGLE_CLOUD_LOCATION."""
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="my-gcp-project",
+            cloud_ml_region=None,
+            google_cloud_location="europe-west4",
+        )
+        config = get_provider_config(settings)
+        assert config["region"] == "europe-west4"
+
+    def test_vertex_specific_region_takes_precedence(self):
+        """CLOUD_ML_REGION takes precedence over GOOGLE_CLOUD_LOCATION."""
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="my-gcp-project",
+            cloud_ml_region="us-central1",
+            google_cloud_location="europe-west4",
+        )
+        config = get_provider_config(settings)
+        assert config["region"] == "us-central1"
+
+    def test_vertex_whitespace_project_falls_back_to_gcp(self):
+        """Whitespace-only ANTHROPIC_VERTEX_PROJECT_ID falls back to GOOGLE_CLOUD_PROJECT."""
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="   ",
+            google_cloud_project="fallback-project",
+        )
+        config = get_provider_config(settings)
+        assert config["vertex_project_id"] == "fallback-project"
+
+    def test_vertex_project_fallback_logs_warning(self, capsys):
+        """Falling back to GOOGLE_CLOUD_PROJECT should log a warning."""
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id=None,
+            google_cloud_project="shared-project",
+        )
+        get_provider_config(settings)
+        captured = capsys.readouterr()
+        assert "ANTHROPIC_VERTEX_PROJECT_ID not set" in captured.out
+
+    def test_vertex_region_fallback_logs_warning(self, capsys):
+        """Falling back to GOOGLE_CLOUD_LOCATION for region should log a warning."""
+        settings = _make_settings(
+            ai_provider="anthropic-vertex",
+            anthropic_vertex_project_id="my-project",
+            cloud_ml_region=None,
+            google_cloud_location="europe-west4",
+        )
+        get_provider_config(settings)
+        captured = capsys.readouterr()
+        assert "CLOUD_ML_REGION not set" in captured.out
 
 
 class TestGetProviderConfigGeminiVertex:
