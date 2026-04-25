@@ -91,7 +91,7 @@ AI_MODEL=gemini-3-pro-preview
 AI_TEMPERATURE=0.0
 GEMINI_API_KEY=<key>      # or OPENAI_API_KEY / ANTHROPIC_API_KEY
 # For Gemini Vertex AI: GOOGLE_CLOUD_PROJECT=<project> GOOGLE_CLOUD_LOCATION=global
-# For Claude Vertex AI: ANTHROPIC_VERTEX_PROJECT_ID=<project> CLOUD_ML_REGION=global
+# For Claude Vertex AI: ANTHROPIC_VERTEX_PROJECT_ID=<project> GOOGLE_CLOUD_LOCATION=global
 
 # DSPy task file (alternative to AI_TASK_PROMPT)
 AI_TASK_FILE=examples/dora_metrics_task.yaml

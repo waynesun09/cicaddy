@@ -85,7 +85,6 @@ def get_effective_config() -> Dict[str, Optional[str]]:
         "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
         "ANTHROPIC_VERTEX_PROJECT_ID",
-        "CLOUD_ML_REGION",
         "GOOGLE_CLOUD_PROJECT",
         "GOOGLE_CLOUD_LOCATION",
     ]
