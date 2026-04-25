@@ -48,7 +48,6 @@ dependencies = [
     "websockets>=13.0",
     "typing-extensions>=4.12.0; python_version < '3.12'",
     "python-dotenv>=1.0.0",
-    "dspy-ai>=2.4.0",
 ]
 
 [project.optional-dependencies]
@@ -84,7 +83,7 @@ vertex = [
     "anthropic[vertex]>=0.21.0",
 ]
 graph = [
-    "code-review-graph>=1.2.0",
+    "code-review-graph>=2.3.2",
 ]
 
 [project.urls]
