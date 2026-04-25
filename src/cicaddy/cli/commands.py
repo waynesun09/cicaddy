@@ -163,7 +163,7 @@ def cmd_validate(args: Namespace) -> int:
                 )
             elif has_project:
                 print(
-                    f"  GOOGLE_CLOUD_PROJECT: {config.get('GOOGLE_CLOUD_PROJECT')} ✓ (Vertex AI fallback)"
+                    f"  GOOGLE_CLOUD_PROJECT: {mask_sensitive_value(config.get('GOOGLE_CLOUD_PROJECT'))} ✓ (Vertex AI fallback)"
                 )
             else:
                 errors.append(
@@ -173,7 +173,9 @@ def cmd_validate(args: Namespace) -> int:
                 print("  GOOGLE_CLOUD_PROJECT: (not set) ✗")
         elif required_project:
             if (config.get(required_project) or "").strip():
-                print(f"  {required_project}: {config.get(required_project)} ✓")
+                print(
+                    f"  {required_project}: {mask_sensitive_value(config.get(required_project))} ✓"
+                )
             else:
                 errors.append(
                     f"{required_project} is required for {ai_provider} provider"
