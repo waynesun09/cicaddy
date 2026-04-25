@@ -68,7 +68,6 @@ class InferenceStep(Step):
             "completed_at": self.completed_at.isoformat()
             if self.completed_at
             else None,
-            "model_response": self.model_response,
             "model_used": self.model_used,
             "usage_stats": self.usage_stats,
         }

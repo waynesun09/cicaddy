@@ -503,20 +503,27 @@ class CoreSettings(BaseSettings):
             # Add environment variable information for stdio servers (for debugging)
             if config.protocol == "stdio" and config.env_vars:
                 env_info = {}
+                _sensitive_markers = (
+                    "key",
+                    "token",
+                    "password",
+                    "secret",
+                    "credential",
+                    "auth",
+                    "bearer",
+                )
                 for key, value in config.env_vars.items():
-                    if (
-                        key.lower() in ["api_key", "token", "password"]
-                        or "key" in key.lower()
-                    ):
+                    key_lower = key.lower()
+                    if any(marker in key_lower for marker in _sensitive_markers):
                         # Mask sensitive values
                         env_info[key] = f"<{len(value)} chars>" if value else "<empty>"
                     else:
                         # Show non-sensitive values
                         env_info[key] = value
                 safe_info["env_vars"] = env_info
-                logger.info(f"MCP Server: {safe_info}")
+                logger.debug(f"MCP Server: {safe_info}")
             else:
-                logger.info(f"MCP Server: {safe_info}")
+                logger.debug(f"MCP Server: {safe_info}")
 
     def get_mcp_servers(self) -> List[MCPServerConfig]:
         """Parse MCP servers configuration from YAML."""
@@ -541,7 +548,7 @@ class CoreSettings(BaseSettings):
                 logger.error(f"Expected list from YAML, got {type(servers_data)}")
                 return []
 
-            logger.info(
+            logger.debug(
                 f"Successfully parsed {len(servers_data)} MCP server configurations"
             )
             mcp_configs = [MCPServerConfig(**server) for server in servers_data]
