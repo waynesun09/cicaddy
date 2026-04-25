@@ -343,3 +343,46 @@ def test_provider_skills_dirs_mapping():
     assert PROVIDER_SKILLS_DIRS["claude"] == ".claude/skills"
     assert PROVIDER_SKILLS_DIRS["gemini"] == ".gemini/skills"
     assert PROVIDER_SKILLS_DIRS["openai"] == ".github/skills"
+
+
+# --- Execution-oriented subdirectory detection tests ---
+
+
+def test_skill_with_scripts_dir_loads_and_logs(workspace: Path, mocker):
+    """Skill with scripts/ subdirectory loads successfully and logs info."""
+    mock_log = mocker.patch("cicaddy.skills.logger")
+
+    skill_dir = _create_skill(workspace, "exec-skill", "Has scripts", body="Do stuff.")
+    (skill_dir / "scripts").mkdir()
+    (skill_dir / "scripts" / "run.sh").write_text(
+        "#!/bin/bash\necho hi", encoding="utf-8"
+    )
+
+    skills = _non_bundled(discover_skills(workspace))
+
+    assert len(skills) == 1
+    assert skills[0].name == "exec-skill"
+    assert skills[0].body() == "Do stuff."
+    mock_log.info.assert_any_call(
+        "Skill 'exec-skill' contains scripts/ directory "
+        "(ignored \u2014 cicaddy has no execution engine)"
+    )
+
+
+def test_skill_with_references_dir_loads_and_logs(workspace: Path, mocker):
+    """Skill with references/ subdirectory loads successfully and logs info."""
+    mock_log = mocker.patch("cicaddy.skills.logger")
+
+    skill_dir = _create_skill(workspace, "ref-skill", "Has refs", body="Check refs.")
+    (skill_dir / "references").mkdir()
+    (skill_dir / "references" / "guide.md").write_text("# Guide", encoding="utf-8")
+
+    skills = _non_bundled(discover_skills(workspace))
+
+    assert len(skills) == 1
+    assert skills[0].name == "ref-skill"
+    assert skills[0].body() == "Check refs."
+    mock_log.info.assert_any_call(
+        "Skill 'ref-skill' contains references/ directory "
+        "(ignored \u2014 no on-demand loading)"
+    )

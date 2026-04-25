@@ -252,6 +252,19 @@ def _read_skill(
     description = str(frontmatter["description"]).strip()
     extra_metadata = frontmatter.get("metadata") or {}
 
+    # Log when cross-tool skills contain execution-oriented subdirectories
+    # that cicaddy cannot use (no bash tool, no on-demand loading)
+    if (skill_dir / "scripts").is_dir():
+        logger.info(
+            f"Skill '{name}' contains scripts/ directory "
+            "(ignored — cicaddy has no execution engine)"
+        )
+    if (skill_dir / "references").is_dir():
+        logger.info(
+            f"Skill '{name}' contains references/ directory "
+            "(ignored — no on-demand loading)"
+        )
+
     return SkillMetadata(
         name=name,
         description=description,
