@@ -18,7 +18,7 @@ def _make_settings(**overrides):
         "openai_api_key": None,
         "anthropic_api_key": None,
         "anthropic_vertex_project_id": None,
-        "cloud_ml_region": "global",
+        "cloud_ml_region": None,
         "google_cloud_project": None,
         "google_cloud_location": "global",
     }
@@ -208,19 +208,18 @@ class TestGetProviderConfigVertex:
         config = get_provider_config(settings)
         assert config["region"] == "europe-west4"
 
-    def test_vertex_deprecated_cloud_ml_region_fallback(self):
-        """Deprecated CLOUD_ML_REGION still works as fallback."""
+    def test_vertex_deprecated_cloud_ml_region_is_ignored(self):
+        """Deprecated CLOUD_ML_REGION is ignored; region uses GOOGLE_CLOUD_LOCATION."""
         settings = _make_settings(
             ai_provider="anthropic-vertex",
             anthropic_vertex_project_id="my-gcp-project",
             cloud_ml_region="us-central1",
-            google_cloud_location=None,
         )
         config = get_provider_config(settings)
-        assert config["region"] == "us-central1"
+        assert config["region"] == "global"
 
-    def test_vertex_google_cloud_location_takes_precedence(self):
-        """GOOGLE_CLOUD_LOCATION takes precedence over deprecated CLOUD_ML_REGION."""
+    def test_vertex_google_cloud_location_overrides_default(self):
+        """GOOGLE_CLOUD_LOCATION overrides the default even when CLOUD_ML_REGION is set."""
         settings = _make_settings(
             ai_provider="anthropic-vertex",
             anthropic_vertex_project_id="my-gcp-project",
@@ -252,16 +251,15 @@ class TestGetProviderConfigVertex:
         assert "ANTHROPIC_VERTEX_PROJECT_ID not set" in captured.out
 
     def test_vertex_deprecated_region_logs_warning(self, capsys):
-        """Using deprecated CLOUD_ML_REGION should log a deprecation warning."""
+        """Setting deprecated CLOUD_ML_REGION should log a deprecation warning."""
         settings = _make_settings(
             ai_provider="anthropic-vertex",
             anthropic_vertex_project_id="my-project",
             cloud_ml_region="us-east5",
-            google_cloud_location=None,
         )
         get_provider_config(settings)
         captured = capsys.readouterr()
-        assert "CLOUD_ML_REGION is deprecated" in captured.out
+        assert "CLOUD_ML_REGION is deprecated and ignored" in captured.out
 
 
 class TestGetProviderConfigGeminiVertex:

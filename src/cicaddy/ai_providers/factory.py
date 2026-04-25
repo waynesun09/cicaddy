@@ -161,14 +161,13 @@ def _configure_anthropic_vertex(config: Dict[str, Any], settings: Any) -> None:
     config["vertex_project_id"] = project_id
     # Region: use GOOGLE_CLOUD_LOCATION (unified with gemini-vertex)
     region = _safe_strip(getattr(settings, "google_cloud_location", None))
-    if not region:
-        # Deprecated fallback: CLOUD_ML_REGION
-        region = _safe_strip(getattr(settings, "cloud_ml_region", None))
-        if region:
-            logger.warning(
-                "CLOUD_ML_REGION is deprecated; use GOOGLE_CLOUD_LOCATION instead"
-            )
     config["region"] = region or DEFAULT_VERTEX_LOCATION
+    # Warn if deprecated CLOUD_ML_REGION is set
+    if _safe_strip(getattr(settings, "cloud_ml_region", None)):
+        logger.warning(
+            "CLOUD_ML_REGION is deprecated and ignored; "
+            "use GOOGLE_CLOUD_LOCATION instead"
+        )
 
 
 _PROVIDER_CONFIGURATORS = {
