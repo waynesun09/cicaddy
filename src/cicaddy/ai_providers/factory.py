@@ -145,7 +145,7 @@ def _configure_anthropic(config: Dict[str, Any], settings: Any) -> None:
 
 def _configure_anthropic_vertex(config: Dict[str, Any], settings: Any) -> None:
     """Configure Anthropic Vertex AI provider."""
-    project_id = _safe_strip(settings.anthropic_vertex_project_id)
+    project_id = _safe_strip(getattr(settings, "anthropic_vertex_project_id", None))
     if not project_id:
         project_id = _safe_strip(getattr(settings, "google_cloud_project", None))
         if project_id:
@@ -159,10 +159,16 @@ def _configure_anthropic_vertex(config: Dict[str, Any], settings: Any) -> None:
                 "Set ANTHROPIC_VERTEX_PROJECT_ID or GOOGLE_CLOUD_PROJECT."
             )
     config["vertex_project_id"] = project_id
-    config["region"] = (
-        _resolve_setting(settings, "cloud_ml_region", "google_cloud_location")
-        or DEFAULT_VERTEX_LOCATION
-    )
+    # Region: prefer CLOUD_ML_REGION, fall back to GOOGLE_CLOUD_LOCATION
+    region = _safe_strip(getattr(settings, "cloud_ml_region", None))
+    if not region:
+        region = _safe_strip(getattr(settings, "google_cloud_location", None))
+        if region:
+            logger.warning(
+                "CLOUD_ML_REGION not set; using GOOGLE_CLOUD_LOCATION "
+                "(set CLOUD_ML_REGION to silence this warning)"
+            )
+    config["region"] = region or DEFAULT_VERTEX_LOCATION
 
 
 _PROVIDER_CONFIGURATORS = {

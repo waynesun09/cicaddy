@@ -5,6 +5,7 @@ import sys
 from argparse import Namespace
 from typing import Any, Dict
 
+from cicaddy.ai_providers.factory import DEFAULT_VERTEX_LOCATION
 from cicaddy.cli.arg_mapping import SENSITIVE_ENV_VARS
 from cicaddy.cli.env_loader import (
     apply_cli_args_to_env,
@@ -179,7 +180,7 @@ def cmd_validate(args: Namespace) -> int:
                     "GOOGLE_CLOUD_PROJECT is required for gemini-vertex provider"
                 )
                 print(_GCP_NOT_SET)
-            location = config.get("GOOGLE_CLOUD_LOCATION") or "global"
+            location = config.get("GOOGLE_CLOUD_LOCATION") or DEFAULT_VERTEX_LOCATION
             print(f"  GOOGLE_CLOUD_LOCATION: {location} ✓")
         elif provider_lower == "anthropic-vertex":
             project_var = None
@@ -200,7 +201,7 @@ def cmd_validate(args: Namespace) -> int:
             region = (
                 (config.get("CLOUD_ML_REGION") or "").strip()
                 or (config.get("GOOGLE_CLOUD_LOCATION") or "").strip()
-                or "global"
+                or DEFAULT_VERTEX_LOCATION
             )
             print(f"  Region: {region} ✓")
         elif required_key:
