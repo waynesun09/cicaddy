@@ -18,7 +18,9 @@ GENERIC_RULE_FILES = ("AGENT.md", "AGENTS.md")
 # Provider name -> rule file name mapping
 PROVIDER_RULE_FILES = {
     "gemini": "GEMINI.md",
+    "gemini-vertex": "GEMINI.md",
     "claude": "CLAUDE.md",
+    "anthropic-vertex": "CLAUDE.md",
     "openai": "COPILOT.md",
 }
 
