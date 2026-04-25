@@ -25,7 +25,7 @@ PROVIDER_RULE_FILES = {
 }
 
 # All known rule file names for discovery
-ALL_RULE_FILES = (*GENERIC_RULE_FILES, *PROVIDER_RULE_FILES.values())
+ALL_RULE_FILES = (*GENERIC_RULE_FILES, *dict.fromkeys(PROVIDER_RULE_FILES.values()))
 
 
 def load_agent_rules(
