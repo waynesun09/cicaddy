@@ -175,6 +175,6 @@ def get_provider_config(settings) -> Dict[str, Any]:
         configurator(config, settings)
 
     logger.info(
-        f"Created provider config for {provider} with model {config['model_id']}"
+        f"Created provider config for {config['ai_provider']} with model {config['model_id']}"
     )
     return config
