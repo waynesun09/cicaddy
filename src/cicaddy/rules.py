@@ -18,12 +18,14 @@ GENERIC_RULE_FILES = ("AGENT.md", "AGENTS.md")
 # Provider name -> rule file name mapping
 PROVIDER_RULE_FILES = {
     "gemini": "GEMINI.md",
+    "gemini-vertex": "GEMINI.md",
     "claude": "CLAUDE.md",
+    "anthropic-vertex": "CLAUDE.md",
     "openai": "COPILOT.md",
 }
 
 # All known rule file names for discovery
-ALL_RULE_FILES = (*GENERIC_RULE_FILES, *PROVIDER_RULE_FILES.values())
+ALL_RULE_FILES = (*GENERIC_RULE_FILES, *dict.fromkeys(PROVIDER_RULE_FILES.values()))
 
 
 def load_agent_rules(

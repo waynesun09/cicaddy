@@ -4,7 +4,7 @@ Platform-agnostic AI agent for running AI workflows in CI pipelines, with MCP to
 
 ## Features
 
-- **Multi-provider AI**: Gemini, OpenAI, Claude (direct API and Vertex AI)
+- **Multi-provider AI**: Gemini, OpenAI, Claude (direct API and Vertex AI for both Gemini and Claude)
 - **Sub-agent delegation**: AI-powered triage with parallel specialized sub-agents
 - **MCP integration**: Connect to any MCP-compatible tool server
 - **Multi-step execution**: Token-aware execution engine with recovery
@@ -53,6 +53,12 @@ GEMINI_API_KEY=your-key-here
 # AI_MODEL=claude-sonnet-4-6
 # ANTHROPIC_VERTEX_PROJECT_ID=your-gcp-project
 # CLOUD_ML_REGION=us-east5
+
+# AI Provider (Gemini via Vertex AI — uses Google Cloud ADC, no API key needed)
+# AI_PROVIDER=gemini-vertex
+# AI_MODEL=gemini-3-flash-preview
+# GOOGLE_CLOUD_PROJECT=your-gcp-project
+# GOOGLE_CLOUD_LOCATION=global
 
 # Agent
 AGENT_TYPE=task

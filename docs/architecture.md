@@ -72,7 +72,7 @@ Task Agent operates **independently** of MR/branch context — no CI API depende
 
 Multi-provider support with auto-detection based on API key availability.
 
-- **Providers**: Gemini, OpenAI, Claude, Claude via Vertex AI (`ai_providers/factory.py`)
+- **Providers**: Gemini, OpenAI, Claude — with Vertex AI support for both Gemini and Claude (`ai_providers/factory.py`)
 - **Config**: `AI_PROVIDER` and `AI_MODEL` env vars
 - **Features**: Retry logic, error handling, rate limiting
 

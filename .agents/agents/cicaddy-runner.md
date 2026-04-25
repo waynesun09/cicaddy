@@ -66,7 +66,7 @@ cd "$OUTPUT_DIR"
 ### Common variables (all components)
 
 ```bash
-AI_PROVIDER=gemini                    # gemini | openai | claude | anthropic-vertex
+AI_PROVIDER=gemini                    # gemini | gemini-vertex | openai | claude | anthropic-vertex
 AI_MODEL=gemini-3-flash-preview       # Model name
 DELEGATION_MODE=none                  # none | auto
 MAX_SUB_AGENTS=3                      # 1-10 (only with auto delegation)
@@ -88,6 +88,10 @@ OPENAI_API_KEY=${OPENAI_API_KEY}
 
 # Claude (direct)
 ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+
+# Gemini via Vertex AI (ADC, no API key needed)
+GOOGLE_CLOUD_PROJECT=<gcp-project>
+GOOGLE_CLOUD_LOCATION=global
 
 # Claude via Vertex AI
 ANTHROPIC_VERTEX_PROJECT_ID=<gcp-project>

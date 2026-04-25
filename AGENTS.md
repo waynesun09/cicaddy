@@ -12,6 +12,7 @@ Cicaddy is a platform-agnostic pipeline AI agent library. It provides the core a
 - Bundled knowledge and skills shipped with the package for model guidance and config reference (v0.8.0+)
 - AI-powered sub-agent delegation with parallel execution, triage, sibling awareness, and context-aware review triage (v0.8.0+)
 - AI-powered review summarization with structured findings and inline comment support (v0.10.0+)
+- Gemini via Vertex AI (`gemini-vertex` provider) — uses Google Cloud ADC with auto-fallback from API key auth (v0.11.0+)
 
 ## Architecture
 
@@ -39,7 +40,7 @@ Run outputs are stored in `_cicaddy_runs/` (gitignored). **Never read cicaddy ou
 ## Code Quality
 
 - Run `pre-commit run --files <changed-files>` before committing
-- Run `uv run pytest tests/unit/ -q` before committing (must pass 1170+ tests)
+- Run `uv run pytest tests/unit/ -q` before committing (must pass 1200+ tests)
 - Prefer shared/utility modules over code duplication
 - Follow type hints, Google-style docstrings, async where appropriate
 
