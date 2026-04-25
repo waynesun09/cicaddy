@@ -95,7 +95,7 @@ GOOGLE_CLOUD_LOCATION=global
 
 # Claude via Vertex AI
 ANTHROPIC_VERTEX_PROJECT_ID=<gcp-project>
-CLOUD_ML_REGION=us-east5
+CLOUD_ML_REGION=global
 ```
 
 ### GitHub PR review (cicaddy-action)
