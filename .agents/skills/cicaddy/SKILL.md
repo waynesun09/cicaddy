@@ -8,7 +8,7 @@ description: >
   setting up delegation, or extending the agent registry.
 compatibility: Requires Python 3.11+ and uv. Dev install with uv pip install -e ".[dev,test]" or released package with uv pip install cicaddy.
 metadata:
-  version: "0.10.0"
+  version: "0.11.0"
   author: waynesun09
 ---
 
@@ -16,7 +16,7 @@ metadata:
 
 Cicaddy is a platform-agnostic pipeline AI agent that runs LLM-powered
 analysis tasks via MCP tool servers. It supports DSPy task YAML definitions,
-multiple AI providers (Gemini, OpenAI, Claude, Claude via Vertex AI), and a registry-based agent
+multiple AI providers (Gemini, OpenAI, Claude, Gemini and Claude via Vertex AI), and a registry-based agent
 factory that can be extended without modifying core code.
 
 ## CLI Usage
@@ -43,7 +43,7 @@ Key `run` flags:
 |------|-------------|
 | `--env-file, -e FILE` | Load env vars from a `.env` file |
 | `-t, --agent-type` | `task` (default), `branch_review`, `merge_request`, or custom |
-| `--ai-provider` | `gemini`, `openai`, `claude`, `anthropic-vertex` |
+| `--ai-provider` | `gemini`, `gemini-vertex`, `openai`, `claude`, `anthropic-vertex` |
 | `--ai-model` | e.g. `gemini-3-pro-preview`, `gpt-4o` |
 | `--mcp-config` | JSON string or path with MCP server configs |
 | `--max-iters` | Maximum inference iterations |
@@ -86,11 +86,12 @@ AGENT_TYPE=task           # task | branch_review | merge_request | <custom>
 TASK_TYPE=custom          # for custom DSPy task file mode
 
 # AI provider
-AI_PROVIDER=gemini        # gemini | openai | claude | anthropic-vertex
+AI_PROVIDER=gemini        # gemini | gemini-vertex | openai | claude | anthropic-vertex
 AI_MODEL=gemini-3-pro-preview
 AI_TEMPERATURE=0.0
 GEMINI_API_KEY=<key>      # or OPENAI_API_KEY / ANTHROPIC_API_KEY
-# For Vertex AI: ANTHROPIC_VERTEX_PROJECT_ID=<project> CLOUD_ML_REGION=us-east5
+# For Gemini Vertex AI: GOOGLE_CLOUD_PROJECT=<project> GOOGLE_CLOUD_LOCATION=global
+# For Claude Vertex AI: ANTHROPIC_VERTEX_PROJECT_ID=<project> CLOUD_ML_REGION=us-east5
 
 # DSPy task file (alternative to AI_TASK_PROMPT)
 AI_TASK_FILE=examples/dora_metrics_task.yaml

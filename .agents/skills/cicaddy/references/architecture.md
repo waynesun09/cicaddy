@@ -22,7 +22,7 @@ See `references/factory-extension.md` for full extension guide.
 
 | Package | Purpose |
 |---------|---------|
-| `ai_providers/` | Provider abstraction (Gemini, Claude, Claude via Vertex AI, OpenAI) |
+| `ai_providers/` | Provider abstraction (Gemini, Claude, OpenAI — with Vertex AI support for Gemini and Claude) |
 | `execution/` | Token-aware multi-step executor, recovery, context compaction |
 | `mcp_client/` | MCP client with SSE, HTTP, stdio, WebSocket transports + security scanning |
 | `tools/` | Local file tool registry with decorator-based registration + scanning |
