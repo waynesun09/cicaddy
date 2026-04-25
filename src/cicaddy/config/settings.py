@@ -163,7 +163,7 @@ class CoreSettings(BaseSettings):
         None, validation_alias="ANTHROPIC_VERTEX_PROJECT_ID"
     )
     cloud_ml_region: Optional[str] = Field(
-        default="global", validation_alias="CLOUD_ML_REGION"
+        default=None, validation_alias="CLOUD_ML_REGION"
     )
     google_cloud_project: Optional[str] = Field(
         None, validation_alias="GOOGLE_CLOUD_PROJECT"

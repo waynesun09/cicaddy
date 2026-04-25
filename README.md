@@ -52,7 +52,7 @@ GEMINI_API_KEY=your-key-here
 # AI_PROVIDER=anthropic-vertex
 # AI_MODEL=claude-sonnet-4-6
 # ANTHROPIC_VERTEX_PROJECT_ID=your-gcp-project
-# CLOUD_ML_REGION=us-east5
+# GOOGLE_CLOUD_LOCATION=global
 
 # AI Provider (Gemini via Vertex AI — uses Google Cloud ADC, no API key needed)
 # AI_PROVIDER=gemini-vertex

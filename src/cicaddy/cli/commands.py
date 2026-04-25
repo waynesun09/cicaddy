@@ -199,10 +199,8 @@ def cmd_validate(args: Namespace) -> int:
                 print("  ANTHROPIC_VERTEX_PROJECT_ID: (not set) ✗")
                 print(_GCP_NOT_SET)
             region = (
-                (config.get("CLOUD_ML_REGION") or "").strip()
-                or (config.get("GOOGLE_CLOUD_LOCATION") or "").strip()
-                or DEFAULT_VERTEX_LOCATION
-            )
+                config.get("GOOGLE_CLOUD_LOCATION") or ""
+            ).strip() or DEFAULT_VERTEX_LOCATION
             print(f"  Region: {region} ✓")
         elif required_key:
             if (config.get(required_key) or "").strip():

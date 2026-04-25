@@ -93,9 +93,9 @@ ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
 GOOGLE_CLOUD_PROJECT=<gcp-project>
 GOOGLE_CLOUD_LOCATION=global
 
-# Claude via Vertex AI
+# Claude via Vertex AI (ADC, no API key needed)
 ANTHROPIC_VERTEX_PROJECT_ID=<gcp-project>
-CLOUD_ML_REGION=us-east5
+GOOGLE_CLOUD_LOCATION=global
 ```
 
 ### GitHub PR review (cicaddy-action)
