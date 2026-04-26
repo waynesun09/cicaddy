@@ -16,10 +16,11 @@ Platform-agnostic AI agent for running AI workflows in CI pipelines, with MCP to
 ## Installation
 
 ```bash
-pip install cicaddy
-
-# With Vertex AI Claude support
+# Recommended install (includes Vertex AI support for Gemini and Claude)
 pip install 'cicaddy[vertex]'
+
+# Base install (Gemini via Vertex AI and standalone API key providers)
+pip install cicaddy
 ```
 
 ## Quick Start
