@@ -40,7 +40,7 @@ cicaddy validate --env-file .env
 
 ## Configuration
 
-Configure via environment variables or `.env` file:
+Configure via environment variables or `.env` file. Vertex AI with Application Default Credentials (ADC) is the recommended default, following Google Agent Platform security hardening guidelines that favor ADC over standalone API keys.
 
 ```env
 # AI Provider (Gemini via Vertex AI — uses Google Cloud ADC, no API key needed)
