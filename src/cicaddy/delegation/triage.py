@@ -50,6 +50,30 @@ def _sanitize_agent_name(name: str) -> str:
     return "".join(c for c in name if c.isalnum() or c in "-_. ").strip()[:64]
 
 
+def _strip_code_fences(content: str) -> str:
+    """Extract the body of the first markdown code fence in *content*.
+
+    Returns the original *content* unchanged when no fenced block is found.
+    """
+    block_start = content.find("```")
+    if block_start == -1:
+        return content
+
+    lines = content[block_start:].splitlines()
+    json_lines: list[str] = []
+    in_block = False
+    for line in lines:
+        if line.strip().startswith("```") and not in_block:
+            in_block = True
+            continue
+        if line.strip() == "```" and in_block:
+            break
+        if in_block:
+            json_lines.append(line)
+
+    return "\n".join(json_lines) if json_lines else content
+
+
 def extract_json(content: str) -> str:
     """Extract JSON from AI response, stripping markdown code blocks.
 
@@ -65,27 +89,8 @@ def extract_json(content: str) -> str:
 
     Shared by ``TriageAgent`` and ``SummarizationAgent``.
     """
-    content = content.strip()
+    content = _strip_code_fences(content.strip())
 
-    # Strip markdown code fences first (may not be at start due to LLM preamble)
-    block_start = content.find("```")
-    if block_start != -1:
-        lines = content[block_start:].splitlines()
-        json_lines: list[str] = []
-        in_block = False
-        for line in lines:
-            if line.strip().startswith("```") and not in_block:
-                in_block = True
-                continue
-            if line.strip() == "```" and in_block:
-                break
-            if in_block:
-                json_lines.append(line)
-        if json_lines:
-            content = "\n".join(json_lines)
-
-    # Find the first { or [ and parse the complete JSON structure from there.
-    # This handles prefix text (quoted strings, preamble) and trailing data.
     content = content.strip()
     obj_start = _find_json_start(content)
     if obj_start >= 0:
