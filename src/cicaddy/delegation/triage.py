@@ -53,28 +53,64 @@ def _sanitize_agent_name(name: str) -> str:
 def extract_json(content: str) -> str:
     """Extract JSON from AI response, stripping markdown code blocks.
 
-    Handles cases where the LLM includes preamble text before the code
-    block.  Shared by ``TriageAgent`` and ``SummarizationAgent``.
+    Handles common LLM output issues:
+    - Markdown code fences (````` ``json`` ... ````` ````)
+    - Preamble text before the JSON (e.g. ``"Here is the JSON:" {...}``)
+    - Trailing text after the JSON object
+    - Quoted string prefix before the actual object (e.g. ``"response:" {...}``)
+
+    Uses ``json.JSONDecoder.raw_decode`` to find the first ``{`` or ``[``
+    token and parse the complete JSON structure from that position, ignoring
+    any surrounding text.
+
+    Shared by ``TriageAgent`` and ``SummarizationAgent``.
     """
     content = content.strip()
 
-    # Find first code block (may not be at start due to LLM preamble)
+    # Strip markdown code fences first (may not be at start due to LLM preamble)
     block_start = content.find("```")
-    if block_start == -1:
-        return content
+    if block_start != -1:
+        lines = content[block_start:].splitlines()
+        json_lines: list[str] = []
+        in_block = False
+        for line in lines:
+            if line.strip().startswith("```") and not in_block:
+                in_block = True
+                continue
+            if line.strip() == "```" and in_block:
+                break
+            if in_block:
+                json_lines.append(line)
+        if json_lines:
+            content = "\n".join(json_lines)
 
-    lines = content[block_start:].splitlines()
-    json_lines: list[str] = []
-    in_block = False
-    for line in lines:
-        if line.strip().startswith("```") and not in_block:
-            in_block = True
-            continue
-        if line.strip() == "```" and in_block:
-            break
-        if in_block:
-            json_lines.append(line)
-    return "\n".join(json_lines) if json_lines else content
+    # Find the first { or [ and parse the complete JSON structure from there.
+    # This handles prefix text (quoted strings, preamble) and trailing data.
+    content = content.strip()
+    obj_start = _find_json_start(content)
+    if obj_start >= 0:
+        try:
+            decoder = json.JSONDecoder()
+            obj, _ = decoder.raw_decode(content, obj_start)
+            return json.dumps(obj, ensure_ascii=False)
+        except json.JSONDecodeError:
+            pass
+
+    return content
+
+
+def _find_json_start(content: str) -> int:
+    """Return the index of the first ``{`` or ``[`` in *content*.
+
+    Returns -1 when neither is found.
+    """
+    brace = content.find("{")
+    bracket = content.find("[")
+    if brace == -1:
+        return bracket
+    if bracket == -1:
+        return brace
+    return min(brace, bracket)
 
 
 _BUILTIN_GENERAL_AGENTS = ("general-reviewer", "general-task")
