@@ -68,7 +68,7 @@ Run outputs are stored in `_cicaddy_runs/` (gitignored). **Never read cicaddy ou
 cicaddy run --env-file .env
 
 # Run with CLI arguments
-cicaddy run --agent-type task --ai-provider gemini
+cicaddy run --agent-type task --ai-provider gemini-vertex
 
 # Show configuration
 cicaddy config show --env-file .env

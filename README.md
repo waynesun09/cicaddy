@@ -29,7 +29,7 @@ pip install 'cicaddy[vertex]'
 cicaddy run --env-file .env
 
 # Run with CLI arguments
-cicaddy run --ai-provider gemini --agent-type task --log-level DEBUG
+cicaddy run --ai-provider gemini-vertex --agent-type task --log-level DEBUG
 
 # Show configuration
 cicaddy config show --env-file .env
@@ -43,10 +43,11 @@ cicaddy validate --env-file .env
 Configure via environment variables or `.env` file:
 
 ```env
-# AI Provider (Gemini)
-AI_PROVIDER=gemini
-AI_MODEL=gemini-3-flash
-GEMINI_API_KEY=your-key-here
+# AI Provider (Gemini via Vertex AI — uses Google Cloud ADC, no API key needed)
+AI_PROVIDER=gemini-vertex
+AI_MODEL=gemini-3-flash-preview
+GOOGLE_CLOUD_PROJECT=your-gcp-project
+# GOOGLE_CLOUD_LOCATION=global  # optional, defaults to "global"
 
 # AI Provider (Claude via Vertex AI — uses Google Cloud ADC, no API key needed)
 # AI_PROVIDER=anthropic-vertex
@@ -54,11 +55,10 @@ GEMINI_API_KEY=your-key-here
 # ANTHROPIC_VERTEX_PROJECT_ID=your-gcp-project
 # GOOGLE_CLOUD_LOCATION=global
 
-# AI Provider (Gemini via Vertex AI — uses Google Cloud ADC, no API key needed)
-# AI_PROVIDER=gemini-vertex
-# AI_MODEL=gemini-3-flash-preview
-# GOOGLE_CLOUD_PROJECT=your-gcp-project
-# GOOGLE_CLOUD_LOCATION=global
+# AI Provider (Gemini — standalone API key)
+# AI_PROVIDER=gemini
+# AI_MODEL=gemini-3-flash
+# GEMINI_API_KEY=your-key-here
 
 # Agent
 AGENT_TYPE=task
