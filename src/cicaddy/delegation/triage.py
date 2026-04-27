@@ -50,15 +50,11 @@ def _sanitize_agent_name(name: str) -> str:
     return "".join(c for c in name if c.isalnum() or c in "-_. ").strip()[:64]
 
 
-def extract_json(content: str) -> str:
-    """Extract JSON from AI response, stripping markdown code blocks.
+def _strip_code_fences(content: str) -> str:
+    """Extract the body of the first markdown code fence in *content*.
 
-    Handles cases where the LLM includes preamble text before the code
-    block.  Shared by ``TriageAgent`` and ``SummarizationAgent``.
+    Returns the original *content* unchanged when no fenced block is found.
     """
-    content = content.strip()
-
-    # Find first code block (may not be at start due to LLM preamble)
     block_start = content.find("```")
     if block_start == -1:
         return content
@@ -74,7 +70,52 @@ def extract_json(content: str) -> str:
             break
         if in_block:
             json_lines.append(line)
+
     return "\n".join(json_lines) if json_lines else content
+
+
+def extract_json(content: str) -> str:
+    """Extract JSON from AI response, stripping markdown code blocks.
+
+    Handles common LLM output issues:
+    - Markdown code fences (````` ``json`` ... ````` ````)
+    - Preamble text before the JSON (e.g. ``"Here is the JSON:" {...}``)
+    - Trailing text after the JSON object
+    - Quoted string prefix before the actual object (e.g. ``"response:" {...}``)
+
+    Uses ``json.JSONDecoder.raw_decode`` to find the first ``{`` or ``[``
+    token and parse the complete JSON structure from that position, ignoring
+    any surrounding text.
+
+    Shared by ``TriageAgent`` and ``SummarizationAgent``.
+    """
+    content = _strip_code_fences(content.strip())
+
+    content = content.strip()
+    obj_start = _find_json_start(content)
+    if obj_start >= 0:
+        try:
+            decoder = json.JSONDecoder()
+            obj, _ = decoder.raw_decode(content, obj_start)
+            return json.dumps(obj, ensure_ascii=False)
+        except json.JSONDecodeError:
+            pass
+
+    return content
+
+
+def _find_json_start(content: str) -> int:
+    """Return the index of the first ``{`` or ``[`` in *content*.
+
+    Returns -1 when neither is found.
+    """
+    brace = content.find("{")
+    bracket = content.find("[")
+    if brace == -1:
+        return bracket
+    if bracket == -1:
+        return brace
+    return min(brace, bracket)
 
 
 _BUILTIN_GENERAL_AGENTS = ("general-reviewer", "general-task")

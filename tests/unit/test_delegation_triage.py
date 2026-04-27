@@ -293,6 +293,41 @@ class TestTriageAgent:
         result = triage_agent._extract_json(response)
         assert result == '{"entries": []}'
 
+    def test_extract_json_trailing_data(self, triage_agent):
+        """Should extract JSON object ignoring trailing text."""
+        response = '{"entries": []}  some trailing text'
+        result = triage_agent._extract_json(response)
+        parsed = json.loads(result)
+        assert parsed == {"entries": []}
+
+    def test_extract_json_quoted_string_prefix(self, triage_agent):
+        """Should skip quoted string prefix and find the real JSON object."""
+        response = '"response:" {"summary": "test", "findings": []}'
+        result = triage_agent._extract_json(response)
+        parsed = json.loads(result)
+        assert parsed == {"summary": "test", "findings": []}
+
+    def test_extract_json_preamble_text_before_object(self, triage_agent):
+        """Should find JSON object after non-JSON preamble text."""
+        response = 'Here is the result: {"entries": [{"agent": "a"}]}'
+        result = triage_agent._extract_json(response)
+        parsed = json.loads(result)
+        assert parsed == {"entries": [{"agent": "a"}]}
+
+    def test_extract_json_code_block_with_trailing_data(self, triage_agent):
+        """Should handle trailing data inside a code block."""
+        response = '```json\n{"entries": []} extra\n```'
+        result = triage_agent._extract_json(response)
+        parsed = json.loads(result)
+        assert parsed == {"entries": []}
+
+    def test_extract_json_array_response(self, triage_agent):
+        """Should handle JSON array responses (used by line resolver)."""
+        response = '[{"index": 0, "start_line": 42}]'
+        result = triage_agent._extract_json(response)
+        parsed = json.loads(result)
+        assert parsed == [{"index": 0, "start_line": 42}]
+
     # --- Review-type triage prompt tests ---
 
     def test_build_triage_prompt_review_type(
