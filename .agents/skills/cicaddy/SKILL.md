@@ -8,7 +8,7 @@ description: >
   setting up delegation, or extending the agent registry.
 compatibility: Requires Python 3.11+ and uv. Dev install with uv pip install -e ".[dev,test]" or released package with uv pip install cicaddy.
 metadata:
-  version: "0.12.1"
+  version: "0.12.2"
   author: waynesun09
 ---
 
