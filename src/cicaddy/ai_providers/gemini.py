@@ -276,6 +276,7 @@ class GeminiProvider(BaseProvider):
             temperature = float(self.config.get("temperature", 0.0))
             config_dict: Dict[str, Any] = {
                 "temperature": temperature,
+                "automatic_function_calling": {"disable": True},
             }
 
             # Add tools to config if provided
