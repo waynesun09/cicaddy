@@ -241,29 +241,47 @@ class SummarizationAgent:
         )
 
     def _parse_response(self, response_content: str) -> tuple[str, List[Finding]]:
-        """Parse AI response into summary text and findings list."""
+        """Parse AI response into summary text and findings list.
+
+        Handles three response shapes:
+        1. JSON object with ``summary`` + ``findings`` — ideal structured output
+        2. JSON string or non-object — use the text as the summary directly
+        3. Plain text (not valid JSON) — use as-is for the summary
+        """
         content = extract_json(response_content)
 
-        data = json.loads(content)
-        if not isinstance(data, dict):
-            raise ValueError("AI response is not a JSON object")
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError:
+            summary = response_content.strip()
+            if not summary:
+                raise ValueError("AI response is empty")
+            logger.info("Summarization response is plain text, using as summary")
+            return summary, []
 
-        summary = data.get("summary", "")
-        if not summary or not summary.strip():
-            raise ValueError("AI response missing 'summary' field")
+        if isinstance(data, dict):
+            summary = data.get("summary", "")
+            if not summary or not summary.strip():
+                raise ValueError("AI response missing 'summary' field")
 
-        findings = []
-        raw_findings = data.get("findings", [])
-        if not isinstance(raw_findings, list):
-            raw_findings = []
-        for entry in raw_findings:
-            if not isinstance(entry, dict):
-                continue
-            finding = self._validate_finding(entry)
-            if finding:
-                findings.append(finding)
+            findings = []
+            raw_findings = data.get("findings", [])
+            if not isinstance(raw_findings, list):
+                raw_findings = []
+            for entry in raw_findings:
+                if not isinstance(entry, dict):
+                    continue
+                finding = self._validate_finding(entry)
+                if finding:
+                    findings.append(finding)
 
-        return summary, findings
+            return summary, findings
+
+        text = str(data).strip() if data else response_content.strip()
+        if not text:
+            raise ValueError("AI response is empty")
+        logger.info("Summarization response is not a JSON object, using as summary")
+        return text, []
 
     @staticmethod
     def _validate_finding(entry: Dict[str, Any]) -> Optional[Finding]:

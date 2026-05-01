@@ -220,10 +220,10 @@ class TestSummarizationAgent:
         assert result.ai_summarized is False
 
     @pytest.mark.asyncio
-    async def test_summarize_json_parse_failure_falls_back(
+    async def test_summarize_plain_text_response_used_as_summary(
         self, mock_ai_provider, two_agent_results
     ):
-        """Malformed JSON response should fall back."""
+        """Plain text AI response should be used as summary directly."""
         mock_response = MagicMock()
         mock_response.content = "This is not JSON at all"
         mock_ai_provider.chat_completion.return_value = mock_response
@@ -231,9 +231,9 @@ class TestSummarizationAgent:
         agent = SummarizationAgent(mock_ai_provider)
         result = await agent.summarize(two_agent_results)
 
-        assert "## general-reviewer" in result.summary
+        assert result.summary == "This is not JSON at all"
         assert result.findings == []
-        assert result.ai_summarized is False
+        assert result.ai_summarized is True
 
     @pytest.mark.asyncio
     async def test_custom_instructions_in_prompt(
@@ -375,11 +375,22 @@ class TestParseResponseEdgeCases:
     """Tests for _parse_response edge cases (isinstance guards, whitespace)."""
 
     @pytest.mark.asyncio
-    async def test_non_dict_json_raises(self, mock_ai_provider):
-        """JSON array response should raise ValueError."""
+    async def test_non_dict_json_used_as_summary(self, mock_ai_provider):
+        """JSON array response should be used as summary text."""
         agent = SummarizationAgent(mock_ai_provider)
-        with pytest.raises(ValueError, match="not a JSON object"):
-            agent._parse_response('["not", "a", "dict"]')
+        summary, findings = agent._parse_response('["not", "a", "dict"]')
+        assert summary == "['not', 'a', 'dict']"
+        assert findings == []
+
+    @pytest.mark.asyncio
+    async def test_json_string_used_as_summary(self, mock_ai_provider):
+        """JSON-encoded string response should be used as summary text."""
+        agent = SummarizationAgent(mock_ai_provider)
+        summary, findings = agent._parse_response(
+            '"Here is a summary of the code review findings..."'
+        )
+        assert summary == "Here is a summary of the code review findings..."
+        assert findings == []
 
     @pytest.mark.asyncio
     async def test_whitespace_only_summary_raises(self, mock_ai_provider):
