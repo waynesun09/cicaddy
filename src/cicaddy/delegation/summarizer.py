@@ -253,7 +253,7 @@ class SummarizationAgent:
         try:
             data = json.loads(content)
         except json.JSONDecodeError:
-            summary = response_content.strip()
+            summary = content.strip() or response_content.strip()
             if not summary:
                 raise ValueError("AI response is empty")
             logger.info("Summarization response is plain text, using as summary")
@@ -277,10 +277,12 @@ class SummarizationAgent:
 
             return summary, findings
 
+        if data is None:
+            raise ValueError("AI response is empty")
         if isinstance(data, str):
             text = data.strip()
         else:
-            text = content.strip() if content.strip() else response_content.strip()
+            text = content.strip()
         if not text:
             raise ValueError("AI response is empty")
         logger.info("Summarization response is not a JSON object, using as summary")

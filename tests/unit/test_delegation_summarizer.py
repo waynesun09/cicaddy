@@ -400,6 +400,52 @@ class TestParseResponseEdgeCases:
             agent._parse_response('{"summary": "   ", "findings": []}')
 
     @pytest.mark.asyncio
+    async def test_json_null_used_as_empty_raises(self, mock_ai_provider):
+        """JSON null should raise ValueError (empty after conversion)."""
+        agent = SummarizationAgent(mock_ai_provider)
+        with pytest.raises(ValueError, match="AI response is empty"):
+            agent._parse_response("null")
+
+    @pytest.mark.asyncio
+    async def test_json_true_used_as_summary(self, mock_ai_provider):
+        """JSON boolean true should be used as summary text."""
+        agent = SummarizationAgent(mock_ai_provider)
+        summary, findings = agent._parse_response("true")
+        assert summary == "true"
+        assert findings == []
+
+    @pytest.mark.asyncio
+    async def test_json_false_used_as_summary(self, mock_ai_provider):
+        """JSON boolean false should be used as summary text."""
+        agent = SummarizationAgent(mock_ai_provider)
+        summary, findings = agent._parse_response("false")
+        assert summary == "false"
+        assert findings == []
+
+    @pytest.mark.asyncio
+    async def test_json_number_used_as_summary(self, mock_ai_provider):
+        """JSON number should be used as summary text."""
+        agent = SummarizationAgent(mock_ai_provider)
+        summary, findings = agent._parse_response("42")
+        assert summary == "42"
+        assert findings == []
+
+    @pytest.mark.asyncio
+    async def test_whitespace_only_plain_text_raises(self, mock_ai_provider):
+        """Whitespace-only plain text should raise ValueError."""
+        agent = SummarizationAgent(mock_ai_provider)
+        with pytest.raises(ValueError, match="AI response is empty"):
+            agent._parse_response("   \n\t  ")
+
+    @pytest.mark.asyncio
+    async def test_plain_text_with_markdown_fences_uses_content(self, mock_ai_provider):
+        """Plain text wrapped in markdown fences should use stripped content."""
+        agent = SummarizationAgent(mock_ai_provider)
+        summary, findings = agent._parse_response("```\nThis is a review summary\n```")
+        assert "review summary" in summary
+        assert findings == []
+
+    @pytest.mark.asyncio
     async def test_non_dict_findings_skipped(self, mock_ai_provider):
         """Non-dict entries in findings array should be silently skipped."""
         response = json.dumps(
