@@ -277,7 +277,10 @@ class SummarizationAgent:
 
             return summary, findings
 
-        text = str(data).strip() if data else response_content.strip()
+        if isinstance(data, str):
+            text = data.strip()
+        else:
+            text = content.strip() if content.strip() else response_content.strip()
         if not text:
             raise ValueError("AI response is empty")
         logger.info("Summarization response is not a JSON object, using as summary")

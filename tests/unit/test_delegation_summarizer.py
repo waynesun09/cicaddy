@@ -379,7 +379,7 @@ class TestParseResponseEdgeCases:
         """JSON array response should be used as summary text."""
         agent = SummarizationAgent(mock_ai_provider)
         summary, findings = agent._parse_response('["not", "a", "dict"]')
-        assert summary == "['not', 'a', 'dict']"
+        assert summary == '["not", "a", "dict"]'
         assert findings == []
 
     @pytest.mark.asyncio
