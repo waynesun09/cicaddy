@@ -1522,3 +1522,29 @@ class TestTokenAwareExecutorAISummarization:
             use_ai_summarization=False,
         )
         assert executor.compactor.config.use_ai_summarization is False
+
+
+class TestExecutionEngineAISummarization:
+    """Tests for use_ai_summarization parameter forwarding through ExecutionEngine."""
+
+    def test_engine_default_ai_summarization_enabled(self):
+        """ExecutionEngine defaults to AI summarization enabled."""
+        from cicaddy.execution.engine import ExecutionEngine
+
+        provider = Mock(spec=BaseProvider)
+        engine = ExecutionEngine(ai_provider=provider, session_id="test-default")
+        assert engine.token_aware_executor.compactor.config.use_ai_summarization is True
+
+    def test_engine_forwards_ai_summarization_false(self):
+        """ExecutionEngine forwards use_ai_summarization=False to compactor."""
+        from cicaddy.execution.engine import ExecutionEngine
+
+        provider = Mock(spec=BaseProvider)
+        engine = ExecutionEngine(
+            ai_provider=provider,
+            session_id="test-disabled",
+            use_ai_summarization=False,
+        )
+        assert (
+            engine.token_aware_executor.compactor.config.use_ai_summarization is False
+        )

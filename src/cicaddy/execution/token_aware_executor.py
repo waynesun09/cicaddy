@@ -303,7 +303,7 @@ class TokenAwareExecutor:
         limits: Optional[ExecutionLimits] = None,
         session_id: Optional[str] = None,
         tokenizer: Optional[Any] = None,
-        context_safety_factor: float = 0.7,  # NEW: Configurable via CONTEXT_SAFETY_FACTOR env var
+        context_safety_factor: float = 0.7,
         use_ai_summarization: bool = True,
     ):
         self.ai_provider = ai_provider
@@ -314,9 +314,7 @@ class TokenAwareExecutor:
         self.tokenizer = (
             tokenizer  # Phase 4: Optional tokenizer for accurate token counting
         )
-        self.context_safety_factor = (
-            context_safety_factor  # NEW: Store as instance variable
-        )
+        self.context_safety_factor = context_safety_factor
 
         # Initialize state
         self.state = ExecutionState()
@@ -388,7 +386,7 @@ class TokenAwareExecutor:
             f"max_tokens_total={self._effective_token_budget} (original: {self._original_token_limit}, "
             f"effective budget with {int(self.context_safety_factor * 100)}% safety factor and {SYSTEM_PROMPT_TOKEN_OVERHEAD + TOOLS_TOKEN_OVERHEAD} overhead), "
             f"max_tools_per_iteration={self.limits.max_tools_per_iteration}, "
-            f"AI-powered compression enabled, "
+            f"{'AI-powered' if use_ai_summarization else 'rule-based'} compression enabled, "
             f"knowledge store enabled for data preservation, "
             f"tokenizer={'available' if tokenizer else 'not available'}"
         )

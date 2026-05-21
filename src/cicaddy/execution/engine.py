@@ -37,7 +37,7 @@ class ExecutionEngine:
         local_tool_registry: Optional[ToolRegistry] = None,
         session_id: Optional[str] = None,
         execution_limits: Optional[ExecutionLimits] = None,
-        context_safety_factor: float = 0.7,  # NEW: Configurable via CONTEXT_SAFETY_FACTOR env var
+        context_safety_factor: float = 0.7,
         use_ai_summarization: bool = True,
     ):
         self.ai_provider = ai_provider
