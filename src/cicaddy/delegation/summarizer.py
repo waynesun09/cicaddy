@@ -60,7 +60,7 @@ _FINDINGS_RULES = """\
 _RESPONSE_FORMAT = """\
 ## Response Format
 
-Respond with ONLY a JSON object in this exact format \
+Respond with ONLY a JSON object (not an array) in this exact format \
 (no markdown code fences, no explanation):
 {
   "summary": "Concise consolidated review in markdown...",
@@ -77,8 +77,21 @@ Respond with ONLY a JSON object in this exact format \
   ]
 }
 
-"existing_code" is the exact code snippet the finding targets — quote it from \
-the diff. "line" is a best-effort integer if the agent cited one, otherwise null."""
+IMPORTANT: Always wrap findings inside the object above. \
+Do NOT return a bare JSON array — always use {"summary": ..., "findings": [...]}.
+
+### Field reference
+- "summary" — required, markdown string summarizing the review
+- "findings" — required, array of finding objects (empty array if no findings)
+
+Each finding object:
+- "file" — required, string, path to the file
+- "existing_code" — string or null, exact code snippet from the diff (1-3 lines)
+- "line" — integer or null, best-effort line number if the agent cited one
+- "severity" — one of: critical | major | minor | nit (defaults to "minor" if omitted)
+- "message" — required, string, description of the finding
+- "suggestion" — string or null, concrete fix when the agent provided one
+- "agent_source" — string, name of the agent (defaults to "" if omitted)"""
 
 
 @dataclass
@@ -244,10 +257,17 @@ class SummarizationAgent:
     def _parse_response(self, response_content: str) -> tuple[str, List[Finding]]:
         """Parse AI response into summary text and findings list.
 
-        Handles three response shapes:
-        1. JSON object with ``summary`` + ``findings`` — ideal structured output
-        2. JSON string or non-object — use the text as the summary directly
-        3. Plain text (not valid JSON) — use as-is for the summary
+        Handles four response shapes:
+            1. JSON object with ``summary`` + ``findings``.
+            2. JSON array of finding dicts.
+            3. JSON string or non-object scalar.
+            4. Plain text (not valid JSON).
+
+        Args:
+            response_content: Raw AI response content.
+
+        Returns:
+            A tuple of (summary_text, findings).
         """
         content = extract_json(response_content)
 
@@ -262,6 +282,23 @@ class SummarizationAgent:
 
         if isinstance(data, dict):
             return self._parse_dict_response(data)
+
+        if isinstance(data, list):
+            findings = [
+                f
+                for entry in data
+                if isinstance(entry, dict) and (f := self._validate_finding(entry))
+            ]
+            if findings:
+                logger.info(
+                    "Summarization response is a JSON array, extracted %d finding(s)",
+                    len(findings),
+                )
+                return "Code review findings:", findings
+            logger.warning(
+                "Summarization response is a JSON array with no valid findings"
+            )
+            return "No actionable findings extracted from agent responses.", []
 
         if data is None:
             raise ValueError(_ERR_EMPTY)
