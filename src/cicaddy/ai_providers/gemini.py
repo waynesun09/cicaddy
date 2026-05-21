@@ -45,7 +45,7 @@ class GeminiProvider(BaseProvider):
     @property
     def model_name(self) -> str:
         """Get the configured model name."""
-        return self.config.get("model_id", "gemini-3-flash-preview")
+        return self.config.get("model_id", "gemini-3.5-flash")
 
     async def initialize(self) -> None:
         """Initialize Gemini connection (API key or Vertex AI with ADC)."""

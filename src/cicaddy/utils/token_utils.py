@@ -184,7 +184,7 @@ class TokenLimitManager:
             "input": 1048576,  # 1,048,576 tokens (1024² = 2²⁰)
             "output": 65536,  # 64K tokens
             "models": {
-                "gemini-3-flash-preview": {"input": 1048576, "output": 65536},
+                "gemini-3.5-flash": {"input": 1048576, "output": 65536},
                 "gemini-3.1-pro-preview": {"input": 1048576, "output": 65536},
                 "gemini-3.1-flash-lite-preview": {"input": 1048576, "output": 65536},
                 "gemini-2.5-flash": {"input": 1048576, "output": 65536},
@@ -379,7 +379,7 @@ class TokenLimitManager:
         try:
             # Gemini model limits (from official documentation)
             model_limits = {
-                "gemini-3-flash-preview": {"input": 1048576, "output": 65536},
+                "gemini-3.5-flash": {"input": 1048576, "output": 65536},
                 "gemini-3.1-pro-preview": {"input": 1048576, "output": 65536},
                 "gemini-3.1-flash-lite-preview": {"input": 1048576, "output": 65536},
                 "gemini-2.5-flash": {"input": 1048576, "output": 65536},
