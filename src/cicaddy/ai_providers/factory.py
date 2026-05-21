@@ -19,8 +19,8 @@ DEFAULT_VERTEX_LOCATION = "global"
 
 # Default model mappings for each provider
 DEFAULT_MODELS = {
-    DEFAULT_AI_PROVIDER: "gemini-3-flash-preview",
-    "gemini-vertex": "gemini-3-flash-preview",
+    DEFAULT_AI_PROVIDER: "gemini-3.5-flash",
+    "gemini-vertex": "gemini-3.5-flash",
     "openai": "gpt-5.4",
     "claude": "claude-sonnet-4-6",
     "anthropic": "claude-sonnet-4-6",

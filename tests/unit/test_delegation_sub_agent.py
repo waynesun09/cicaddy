@@ -658,11 +658,11 @@ class TestDelegationSubAgentWorkspaceContext:
             sample_entry,
             mock_settings,
             sample_context,
-            bundled_context="## Model Reference\nUse gemini-3-flash-preview.",
+            bundled_context="## Model Reference\nUse gemini-3.5-flash.",
         )
         prompt = agent._build_prompt()
         assert "## Model Reference" in prompt
-        assert "gemini-3-flash-preview" in prompt
+        assert "gemini-3.5-flash" in prompt
 
     def test_prompt_includes_agent_rules(
         self, sample_spec, sample_entry, mock_settings, sample_context

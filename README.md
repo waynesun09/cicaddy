@@ -46,7 +46,7 @@ Configure via environment variables or `.env` file. Vertex AI with Application D
 ```env
 # AI Provider (Gemini via Vertex AI — uses Google Cloud ADC, no API key needed)
 AI_PROVIDER=gemini-vertex
-AI_MODEL=gemini-3-flash-preview
+AI_MODEL=gemini-3.5-flash
 GOOGLE_CLOUD_PROJECT=your-gcp-project
 # GOOGLE_CLOUD_LOCATION=global  # optional, defaults to "global"
 

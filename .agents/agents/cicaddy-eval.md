@@ -38,7 +38,7 @@ Prefixes: `task_`, `mr_`, `githubpr_`, `branch_`
   "analysis_result": {
     "ai_analysis": "...",           // Main content (3K-36K chars)
     "ai_response_format": "markdown",
-    "model_used": "gemini-3-flash-preview",
+    "model_used": "gemini-3.5-flash",
     "ai_provider": "gemini",
     "delegation_mode": "none|auto",
     "status": "success|error",
@@ -287,7 +287,7 @@ if tool_names:
 
 ```markdown
 ## Run Summary
-- **Model**: gemini-3-flash-preview
+- **Model**: gemini-3.5-flash
 - **Status**: success
 - **Exec Time**: 25.5s
 - **Delegation**: auto | **Summarized**: True

@@ -881,7 +881,7 @@ class TestGeminiToolCalling:
     def test_model_name_property_default(self):
         """Test model_name property returns default when not configured."""
         provider = GeminiProvider({})
-        assert provider.model_name == "gemini-3-flash-preview"
+        assert provider.model_name == "gemini-3.5-flash"
 
     @pytest.mark.asyncio
     async def test_initialize_creates_client(self, gemini_provider):

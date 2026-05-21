@@ -12,8 +12,8 @@ class TestGeminiVertexTokenLimits:
     """Verify gemini-vertex resolves to Gemini token limits."""
 
     def test_gemini_vertex_resolves_gemini_limits(self):
-        limits = TokenLimitManager.get_limits("gemini-vertex", "gemini-3-flash-preview")
-        gemini_limits = TokenLimitManager.get_limits("gemini", "gemini-3-flash-preview")
+        limits = TokenLimitManager.get_limits("gemini-vertex", "gemini-3.5-flash")
+        gemini_limits = TokenLimitManager.get_limits("gemini", "gemini-3.5-flash")
         assert limits == gemini_limits
 
     def test_gemini_vertex_default_limits(self):
@@ -36,7 +36,7 @@ class TestGeminiVertexInitialization:
         ) as mock_cls:
             provider = GeminiProvider(
                 {
-                    "model_id": "gemini-3-flash-preview",
+                    "model_id": "gemini-3.5-flash",
                     "vertexai": True,
                     "google_cloud_project": "my-project",
                     "google_cloud_location": "global",
@@ -61,7 +61,7 @@ class TestGeminiVertexInitialization:
         ) as mock_cls:
             provider = GeminiProvider(
                 {
-                    "model_id": "gemini-3-flash-preview",
+                    "model_id": "gemini-3.5-flash",
                     "vertexai": True,
                     "google_cloud_project": "my-project",
                     "google_cloud_location": "europe-west4",
@@ -85,7 +85,7 @@ class TestGeminiVertexInitialization:
         ) as mock_cls:
             provider = GeminiProvider(
                 {
-                    "model_id": "gemini-3-flash-preview",
+                    "model_id": "gemini-3.5-flash",
                     "vertexai": True,
                     "google_cloud_project": "my-project",
                     "temperature": 0.0,
@@ -108,7 +108,7 @@ class TestGeminiVertexInitialization:
         ):
             provider = GeminiProvider(
                 {
-                    "model_id": "gemini-3-flash-preview",
+                    "model_id": "gemini-3.5-flash",
                     "vertexai": True,
                     "google_cloud_project": "my-project",
                     "temperature": 0.0,
@@ -128,7 +128,7 @@ class TestGeminiVertexInitialization:
         ) as mock_cls:
             provider = GeminiProvider(
                 {
-                    "model_id": "gemini-3-flash-preview",
+                    "model_id": "gemini-3.5-flash",
                     "api_key": "test-api-key",
                     "temperature": 0.0,
                 }
@@ -144,7 +144,7 @@ class TestGeminiVertexInitialization:
         with patch.dict("os.environ", {}, clear=True):
             provider = GeminiProvider(
                 {
-                    "model_id": "gemini-3-flash-preview",
+                    "model_id": "gemini-3.5-flash",
                     "temperature": 0.0,
                 }
             )
@@ -156,7 +156,7 @@ class TestGeminiVertexInitialization:
         """Should raise ValueError when vertexai=True but no project."""
         provider = GeminiProvider(
             {
-                "model_id": "gemini-3-flash-preview",
+                "model_id": "gemini-3.5-flash",
                 "vertexai": True,
                 "temperature": 0.0,
             }
@@ -170,7 +170,7 @@ class TestGeminiVertexInitialization:
         with patch.dict("sys.modules", {"google.auth": None}):
             provider = GeminiProvider(
                 {
-                    "model_id": "gemini-3-flash-preview",
+                    "model_id": "gemini-3.5-flash",
                     "vertexai": True,
                     "google_cloud_project": "my-project",
                     "temperature": 0.0,

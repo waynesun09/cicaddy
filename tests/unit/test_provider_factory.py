@@ -316,7 +316,7 @@ class TestGetProviderConfigGeminiVertex:
             google_cloud_project="my-gcp-project",
         )
         config = get_provider_config(settings)
-        assert config["model_id"] == "gemini-3-flash-preview"
+        assert config["model_id"] == "gemini-3.5-flash"
 
     def test_gemini_vertex_none_location_falls_back_to_default(self):
         settings = _make_settings(
@@ -427,7 +427,7 @@ class TestCreateProviderRouting:
 
         config = {
             "ai_provider": "gemini-vertex",
-            "model_id": "gemini-3-flash-preview",
+            "model_id": "gemini-3.5-flash",
             "vertexai": True,
             "google_cloud_project": "my-project",
             "google_cloud_location": "global",

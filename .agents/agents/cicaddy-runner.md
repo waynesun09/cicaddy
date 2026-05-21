@@ -67,7 +67,7 @@ cd "$OUTPUT_DIR"
 
 ```bash
 AI_PROVIDER=gemini                    # gemini | gemini-vertex | openai | claude | anthropic-vertex
-AI_MODEL=gemini-3-flash-preview       # Model name
+AI_MODEL=gemini-3.5-flash             # Model name
 DELEGATION_MODE=none                  # none | auto
 MAX_SUB_AGENTS=3                      # 1-10 (only with auto delegation)
 SUB_AGENT_MAX_ITERS=5                 # 1-15
