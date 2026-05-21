@@ -375,11 +375,36 @@ class TestParseResponseEdgeCases:
     """Tests for _parse_response edge cases (isinstance guards, whitespace)."""
 
     @pytest.mark.asyncio
-    async def test_non_dict_json_array_used_as_summary(self, mock_ai_provider):
-        """JSON array of non-finding items falls through to text summary."""
+    async def test_non_dict_json_array_returns_clean_fallback(self, mock_ai_provider):
+        """JSON array of non-finding items returns clean fallback, not raw JSON."""
         agent = SummarizationAgent(mock_ai_provider)
         summary, findings = agent._parse_response('["not", "a", "dict"]')
-        assert summary == '["not", "a", "dict"]'
+        assert summary == "No actionable findings extracted from agent responses."
+        assert findings == []
+
+    @pytest.mark.asyncio
+    async def test_empty_json_array_returns_clean_fallback(self, mock_ai_provider):
+        """Empty JSON array returns clean fallback."""
+        agent = SummarizationAgent(mock_ai_provider)
+        summary, findings = agent._parse_response("[]")
+        assert summary == "No actionable findings extracted from agent responses."
+        assert findings == []
+
+    @pytest.mark.asyncio
+    async def test_json_array_all_invalid_dicts_returns_clean_fallback(
+        self, mock_ai_provider
+    ):
+        """Array of dicts that all fail validation returns clean fallback."""
+        response = json.dumps(
+            [
+                {"no_file_field": True},
+                {"file": "", "message": "blank file path"},
+                {"file": "a.py", "message": ""},
+            ]
+        )
+        agent = SummarizationAgent(mock_ai_provider)
+        summary, findings = agent._parse_response(response)
+        assert summary == "No actionable findings extracted from agent responses."
         assert findings == []
 
     @pytest.mark.asyncio
@@ -429,6 +454,7 @@ class TestParseResponseEdgeCases:
         assert len(findings) == 2
         assert findings[0].file == "a.py"
         assert findings[1].file == "b.py"
+        assert findings[1].severity == "minor"
 
     @pytest.mark.asyncio
     async def test_json_string_used_as_summary(self, mock_ai_provider):

@@ -86,12 +86,12 @@ Do NOT return a bare JSON array — always use {"summary": ..., "findings": [...
 
 Each finding object:
 - "file" — required, string, path to the file
-- "message" — required, string, description of the finding
-- "severity" — required, one of: critical | major | minor | nit
 - "existing_code" — string or null, exact code snippet from the diff (1-3 lines)
 - "line" — integer or null, best-effort line number if the agent cited one
+- "severity" — one of: critical | major | minor | nit (defaults to "minor" if omitted)
+- "message" — required, string, description of the finding
 - "suggestion" — string or null, concrete fix when the agent provided one
-- "agent_source" — string, name of the agent that identified this finding"""
+- "agent_source" — string, name of the agent (defaults to "" if omitted)"""
 
 
 @dataclass
@@ -258,10 +258,16 @@ class SummarizationAgent:
         """Parse AI response into summary text and findings list.
 
         Handles four response shapes:
-        1. JSON object with ``summary`` + ``findings`` — ideal structured output
-        2. JSON array of finding dicts — extract findings, use placeholder summary
-        3. JSON string or non-object — use the text as the summary directly
-        4. Plain text (not valid JSON) — use as-is for the summary
+            1. JSON object with ``summary`` + ``findings``.
+            2. JSON array of finding dicts.
+            3. JSON string or non-object scalar.
+            4. Plain text (not valid JSON).
+
+        Args:
+            response_content: Raw AI response content.
+
+        Returns:
+            A tuple of (summary_text, findings).
         """
         content = extract_json(response_content)
 
@@ -289,6 +295,10 @@ class SummarizationAgent:
                     len(findings),
                 )
                 return "Code review findings:", findings
+            logger.warning(
+                "Summarization response is a JSON array with no valid findings"
+            )
+            return "No actionable findings extracted from agent responses.", []
 
         if data is None:
             raise ValueError(_ERR_EMPTY)
