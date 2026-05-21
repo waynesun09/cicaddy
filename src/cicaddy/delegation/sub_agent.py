@@ -157,6 +157,7 @@ class DelegationSubAgent:
             session_id=f"delegation-{self.spec.name}",
             execution_limits=execution_limits,
             context_safety_factor=self.settings.context_safety_factor,
+            use_ai_summarization=False,
         )
 
         logger.info(

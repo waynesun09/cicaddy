@@ -304,6 +304,7 @@ class TokenAwareExecutor:
         session_id: Optional[str] = None,
         tokenizer: Optional[Any] = None,
         context_safety_factor: float = 0.7,  # NEW: Configurable via CONTEXT_SAFETY_FACTOR env var
+        use_ai_summarization: bool = True,
     ):
         self.ai_provider = ai_provider
         self.mcp_manager = mcp_manager
@@ -359,7 +360,9 @@ class TokenAwareExecutor:
             provider=provider_name,
             model=model_name,
             ai_provider=ai_provider,
-            config=ContextCompactorConfig(),
+            config=ContextCompactorConfig(
+                use_ai_summarization=use_ai_summarization,
+            ),
             tokenizer=tokenizer,
         )
 

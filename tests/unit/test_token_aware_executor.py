@@ -1499,3 +1499,26 @@ class TestTokenAwareExecutor:
         assert executor.state._degradation_skip_logged is True
         # Degradation should still not be active
         assert executor.state.degradation_active is False
+
+
+class TestTokenAwareExecutorAISummarization:
+    """Tests for use_ai_summarization parameter propagation to ContextCompactor."""
+
+    def test_default_ai_summarization_enabled(self):
+        """Default TokenAwareExecutor enables AI summarization in compactor."""
+        provider = Mock(spec=BaseProvider)
+        executor = TokenAwareExecutor(
+            ai_provider=provider,
+            session_id="test-default",
+        )
+        assert executor.compactor.config.use_ai_summarization is True
+
+    def test_ai_summarization_disabled(self):
+        """use_ai_summarization=False propagates to compactor config."""
+        provider = Mock(spec=BaseProvider)
+        executor = TokenAwareExecutor(
+            ai_provider=provider,
+            session_id="test-disabled",
+            use_ai_summarization=False,
+        )
+        assert executor.compactor.config.use_ai_summarization is False
