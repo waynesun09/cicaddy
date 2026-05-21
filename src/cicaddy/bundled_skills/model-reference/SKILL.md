@@ -7,12 +7,13 @@ description: Current AI model names, capabilities, and naming conventions for Ge
 
 | Tier | Use Case | Notes |
 |------|----------|-------|
-| `gemini-*-pro-preview` | Complex analysis, deep code review | Flagship |
-| `gemini-*-flash-preview` | General tasks, default for most use cases | Fast, capable |
-| `gemini-*-flash-lite-preview` | Simple tasks, cost-sensitive | Lightweight |
+| `gemini-*-pro*` | Complex analysis, deep code review | Flagship |
+| `gemini-*-flash` | General tasks, default for most use cases | Fast, capable |
+| `gemini-*-flash-lite*` | Simple tasks, cost-sensitive | Lightweight |
 
-- Model names follow `gemini-{version}-{tier}-preview` pattern (e.g., `gemini-3.5-flash`, `gemini-3.1-pro-preview`)
-- The `-preview` suffix is acceptable for Vertex AI enterprise use
+- GA models use `gemini-{version}-{tier}` pattern (e.g., `gemini-3.5-flash`)
+- Preview models add `-preview` suffix (e.g., `gemini-3.1-pro-preview`, `gemini-3.1-flash-lite-preview`)
+- Both GA and `-preview` names are acceptable for Vertex AI enterprise use
 - Pro and Flash tiers typically require the `global` Vertex endpoint; Flash-Lite also supports regional endpoints
 - Date suffixes (`-YYYYMMDD`) are used to pin specific versions
 - All Gemini models support function calling (MCP tool use)
