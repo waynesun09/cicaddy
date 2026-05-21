@@ -375,12 +375,60 @@ class TestParseResponseEdgeCases:
     """Tests for _parse_response edge cases (isinstance guards, whitespace)."""
 
     @pytest.mark.asyncio
-    async def test_non_dict_json_used_as_summary(self, mock_ai_provider):
-        """JSON array response should be used as summary text."""
+    async def test_non_dict_json_array_used_as_summary(self, mock_ai_provider):
+        """JSON array of non-finding items falls through to text summary."""
         agent = SummarizationAgent(mock_ai_provider)
         summary, findings = agent._parse_response('["not", "a", "dict"]')
         assert summary == '["not", "a", "dict"]'
         assert findings == []
+
+    @pytest.mark.asyncio
+    async def test_json_array_of_findings_extracts_findings(self, mock_ai_provider):
+        """JSON array of valid finding dicts should extract findings."""
+        response = json.dumps(
+            [
+                {
+                    "file": "src/app.py",
+                    "severity": "major",
+                    "message": "SQL injection risk",
+                    "line": 42,
+                    "agent_source": "security-reviewer",
+                },
+                {
+                    "file": "src/utils.py",
+                    "severity": "minor",
+                    "message": "Unused import",
+                    "agent_source": "code-reviewer",
+                },
+            ]
+        )
+        agent = SummarizationAgent(mock_ai_provider)
+        summary, findings = agent._parse_response(response)
+        assert summary == "Code review findings:"
+        assert len(findings) == 2
+        assert findings[0].file == "src/app.py"
+        assert findings[0].severity == "major"
+        assert findings[0].line == 42
+        assert findings[1].file == "src/utils.py"
+        assert findings[1].severity == "minor"
+
+    @pytest.mark.asyncio
+    async def test_json_array_mixed_extracts_valid_only(self, mock_ai_provider):
+        """Mixed array extracts only valid finding dicts."""
+        response = json.dumps(
+            [
+                {"file": "a.py", "severity": "major", "message": "real finding"},
+                "just a string",
+                {"no_file_field": True},
+                {"file": "b.py", "message": "another finding"},
+            ]
+        )
+        agent = SummarizationAgent(mock_ai_provider)
+        summary, findings = agent._parse_response(response)
+        assert summary == "Code review findings:"
+        assert len(findings) == 2
+        assert findings[0].file == "a.py"
+        assert findings[1].file == "b.py"
 
     @pytest.mark.asyncio
     async def test_json_string_used_as_summary(self, mock_ai_provider):
