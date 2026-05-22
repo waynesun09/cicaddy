@@ -539,6 +539,108 @@ class TestParseResponseEdgeCases:
         assert findings[0].file == "a.py"
 
 
+class TestParseDictResponseJsonSummaryGuard:
+    """Tests for _parse_dict_response guard against JSON in summary field."""
+
+    @pytest.mark.asyncio
+    async def test_json_array_in_summary_extracted_to_findings(self, mock_ai_provider):
+        """JSON array in summary field should be extracted into findings."""
+        findings_json = json.dumps(
+            [
+                {
+                    "file": "Dockerfile",
+                    "severity": "major",
+                    "message": "Unstable base image",
+                },
+                {
+                    "file": "release.yml",
+                    "severity": "minor",
+                    "message": "Missing git config",
+                },
+            ]
+        )
+        response = json.dumps({"summary": findings_json, "findings": []})
+        agent = SummarizationAgent(mock_ai_provider)
+        summary, findings = agent._parse_response(response)
+        assert summary == "Code review findings:"
+        assert len(findings) == 2
+        assert findings[0].file == "Dockerfile"
+        assert findings[1].file == "release.yml"
+
+    @pytest.mark.asyncio
+    async def test_json_array_in_summary_merged_with_existing_findings(
+        self, mock_ai_provider
+    ):
+        """Findings from summary JSON array merge with explicit findings field."""
+        summary_findings = [
+            {"file": "a.py", "severity": "major", "message": "From summary"},
+        ]
+        explicit_findings = [
+            {"file": "b.py", "severity": "minor", "message": "From findings field"},
+        ]
+        response = json.dumps(
+            {
+                "summary": json.dumps(summary_findings),
+                "findings": explicit_findings,
+            }
+        )
+        agent = SummarizationAgent(mock_ai_provider)
+        summary, findings = agent._parse_response(response)
+        assert summary == "Code review findings:"
+        assert len(findings) == 2
+        files = {f.file for f in findings}
+        assert files == {"a.py", "b.py"}
+
+    @pytest.mark.asyncio
+    async def test_json_array_in_summary_invalid_entries_filtered(
+        self, mock_ai_provider
+    ):
+        """Invalid entries from summary JSON array are filtered out."""
+        findings_json = json.dumps(
+            [
+                {"file": "a.py", "severity": "major", "message": "Valid"},
+                {"no_file": True},
+                "not a dict",
+            ]
+        )
+        response = json.dumps({"summary": findings_json, "findings": []})
+        agent = SummarizationAgent(mock_ai_provider)
+        summary, findings = agent._parse_response(response)
+        assert summary == "Code review findings:"
+        assert len(findings) == 1
+        assert findings[0].file == "a.py"
+
+    @pytest.mark.asyncio
+    async def test_summary_starts_with_bracket_but_not_json(self, mock_ai_provider):
+        """Summary starting with [ but not valid JSON is left as prose."""
+        response = json.dumps(
+            {
+                "summary": "[This is a bracketed note] about the review",
+                "findings": [],
+            }
+        )
+        agent = SummarizationAgent(mock_ai_provider)
+        summary, findings = agent._parse_response(response)
+        assert summary == "[This is a bracketed note] about the review"
+        assert findings == []
+
+    @pytest.mark.asyncio
+    async def test_normal_prose_summary_unchanged(self, mock_ai_provider):
+        """Normal prose summary should pass through unchanged."""
+        response = json.dumps(
+            {
+                "summary": "## Major Issues\n\nFound 2 critical bugs.",
+                "findings": [
+                    {"file": "x.py", "severity": "critical", "message": "Bug"},
+                ],
+            }
+        )
+        agent = SummarizationAgent(mock_ai_provider)
+        summary, findings = agent._parse_response(response)
+        assert summary == "## Major Issues\n\nFound 2 critical bugs."
+        assert len(findings) == 1
+
+
 class TestValidateFinding:
     """Tests for SummarizationAgent._validate_finding."""
 
