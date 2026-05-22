@@ -71,6 +71,19 @@ priority: 15
 
 Sub-agents share parent's MCP connections and tool registry (no new server processes). They also inherit the parent's workspace context: bundled skills, per-repo agent rules (`AGENT.md`/`CLAUDE.md`/`GEMINI.md`), and per-repo skills (`.agents/skills/`). Side-effect tools (post comments, merge PRs) are blocked by default via plugin entry points.
 
+## Forcing multi-agent execution
+
+The triage AI decides agent count based on perceived complexity. Small PRs may
+get only 1 agent, which skips the summarizer and findings pipeline entirely.
+Use `TRIAGE_PROMPT` to override:
+
+```bash
+TRIAGE_PROMPT=Always assign at least 2 sub-agents for thorough coverage.
+```
+
+This is essential for testing or when you need structured findings with inline
+comment placement regardless of PR size.
+
 ## Review summarization (v0.10.0+)
 
 When 2+ sub-agents produce reviews, the **SummarizationAgent** condenses output into a ~300-500 word summary with structured `Finding` objects (file, line, severity, message). Line numbers are resolved via a two-step process: deterministic diff snippet matching, then AI fallback.
@@ -79,5 +92,18 @@ When 2+ sub-agents produce reviews, the **SummarizationAgent** condenses output 
 DELEGATION_SUMMARIZE=true                         # Enable (default: true)
 DELEGATION_SUMMARIZATION_PROMPT=""                # Optional custom instructions
 ```
+
+## Hunk validation (v0.12.0+)
+
+After line resolution, `validate_findings_in_hunks()` ensures finding line
+numbers fall within actual diff hunk ranges. This prevents platform API
+rejections (e.g., GitHub 422) when posting inline comments.
+
+- **Valid**: line range fully inside a hunk — kept as-is
+- **Clamped**: line range partially overlapping a hunk — adjusted to hunk boundaries
+- **Cleared**: line completely outside all hunks — line set to `None` (becomes file-level comment)
+
+The validation runs automatically in `_resolve_lines()` after both deterministic
+and AI resolution complete. No configuration needed.
 
 See `docs/sub-agent-delegation.md` for full details on findings, line resolution, and fallback behavior.
