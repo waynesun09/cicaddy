@@ -126,21 +126,29 @@ def _coerce_int(val: Any) -> Optional[int]:
 
 
 def _format_finding_md(entry: dict) -> str:
-    """Format a single finding dict as a numbered-list body."""
+    """Format a single finding dict as a rich markdown block.
+
+    Mirrors the structure individual review agents produce naturally:
+    file reference, issue description, code snippet, and suggestion
+    as separate visual blocks.
+    """
     msg = str(entry.get("message") or "")
     file_path = entry.get("file", "")
+    existing_code = entry.get("existing_code")
     suggestion = entry.get("suggestion")
 
     parts: list[str] = []
     if file_path:
-        parts.append(f"**`{file_path}`** — {msg}")
-    else:
-        parts.append(msg)
+        parts.append(f"In `{file_path}`:")
+    parts.append(f"\n{msg}")
+
+    if existing_code and isinstance(existing_code, str) and existing_code.strip():
+        parts.append(f"\n\n```\n{existing_code.strip()}\n```")
 
     if suggestion and isinstance(suggestion, str) and suggestion.strip():
-        parts.append(f" *Suggestion: {suggestion.strip()}*")
+        parts.append(f"\n\n**Suggestion:** {suggestion.strip()}")
 
-    return "".join(parts)
+    return "\n".join(parts) if len(parts) > 1 else parts[0]
 
 
 def _validate_single_finding(
@@ -502,29 +510,20 @@ class SummarizationAgent:
             if msg:
                 severity_groups.setdefault(sev, []).append(f)
 
-        _sev_emoji = {
-            "critical": "\U0001f534",
-            "major": "\U0001f7e0",
-            "minor": "\U0001f7e1",
-            "nit": "\U0001f535",
-        }
         parts: list[str] = []
+        finding_num = 0
         for sev in ("critical", "major", "minor", "nit"):
             group = severity_groups.get(sev, [])
             if not group:
                 continue
-            emoji = _sev_emoji.get(sev, "")
-            parts.append(f"### {emoji} {sev.title()} ({len(group)})")
-            items: list[str] = []
-            for idx, entry in enumerate(group, 1):
-                item = _format_finding_md(entry)
-                items.append(f"{idx}. {item}")
-            parts.append("\n".join(items))
+            parts.append(f"## {sev.title()}")
+            for entry in group:
+                finding_num += 1
+                body = _format_finding_md(entry)
+                parts.append(f"#### {finding_num}. ({sev.title()})\n\n{body}")
 
         if parts:
-            total = sum(len(v) for v in severity_groups.values())
-            intro = f"Review of the code changes identified {total} finding(s):\n\n"
-            summary = intro + "\n\n".join(parts)
+            summary = "\n\n".join(parts)
         else:
             summary = "Review findings from sub-agent analyses."
 

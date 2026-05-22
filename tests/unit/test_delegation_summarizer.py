@@ -867,13 +867,11 @@ class TestUnpackBareArray:
         assert "summary" in result
         assert "findings" in result
         assert len(result["findings"]) == 2
-        assert result["summary"].startswith("Review of the code changes identified")
-        assert "2 finding(s)" in result["summary"]
         assert "Issue A" in result["summary"]
         assert "Issue B" in result["summary"]
-        assert "Major (1)" in result["summary"]
-        assert "**`a.py`**" in result["summary"]
-        assert "**`b.py`**" in result["summary"]
+        assert "## Major" in result["summary"]
+        assert "`a.py`" in result["summary"]
+        assert "`b.py`" in result["summary"]
 
     def test_summary_groups_by_severity(self):
         bare = [
@@ -882,9 +880,9 @@ class TestUnpackBareArray:
             {"file": "c.py", "severity": "minor", "message": "Minor issue"},
         ]
         result = SummarizationAgent._unpack_bare_array(bare)
-        assert "Critical (1)" in result["summary"]
-        assert "Major (1)" in result["summary"]
-        assert "Minor (1)" in result["summary"]
+        assert "## Critical" in result["summary"]
+        assert "## Major" in result["summary"]
+        assert "## Minor" in result["summary"]
 
     def test_summary_preserves_special_chars(self):
         """Special characters in messages/code are preserved in markdown."""
@@ -899,10 +897,10 @@ class TestUnpackBareArray:
         result = SummarizationAgent._unpack_bare_array(bare)
         summary = result["summary"]
         assert "<str>" in summary
-        assert "**`src/types.py`**" in summary
+        assert "`src/types.py`" in summary
 
-    def test_summary_omits_code_snippets(self):
-        """Code snippets are kept in findings but omitted from summary text."""
+    def test_summary_includes_code_snippets(self):
+        """Code snippets are rendered in fenced blocks in the summary."""
         bare = [
             {
                 "file": "a.py",
@@ -914,11 +912,12 @@ class TestUnpackBareArray:
         result = SummarizationAgent._unpack_bare_array(bare)
         summary = result["summary"]
         assert "Potential issue" in summary
-        assert "**`a.py`**" in summary
+        assert "`a.py`" in summary
+        assert "if x > 0:" in summary
         assert result["findings"][0]["existing_code"] == "if x > 0:"
 
     def test_summary_includes_suggestion(self):
-        """Suggestions are rendered inline."""
+        """Suggestions are rendered as bold-labeled blocks."""
         bare = [
             {
                 "file": "a.py",
@@ -929,7 +928,7 @@ class TestUnpackBareArray:
         ]
         result = SummarizationAgent._unpack_bare_array(bare)
         summary = result["summary"]
-        assert "*Suggestion:" in summary
+        assert "**Suggestion:**" in summary
         assert "Replace with MAX_RETRIES = 3" in summary
 
     def test_start_end_line_preserved(self):
