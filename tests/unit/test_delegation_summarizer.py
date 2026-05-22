@@ -1087,6 +1087,28 @@ class TestBuildFooter:
         assert "1 failed" in footer
 
 
+def _make_sub_agent_results(
+    categories_a=("code",), categories_b=("arch",)
+) -> list[dict]:
+    """Build minimal sub-agent results for summarization tests."""
+    return [
+        {
+            "agent_name": "a",
+            "status": "success",
+            "analysis": "A",
+            "categories": list(categories_a),
+            "execution_time": 1,
+        },
+        {
+            "agent_name": "b",
+            "status": "success",
+            "analysis": "B",
+            "categories": list(categories_b),
+            "execution_time": 2,
+        },
+    ]
+
+
 class TestTwoStepLineResolution:
     """Tests for the two-step line resolution flow in SummarizationAgent."""
 
@@ -1122,24 +1144,8 @@ diff --git a/src/foo.py b/src/foo.py
         mock_response.content = response_data
         mock_ai_provider.chat_completion.return_value = mock_response
 
-        results = [
-            {
-                "agent_name": "a",
-                "status": "success",
-                "analysis": "A",
-                "categories": ["code"],
-                "execution_time": 1,
-            },
-            {
-                "agent_name": "b",
-                "status": "success",
-                "analysis": "B",
-                "categories": ["arch"],
-                "execution_time": 2,
-            },
-        ]
         agent = SummarizationAgent(mock_ai_provider)
-        result = await agent.summarize(results, diff=diff)
+        result = await agent.summarize(_make_sub_agent_results(), diff=diff)
 
         assert len(result.findings) == 1
         assert result.findings[0].line == 13
@@ -1182,24 +1188,8 @@ diff --git a/src/foo.py b/src/foo.py
             MagicMock(content=mapping_response),
         ]
 
-        results = [
-            {
-                "agent_name": "a",
-                "status": "success",
-                "analysis": "A",
-                "categories": ["code"],
-                "execution_time": 1,
-            },
-            {
-                "agent_name": "b",
-                "status": "success",
-                "analysis": "B",
-                "categories": ["arch"],
-                "execution_time": 2,
-            },
-        ]
         agent = SummarizationAgent(mock_ai_provider)
-        result = await agent.summarize(results, diff=diff)
+        result = await agent.summarize(_make_sub_agent_results(), diff=diff)
 
         assert len(result.findings) == 1
         assert result.findings[0].line == 12
@@ -1242,27 +1232,10 @@ diff --git a/src/foo.py b/src/foo.py
             MagicMock(content=mapping_response),
         ]
 
-        results = [
-            {
-                "agent_name": "a",
-                "status": "success",
-                "analysis": "A",
-                "categories": ["code"],
-                "execution_time": 1,
-            },
-            {
-                "agent_name": "b",
-                "status": "success",
-                "analysis": "B",
-                "categories": ["arch"],
-                "execution_time": 2,
-            },
-        ]
         agent = SummarizationAgent(mock_ai_provider)
-        result = await agent.summarize(results, diff=diff)
+        result = await agent.summarize(_make_sub_agent_results(), diff=diff)
 
         assert len(result.findings) == 1
-        # Line was cleared by hunk validation — becomes file-level comment
         assert result.findings[0].line is None
         assert result.findings[0].start_line is None
         assert result.findings[0].end_line is None
@@ -1298,24 +1271,10 @@ diff --git a/src/foo.py b/src/foo.py
             RuntimeError("API error"),
         ]
 
-        results = [
-            {
-                "agent_name": "a",
-                "status": "success",
-                "analysis": "A",
-                "categories": [],
-                "execution_time": 1,
-            },
-            {
-                "agent_name": "b",
-                "status": "success",
-                "analysis": "B",
-                "categories": [],
-                "execution_time": 1,
-            },
-        ]
         agent = SummarizationAgent(mock_ai_provider)
-        result = await agent.summarize(results, diff=diff)
+        result = await agent.summarize(
+            _make_sub_agent_results(categories_a=(), categories_b=()), diff=diff
+        )
 
         assert len(result.findings) == 1
         assert result.findings[0].line is None
