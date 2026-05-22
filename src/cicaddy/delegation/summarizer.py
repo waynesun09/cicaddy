@@ -477,9 +477,12 @@ class SummarizationAgent:
             if msgs:
                 parts.append(f"**{sev.title()}** ({len(msgs)}): " + "; ".join(msgs))
 
-        summary = (
-            "\n\n".join(parts) if parts else "Review findings from sub-agent analyses."
-        )
+        if parts:
+            total = sum(len(v) for v in severity_groups.values())
+            intro = f"Review of the code changes identified {total} finding(s):\n\n"
+            summary = intro + "\n\n".join(parts)
+        else:
+            summary = "Review findings from sub-agent analyses."
 
         logger.info(
             "Unpacked bare JSON array (%d items) into schema-compliant object",

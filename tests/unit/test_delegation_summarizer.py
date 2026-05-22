@@ -865,6 +865,8 @@ class TestUnpackBareArray:
         assert "summary" in result
         assert "findings" in result
         assert len(result["findings"]) == 2
+        assert result["summary"].startswith("Review of the code changes identified")
+        assert "2 finding(s)" in result["summary"]
         assert "Issue A" in result["summary"]
         assert "Issue B" in result["summary"]
 
