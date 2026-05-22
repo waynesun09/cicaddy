@@ -81,7 +81,8 @@ IMPORTANT: Always wrap findings inside the object above. \
 Do NOT return a bare JSON array — always use {"summary": ..., "findings": [...]}.
 
 ### Field reference
-- "summary" — required, markdown string summarizing the review
+- "summary" — required, PROSE markdown string summarizing the review \
+(NEVER put a JSON array or raw findings here — always human-readable text)
 - "findings" — required, array of finding objects (empty array if no findings)
 
 Each finding object:
@@ -317,6 +318,25 @@ class SummarizationAgent:
         raw_findings = data.get("findings", [])
         if not isinstance(raw_findings, list):
             raw_findings = []
+
+        # Guard: AI sometimes puts JSON findings into summary field
+        stripped = summary.strip()
+        if stripped.startswith("["):
+            try:
+                embedded = json.loads(stripped)
+                if isinstance(embedded, list):
+                    dict_entries = [e for e in embedded if isinstance(e, dict)]
+                    if dict_entries:
+                        raw_findings.extend(dict_entries)
+                        logger.warning(
+                            "AI put JSON array in summary field, "
+                            "extracted %d entries into findings",
+                            len(dict_entries),
+                        )
+                        summary = "Code review findings:"
+            except json.JSONDecodeError:
+                pass
+
         findings = [
             f
             for entry in raw_findings
