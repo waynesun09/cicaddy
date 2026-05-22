@@ -1087,6 +1087,28 @@ class TestBuildFooter:
         assert "1 failed" in footer
 
 
+def _make_sub_agent_results(
+    categories_a=("code",), categories_b=("arch",)
+) -> list[dict]:
+    """Build minimal sub-agent results for summarization tests."""
+    return [
+        {
+            "agent_name": "a",
+            "status": "success",
+            "analysis": "A",
+            "categories": list(categories_a),
+            "execution_time": 1,
+        },
+        {
+            "agent_name": "b",
+            "status": "success",
+            "analysis": "B",
+            "categories": list(categories_b),
+            "execution_time": 2,
+        },
+    ]
+
+
 class TestTwoStepLineResolution:
     """Tests for the two-step line resolution flow in SummarizationAgent."""
 
@@ -1122,24 +1144,8 @@ diff --git a/src/foo.py b/src/foo.py
         mock_response.content = response_data
         mock_ai_provider.chat_completion.return_value = mock_response
 
-        results = [
-            {
-                "agent_name": "a",
-                "status": "success",
-                "analysis": "A",
-                "categories": ["code"],
-                "execution_time": 1,
-            },
-            {
-                "agent_name": "b",
-                "status": "success",
-                "analysis": "B",
-                "categories": ["arch"],
-                "execution_time": 2,
-            },
-        ]
         agent = SummarizationAgent(mock_ai_provider)
-        result = await agent.summarize(results, diff=diff)
+        result = await agent.summarize(_make_sub_agent_results(), diff=diff)
 
         assert len(result.findings) == 1
         assert result.findings[0].line == 13
@@ -1182,30 +1188,57 @@ diff --git a/src/foo.py b/src/foo.py
             MagicMock(content=mapping_response),
         ]
 
-        results = [
-            {
-                "agent_name": "a",
-                "status": "success",
-                "analysis": "A",
-                "categories": ["code"],
-                "execution_time": 1,
-            },
-            {
-                "agent_name": "b",
-                "status": "success",
-                "analysis": "B",
-                "categories": ["arch"],
-                "execution_time": 2,
-            },
-        ]
         agent = SummarizationAgent(mock_ai_provider)
-        result = await agent.summarize(results, diff=diff)
+        result = await agent.summarize(_make_sub_agent_results(), diff=diff)
 
         assert len(result.findings) == 1
         assert result.findings[0].line == 12
         assert result.findings[0].start_line == 12
         # Two AI calls: summarization + line mapping (no correction needed)
         assert mock_ai_provider.chat_completion.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_resolved_line_outside_hunk_cleared(self, mock_ai_provider):
+        """AI-resolved line outside hunk boundaries gets cleared by validation."""
+        diff = """\
+diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -10,3 +10,4 @@ def process():
+     data = fetch()
+     if data:
++        validate(data)
+         return data
+"""
+        summary_response = json.dumps(
+            {
+                "summary": "Found issue",
+                "findings": [
+                    {
+                        "file": "src/foo.py",
+                        "existing_code": "not in diff",
+                        "severity": "major",
+                        "message": "Some issue",
+                        "agent_source": "agent-a",
+                    },
+                ],
+            }
+        )
+        # AI maps to line 50, which is outside the hunk (10-13)
+        mapping_response = '[{"index": 0, "start_line": 50, "end_line": 50}]'
+
+        mock_ai_provider.chat_completion.side_effect = [
+            MagicMock(content=summary_response),
+            MagicMock(content=mapping_response),
+        ]
+
+        agent = SummarizationAgent(mock_ai_provider)
+        result = await agent.summarize(_make_sub_agent_results(), diff=diff)
+
+        assert len(result.findings) == 1
+        assert result.findings[0].line is None
+        assert result.findings[0].start_line is None
+        assert result.findings[0].end_line is None
 
     @pytest.mark.asyncio
     async def test_ai_fallback_failure_preserves_findings(self, mock_ai_provider):
@@ -1238,24 +1271,10 @@ diff --git a/src/foo.py b/src/foo.py
             RuntimeError("API error"),
         ]
 
-        results = [
-            {
-                "agent_name": "a",
-                "status": "success",
-                "analysis": "A",
-                "categories": [],
-                "execution_time": 1,
-            },
-            {
-                "agent_name": "b",
-                "status": "success",
-                "analysis": "B",
-                "categories": [],
-                "execution_time": 1,
-            },
-        ]
         agent = SummarizationAgent(mock_ai_provider)
-        result = await agent.summarize(results, diff=diff)
+        result = await agent.summarize(
+            _make_sub_agent_results(categories_a=(), categories_b=()), diff=diff
+        )
 
         assert len(result.findings) == 1
         assert result.findings[0].line is None

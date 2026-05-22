@@ -587,8 +587,11 @@ class SummarizationAgent:
         )
 
     async def _resolve_lines(self, findings: List[Finding], diff: str) -> List[Finding]:
-        """Two-step line resolution: deterministic first, AI fallback second."""
-        from cicaddy.delegation.line_resolver import resolve_findings
+        """Two-step line resolution with hunk range validation."""
+        from cicaddy.delegation.line_resolver import (
+            resolve_findings,
+            validate_findings_in_hunks,
+        )
 
         resolved, unresolved = resolve_findings(findings, diff)
 
@@ -596,7 +599,7 @@ class SummarizationAgent:
             ai_resolved = await self._ai_resolve_lines(unresolved, diff)
             resolved.extend(ai_resolved)
 
-        return resolved
+        return validate_findings_in_hunks(resolved, diff)
 
     @staticmethod
     def _filter_diff_for_files(diff: str, relevant_files: set[str]) -> str:

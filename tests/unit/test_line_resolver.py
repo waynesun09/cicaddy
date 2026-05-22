@@ -7,6 +7,7 @@ from cicaddy.delegation.line_resolver import (
     find_line_in_diff,
     parse_diff,
     resolve_findings,
+    validate_findings_in_hunks,
 )
 from cicaddy.delegation.summarizer import Finding
 
@@ -440,3 +441,155 @@ diff --git a/x.py b/x.py
     def test_empty_diff(self):
         assert annotate_diff_with_line_numbers("") == ""
         assert annotate_diff_with_line_numbers("  ") == "  "
+
+
+# Diff with two hunks for validation tests
+VALIDATION_DIFF = """\
+diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -10,6 +10,7 @@ def process():
+     data = fetch()
+     if data:
+         result = transform(data)
++        validate(result)
+         return result
+     return None
+
+@@ -30,3 +31,5 @@ def helper():
+     x = 1
+     y = 2
+     return x + y
++
++def new_func():
+"""
+
+
+class TestValidateFindingsInHunks:
+    """Tests for validate_findings_in_hunks()."""
+
+    def test_line_inside_hunk_kept(self):
+        """Finding with line inside a hunk is kept as-is."""
+        finding = Finding(file="src/foo.py", line=12, severity="major", message="issue")
+        finding.start_line = 12
+        finding.end_line = 12
+        result = validate_findings_in_hunks([finding], VALIDATION_DIFF)
+        assert result[0].line == 12
+        assert result[0].start_line == 12
+        assert result[0].end_line == 12
+
+    def test_line_outside_all_hunks_cleared(self):
+        """Finding with line outside all hunks gets line cleared to None."""
+        finding = Finding(file="src/foo.py", line=50, severity="major", message="issue")
+        finding.start_line = 50
+        finding.end_line = 50
+        result = validate_findings_in_hunks([finding], VALIDATION_DIFF)
+        assert result[0].line is None
+        assert result[0].start_line is None
+        assert result[0].end_line is None
+
+    def test_start_end_clamped_to_hunk(self):
+        """Finding partially overlapping a hunk gets clamped to hunk boundaries."""
+        finding = Finding(file="src/foo.py", line=8, severity="major", message="issue")
+        finding.start_line = 8
+        finding.end_line = 12
+        result = validate_findings_in_hunks([finding], VALIDATION_DIFF)
+        assert result[0].line == 10
+        assert result[0].start_line == 10
+        assert result[0].end_line == 12
+
+    def test_end_clamped_past_hunk(self):
+        """Finding extending past hunk end gets end_line clamped."""
+        finding = Finding(file="src/foo.py", line=14, severity="major", message="issue")
+        finding.start_line = 14
+        finding.end_line = 20
+        result = validate_findings_in_hunks([finding], VALIDATION_DIFF)
+        assert result[0].start_line == 14
+        assert result[0].end_line == 16
+
+    def test_no_line_passthrough(self):
+        """Finding with line=None passes through unchanged."""
+        finding = Finding(
+            file="src/foo.py", line=None, severity="minor", message="file-level"
+        )
+        result = validate_findings_in_hunks([finding], VALIDATION_DIFF)
+        assert result[0].line is None
+
+    def test_file_not_in_diff_passthrough(self):
+        """Finding for a file not in the diff passes through unchanged."""
+        finding = Finding(
+            file="src/other.py", line=42, severity="major", message="issue"
+        )
+        result = validate_findings_in_hunks([finding], VALIDATION_DIFF)
+        assert result[0].line == 42
+
+    def test_multiple_hunks_second_hunk(self):
+        """Finding in the second hunk is kept."""
+        finding = Finding(file="src/foo.py", line=33, severity="major", message="issue")
+        finding.start_line = 33
+        finding.end_line = 33
+        result = validate_findings_in_hunks([finding], VALIDATION_DIFF)
+        assert result[0].line == 33
+
+    def test_range_spanning_two_hunks_clamped(self):
+        """Finding spanning from hunk 1 to hunk 2 should be clamped, not validated."""
+        finding = Finding(file="src/foo.py", line=14, severity="major", message="issue")
+        finding.start_line = 14
+        finding.end_line = 33
+        result = validate_findings_in_hunks([finding], VALIDATION_DIFF)
+        assert result[0].start_line == 14
+        assert result[0].end_line == 16
+
+    def test_completely_outside_between_hunks_cleared(self):
+        """Finding between two hunks (gap) gets cleared."""
+        finding = Finding(file="src/foo.py", line=22, severity="major", message="issue")
+        finding.start_line = 22
+        finding.end_line = 22
+        result = validate_findings_in_hunks([finding], VALIDATION_DIFF)
+        assert result[0].line is None
+
+    def test_suffix_path_matching(self):
+        """Finding with short path matches diff path by suffix."""
+        finding = Finding(file="foo.py", line=12, severity="major", message="issue")
+        finding.start_line = 12
+        finding.end_line = 12
+        result = validate_findings_in_hunks([finding], VALIDATION_DIFF)
+        assert result[0].line == 12
+
+    def test_empty_diff_returns_findings_unchanged(self):
+        """Empty diff returns findings unchanged."""
+        finding = Finding(file="src/foo.py", line=42, severity="major", message="issue")
+        result = validate_findings_in_hunks([finding], "")
+        assert result[0].line == 42
+
+    def test_empty_findings_returns_empty(self):
+        """Empty findings list returns empty list."""
+        result = validate_findings_in_hunks([], VALIDATION_DIFF)
+        assert result == []
+
+    def test_line_only_no_start_end(self):
+        """Finding with line but no start_line/end_line uses line for both."""
+        finding = Finding(file="src/foo.py", line=12, severity="major", message="issue")
+        result = validate_findings_in_hunks([finding], VALIDATION_DIFF)
+        assert result[0].line == 12
+
+    def test_line_only_outside_cleared(self):
+        """Finding with line only (no start/end) outside hunk gets cleared."""
+        finding = Finding(file="src/foo.py", line=50, severity="major", message="issue")
+        result = validate_findings_in_hunks([finding], VALIDATION_DIFF)
+        assert result[0].line is None
+
+    def test_stats_logging(self, capsys):
+        """Verify logging of validation stats."""
+        findings = [
+            Finding(file="src/foo.py", line=12, severity="major", message="valid"),
+            Finding(file="src/foo.py", line=50, severity="major", message="outside"),
+        ]
+        findings[0].start_line = 12
+        findings[0].end_line = 12
+        findings[1].start_line = 50
+        findings[1].end_line = 50
+        validate_findings_in_hunks(findings, VALIDATION_DIFF)
+        captured = capsys.readouterr()
+        assert "1 valid" in captured.out
+        assert "1 cleared" in captured.out
