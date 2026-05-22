@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["summary", "findings"],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Markdown-formatted review summary grouped by severity"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["file", "severity", "message"],
+        "properties": {
+          "file": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Path to the file"
+          },
+          "existing_code": {
+            "type": ["string", "null"],
+            "description": "Relevant code snippet from the diff (1-3 lines)"
+          },
+          "line": {
+            "type": ["integer", "null"],
+            "description": "Best-effort line number if cited"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "major", "minor", "nit"],
+            "description": "Finding severity level"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Description of the finding"
+          },
+          "suggestion": {
+            "type": ["string", "null"],
+            "description": "Concrete fix when provided"
+          },
+          "agent_source": {
+            "type": ["string", "null"],
+            "description": "Name of the agent that reported the finding"
+          },
+          "start_line": {
+            "type": ["integer", "null"],
+            "description": "Start line for multi-line findings"
+          },
+          "end_line": {
+            "type": ["integer", "null"],
+            "description": "End line for multi-line findings"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

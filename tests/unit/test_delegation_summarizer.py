@@ -46,7 +46,8 @@ def two_agent_results():
 
 
 @pytest.fixture
-def ai_summary_response():
+def valid_ai_response():
+    """Valid JSON response matching the schema."""
     return json.dumps(
         {
             "summary": "## Major\n- Missing null check in `src/foo.py:42`\n\n## Minor\n- Hardcoded secret in `src/bar.py:15`\n\n**Overall:** LGTM with minor issues.",
@@ -70,6 +71,17 @@ def ai_summary_response():
                     "agent_source": "security-reviewer",
                 },
             ],
+        }
+    )
+
+
+@pytest.fixture
+def valid_no_findings_response():
+    """Valid JSON response with no findings."""
+    return json.dumps(
+        {
+            "summary": "All looks good, no issues found.",
+            "findings": [],
         }
     )
 
@@ -118,11 +130,14 @@ class TestSummarizationAgent:
 
     @pytest.mark.asyncio
     async def test_summarize_multiple_agents(
-        self, mock_ai_provider, two_agent_results, ai_summary_response
+        self,
+        mock_ai_provider,
+        two_agent_results,
+        valid_ai_response,
     ):
         """2+ successful agents should trigger AI summarization."""
         mock_response = MagicMock()
-        mock_response.content = ai_summary_response
+        mock_response.content = valid_ai_response
         mock_ai_provider.chat_completion.return_value = mock_response
 
         agent = SummarizationAgent(mock_ai_provider)
@@ -142,7 +157,8 @@ class TestSummarizationAgent:
         assert "security-reviewer" in result.individual_sections
         assert "2 agent(s) succeeded" in result.footer
         assert result.ai_summarized is True
-        mock_ai_provider.chat_completion.assert_called_once()
+        # Single call — valid on first try, no correction or line resolution
+        assert mock_ai_provider.chat_completion.call_count == 1
 
     @pytest.mark.asyncio
     async def test_summarize_single_agent_skips_ai_call(self, mock_ai_provider):
@@ -186,13 +202,11 @@ class TestSummarizationAgent:
 
     @pytest.mark.asyncio
     async def test_summarize_success_with_empty_findings(
-        self, mock_ai_provider, two_agent_results
+        self, mock_ai_provider, two_agent_results, valid_no_findings_response
     ):
         """AI summarization succeeds but returns zero findings."""
         mock_response = MagicMock()
-        mock_response.content = json.dumps(
-            {"summary": "All looks good, no issues found.", "findings": []}
-        )
+        mock_response.content = valid_no_findings_response
         mock_ai_provider.chat_completion.return_value = mock_response
 
         agent = SummarizationAgent(mock_ai_provider)
@@ -220,28 +234,12 @@ class TestSummarizationAgent:
         assert result.ai_summarized is False
 
     @pytest.mark.asyncio
-    async def test_summarize_plain_text_response_used_as_summary(
-        self, mock_ai_provider, two_agent_results
-    ):
-        """Plain text AI response should be used as summary directly."""
-        mock_response = MagicMock()
-        mock_response.content = "This is not JSON at all"
-        mock_ai_provider.chat_completion.return_value = mock_response
-
-        agent = SummarizationAgent(mock_ai_provider)
-        result = await agent.summarize(two_agent_results)
-
-        assert result.summary == "This is not JSON at all"
-        assert result.findings == []
-        assert result.ai_summarized is True
-
-    @pytest.mark.asyncio
     async def test_custom_instructions_in_prompt(
-        self, mock_ai_provider, two_agent_results, ai_summary_response
+        self, mock_ai_provider, two_agent_results, valid_ai_response
     ):
         """Custom instructions should appear in the prompt."""
         mock_response = MagicMock()
-        mock_response.content = ai_summary_response
+        mock_response.content = valid_ai_response
         mock_ai_provider.chat_completion.return_value = mock_response
 
         agent = SummarizationAgent(mock_ai_provider)
@@ -249,406 +247,708 @@ class TestSummarizationAgent:
             two_agent_results, custom_instructions="Focus on security"
         )
 
-        call_args = mock_ai_provider.chat_completion.call_args
+        call_args = mock_ai_provider.chat_completion.call_args_list[0]
         prompt = call_args[0][0][0].content
         assert "Focus on security" in prompt
         assert "Additional Instructions" in prompt
 
     @pytest.mark.asyncio
     async def test_boundary_markers_in_prompt(
-        self, mock_ai_provider, two_agent_results, ai_summary_response
+        self, mock_ai_provider, two_agent_results, valid_ai_response
     ):
         """Prompt should use nonce-based boundary markers."""
         mock_response = MagicMock()
-        mock_response.content = ai_summary_response
+        mock_response.content = valid_ai_response
         mock_ai_provider.chat_completion.return_value = mock_response
 
         agent = SummarizationAgent(mock_ai_provider)
         await agent.summarize(two_agent_results)
 
-        call_args = mock_ai_provider.chat_completion.call_args
+        call_args = mock_ai_provider.chat_completion.call_args_list[0]
         prompt = call_args[0][0][0].content
         assert "<<<BEGIN_CONTEXT_DATA_" in prompt
         assert "<<<END_CONTEXT_DATA_" in prompt
 
     @pytest.mark.asyncio
-    async def test_findings_extraction(self, mock_ai_provider):
-        """Findings should be correctly extracted from AI JSON."""
-        results = [
+    async def test_schema_embedded_in_prompt(
+        self, mock_ai_provider, two_agent_results, valid_ai_response
+    ):
+        """JSON schema should be embedded in the prompt."""
+        mock_response = MagicMock()
+        mock_response.content = valid_ai_response
+        mock_ai_provider.chat_completion.return_value = mock_response
+
+        agent = SummarizationAgent(mock_ai_provider)
+        await agent.summarize(two_agent_results)
+
+        call_args = mock_ai_provider.chat_completion.call_args_list[0]
+        prompt = call_args[0][0][0].content
+        assert '"$schema"' in prompt
+        assert '"summary"' in prompt
+        assert '"findings"' in prompt
+
+
+class TestValidateAndCorrect:
+    """Tests for the multi-turn schema validation loop."""
+
+    @pytest.mark.asyncio
+    async def test_valid_response_no_correction(self, mock_ai_provider):
+        """Valid JSON on first try needs no correction turns."""
+        valid = json.dumps(
             {
-                "agent_name": "agent-a",
-                "status": "success",
-                "analysis": "A output",
-                "categories": ["code"],
-                "execution_time": 1,
-            },
+                "summary": "All good",
+                "findings": [
+                    {"file": "a.py", "severity": "minor", "message": "Nit"},
+                ],
+            }
+        )
+        agent = SummarizationAgent(mock_ai_provider)
+        messages = []
+        summary, findings = await agent._validate_and_correct(messages, valid)
+
+        assert summary == "All good"
+        assert len(findings) == 1
+        mock_ai_provider.chat_completion.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_bare_json_array_unpacked_without_correction(self, mock_ai_provider):
+        """Bare JSON array with valid findings is unpacked without correction."""
+        bare_array = json.dumps(
+            [{"file": "a.py", "severity": "major", "message": "Issue"}]
+        )
+
+        agent = SummarizationAgent(mock_ai_provider)
+        messages = []
+        summary, findings = await agent._validate_and_correct(messages, bare_array)
+
+        assert "Issue" in summary
+        assert len(findings) == 1
+        assert findings[0].severity == "major"
+        mock_ai_provider.chat_completion.assert_not_called()
+        assert len(messages) == 0
+
+    @pytest.mark.asyncio
+    async def test_invalid_json_triggers_correction(self, mock_ai_provider):
+        """Non-JSON response should trigger correction with helpful error."""
+        corrected = json.dumps({"summary": "Review done", "findings": []})
+        mock_ai_provider.chat_completion.return_value = MagicMock(content=corrected)
+
+        agent = SummarizationAgent(mock_ai_provider)
+        messages = []
+        summary, findings = await agent._validate_and_correct(
+            messages, "This is just plain text, not JSON"
+        )
+
+        assert summary == "Review done"
+        assert findings == []
+        assert mock_ai_provider.chat_completion.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_missing_summary_triggers_correction(self, mock_ai_provider):
+        """JSON object missing 'summary' triggers correction."""
+        bad = json.dumps({"findings": []})
+        corrected = json.dumps({"summary": "Fixed", "findings": []})
+        mock_ai_provider.chat_completion.return_value = MagicMock(content=corrected)
+
+        agent = SummarizationAgent(mock_ai_provider)
+        messages = []
+        summary, _ = await agent._validate_and_correct(messages, bad)
+
+        assert summary == "Fixed"
+        assert mock_ai_provider.chat_completion.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_invalid_severity_triggers_correction(self, mock_ai_provider):
+        """Invalid severity enum triggers correction."""
+        bad = json.dumps(
             {
-                "agent_name": "agent-b",
-                "status": "success",
-                "analysis": "B output",
-                "categories": ["arch"],
-                "execution_time": 2,
-            },
+                "summary": "Review",
+                "findings": [
+                    {"file": "a.py", "severity": "URGENT", "message": "Issue"}
+                ],
+            }
+        )
+        corrected = json.dumps(
+            {
+                "summary": "Review",
+                "findings": [
+                    {"file": "a.py", "severity": "critical", "message": "Issue"}
+                ],
+            }
+        )
+        mock_ai_provider.chat_completion.return_value = MagicMock(content=corrected)
+
+        agent = SummarizationAgent(mock_ai_provider)
+        messages = []
+        summary, findings = await agent._validate_and_correct(messages, bad)
+
+        assert summary == "Review"
+        assert len(findings) == 1
+        assert findings[0].severity == "critical"
+
+    @pytest.mark.asyncio
+    async def test_multiple_correction_turns(self, mock_ai_provider):
+        """Multiple correction turns until valid."""
+        bad1 = "not json at all"
+        bad2 = json.dumps([{"file": "a.py"}])
+        good = json.dumps({"summary": "Done", "findings": []})
+
+        mock_ai_provider.chat_completion.side_effect = [
+            MagicMock(content=bad2),
+            MagicMock(content=good),
         ]
 
-        response_data = {
-            "summary": "Summary text",
+        agent = SummarizationAgent(mock_ai_provider)
+        messages = []
+        summary, findings = await agent._validate_and_correct(messages, bad1)
+
+        assert summary == "Done"
+        assert findings == []
+        assert mock_ai_provider.chat_completion.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_max_turns_exceeded_falls_back_to_text(self, mock_ai_provider):
+        """After max turns, falls back to latest correction attempt."""
+        bad = "This is just plain text"
+        mock_ai_provider.chat_completion.return_value = MagicMock(
+            content="Still not JSON"
+        )
+
+        agent = SummarizationAgent(mock_ai_provider)
+        messages = []
+        summary, findings = await agent._validate_and_correct(
+            messages, bad, max_turns=2
+        )
+
+        # Fallback prefers latest correction attempt over original
+        assert summary == "Still not JSON"
+        assert findings == []
+        # 1 correction attempt (max_turns=2: initial + 1 correction)
+        assert mock_ai_provider.chat_completion.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_max_turns_exceeded_extracts_summary_from_json(
+        self, mock_ai_provider
+    ):
+        """Fallback extracts summary from partial JSON if possible."""
+        partial = json.dumps(
+            {
+                "summary": "Partial review",
+                "findings": [{"bad": "entry"}],
+            }
+        )
+        mock_ai_provider.chat_completion.return_value = MagicMock(content=partial)
+
+        agent = SummarizationAgent(mock_ai_provider)
+        messages = []
+        summary, findings = await agent._validate_and_correct(
+            messages, partial, max_turns=1
+        )
+
+        # max_turns=1 means no correction turns, just the initial attempt
+        assert summary == "Partial review"
+        assert findings == []
+
+    @pytest.mark.asyncio
+    async def test_bare_array_correction_unpacked_in_loop(self, mock_ai_provider):
+        """Bare JSON array from correction turn is unpacked and accepted."""
+        initial_bad = "not valid json at all"
+        bare_array = json.dumps(
+            [
+                {
+                    "file": "x.py",
+                    "severity": "minor",
+                    "message": "Missing type hint",
+                }
+            ]
+        )
+        mock_ai_provider.chat_completion.return_value = MagicMock(content=bare_array)
+
+        agent = SummarizationAgent(mock_ai_provider)
+        messages = []
+        summary, findings = await agent._validate_and_correct(
+            messages, initial_bad, max_turns=2
+        )
+
+        assert "Missing type hint" in summary
+        assert len(findings) == 1
+        assert findings[0].file == "x.py"
+
+    @pytest.mark.asyncio
+    async def test_fallback_unpacks_bare_array_after_max_turns(self, mock_ai_provider):
+        """Fallback path unpacks bare array when loop exhausts max turns."""
+        bare_array = json.dumps(
+            [
+                {
+                    "file": "a.py",
+                    "severity": "major",
+                    "message": "Null check",
+                    "extra_bad_field": True,
+                }
+            ]
+        )
+        mock_ai_provider.chat_completion.return_value = MagicMock(content=bare_array)
+
+        agent = SummarizationAgent(mock_ai_provider)
+        messages = []
+        summary, findings = await agent._validate_and_correct(
+            messages, "not json", max_turns=2
+        )
+
+        assert "Null check" in summary
+        assert findings == []
+
+    @pytest.mark.asyncio
+    async def test_empty_response_raises_on_first_turn(self, mock_ai_provider):
+        """Empty response on first turn raises ValueError."""
+        agent = SummarizationAgent(mock_ai_provider)
+        messages = []
+        with pytest.raises(ValueError, match="AI response is empty"):
+            await agent._validate_and_correct(messages, "")
+
+    @pytest.mark.asyncio
+    async def test_empty_response_on_correction_triggers_retry(self, mock_ai_provider):
+        """Empty response on correction turn triggers another retry."""
+        bad = "not json"
+        good = json.dumps({"summary": "OK", "findings": []})
+        mock_ai_provider.chat_completion.side_effect = [
+            MagicMock(content=""),
+            MagicMock(content=good),
+        ]
+
+        agent = SummarizationAgent(mock_ai_provider)
+        messages = []
+        summary, _ = await agent._validate_and_correct(messages, bad, max_turns=4)
+
+        assert summary == "OK"
+        assert mock_ai_provider.chat_completion.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_extra_fields_trigger_correction(self, mock_ai_provider):
+        """Extra root fields trigger correction."""
+        bad = json.dumps({"summary": "Review", "findings": [], "extra_field": "bad"})
+        corrected = json.dumps({"summary": "Review", "findings": []})
+        mock_ai_provider.chat_completion.return_value = MagicMock(content=corrected)
+
+        agent = SummarizationAgent(mock_ai_provider)
+        messages = []
+        summary, _ = await agent._validate_and_correct(messages, bad)
+
+        assert summary == "Review"
+        assert mock_ai_provider.chat_completion.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_markdown_fenced_json_extracted(self, mock_ai_provider):
+        """JSON wrapped in markdown fences should be extracted correctly."""
+        fenced = '```json\n{"summary": "Review", "findings": []}\n```'
+
+        agent = SummarizationAgent(mock_ai_provider)
+        messages = []
+        summary, findings = await agent._validate_and_correct(messages, fenced)
+
+        assert summary == "Review"
+        assert findings == []
+        mock_ai_provider.chat_completion.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_correction_turn_api_error_propagates(self, mock_ai_provider):
+        """API error during correction turn propagates to caller."""
+        mock_ai_provider.chat_completion.side_effect = RuntimeError(
+            "API quota exceeded"
+        )
+        agent = SummarizationAgent(mock_ai_provider)
+        with pytest.raises(RuntimeError, match="API quota exceeded"):
+            await agent._validate_and_correct([], "not json")
+
+
+class TestValidateAgainstSchema:
+    """Tests for _validate_against_schema."""
+
+    def test_valid_response(self):
+        data = {
+            "summary": "Review text",
+            "findings": [
+                {"file": "a.py", "severity": "major", "message": "Issue"},
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert errors == []
+
+    def test_valid_empty_findings(self):
+        data = {"summary": "All good", "findings": []}
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert errors == []
+
+    def test_missing_summary(self):
+        data = {"findings": []}
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("'summary'" in e for e in errors)
+
+    def test_missing_findings(self):
+        data = {"summary": "Text"}
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("'findings'" in e for e in errors)
+
+    def test_empty_summary(self):
+        data = {"summary": "   ", "findings": []}
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("non-empty" in e for e in errors)
+
+    def test_summary_not_string(self):
+        data = {"summary": 42, "findings": []}
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("string" in e for e in errors)
+
+    def test_findings_not_array(self):
+        data = {"summary": "Text", "findings": "not an array"}
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("array" in e for e in errors)
+
+    def test_non_dict_root(self):
+        errors = SummarizationAgent._validate_against_schema([1, 2, 3])
+        assert any("JSON object" in e for e in errors)
+
+    def test_invalid_severity(self):
+        data = {
+            "summary": "Review",
+            "findings": [
+                {"file": "a.py", "severity": "URGENT", "message": "Issue"},
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("severity" in e for e in errors)
+
+    def test_missing_file_in_finding(self):
+        data = {
+            "summary": "Review",
+            "findings": [{"severity": "major", "message": "Issue"}],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("'file'" in e for e in errors)
+
+    def test_missing_message_in_finding(self):
+        data = {
+            "summary": "Review",
+            "findings": [{"file": "a.py", "severity": "major"}],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("'message'" in e for e in errors)
+
+    def test_non_dict_finding(self):
+        data = {
+            "summary": "Review",
+            "findings": ["not a dict"],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("object" in e for e in errors)
+
+    def test_extra_root_fields(self):
+        data = {"summary": "Review", "findings": [], "extra": True}
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("extra" in e.lower() for e in errors)
+
+    def test_extra_finding_fields(self):
+        data = {
+            "summary": "Review",
             "findings": [
                 {
-                    "file": "main.py",
+                    "file": "a.py",
+                    "severity": "major",
+                    "message": "Issue",
+                    "unknown_field": True,
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("unexpected" in e for e in errors)
+
+    def test_all_optional_fields_valid(self):
+        data = {
+            "summary": "Review",
+            "findings": [
+                {
+                    "file": "a.py",
+                    "existing_code": "x = 1",
                     "line": 10,
                     "severity": "critical",
-                    "message": "Buffer overflow",
-                    "suggestion": None,
-                    "agent_source": "agent-a",
-                },
-                {
-                    "file": "utils.py",
-                    "line": None,
-                    "severity": "nit",
-                    "message": "Naming convention",
-                    "suggestion": "Rename to snake_case",
-                    "agent_source": "agent-b",
-                },
+                    "message": "Issue",
+                    "suggestion": "Fix it",
+                    "agent_source": "reviewer-1",
+                    "start_line": 10,
+                    "end_line": 15,
+                }
             ],
         }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert errors == []
 
-        mock_response = MagicMock()
-        mock_response.content = json.dumps(response_data)
-        mock_ai_provider.chat_completion.return_value = mock_response
-
-        agent = SummarizationAgent(mock_ai_provider)
-        result = await agent.summarize(results)
-
-        assert len(result.findings) == 2
-        assert result.findings[0].severity == "critical"
-        assert result.findings[0].suggestion is None
-        assert result.findings[1].line is None
-        assert result.findings[1].suggestion == "Rename to snake_case"
-
-    @pytest.mark.asyncio
-    async def test_findings_with_null_line(self, mock_ai_provider):
-        """File-level findings (line=None) should be handled."""
-        results = [
-            {
-                "agent_name": "a",
-                "status": "success",
-                "analysis": "x",
-                "categories": [],
-                "execution_time": 1,
-            },
-            {
-                "agent_name": "b",
-                "status": "success",
-                "analysis": "y",
-                "categories": [],
-                "execution_time": 1,
-            },
-        ]
-
-        response_data = {
-            "summary": "OK",
+    def test_null_optional_fields_valid(self):
+        data = {
+            "summary": "Review",
             "findings": [
                 {
-                    "file": "setup.py",
+                    "file": "a.py",
+                    "existing_code": None,
                     "line": None,
                     "severity": "minor",
-                    "message": "Missing license header",
-                    "agent_source": "a",
-                },
+                    "message": "Issue",
+                    "suggestion": None,
+                    "agent_source": "",
+                }
             ],
         }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert errors == []
 
-        mock_response = MagicMock()
-        mock_response.content = json.dumps(response_data)
-        mock_ai_provider.chat_completion.return_value = mock_response
-
-        agent = SummarizationAgent(mock_ai_provider)
-        result = await agent.summarize(results)
-
-        assert len(result.findings) == 1
-        assert result.findings[0].line is None
-        assert result.findings[0].file == "setup.py"
-
-
-class TestParseResponseEdgeCases:
-    """Tests for _parse_response edge cases (isinstance guards, whitespace)."""
-
-    @pytest.mark.asyncio
-    async def test_non_dict_json_array_returns_clean_fallback(self, mock_ai_provider):
-        """JSON array of non-finding items returns clean fallback, not raw JSON."""
-        agent = SummarizationAgent(mock_ai_provider)
-        summary, findings = agent._parse_response('["not", "a", "dict"]')
-        assert summary == "No actionable findings extracted from agent responses."
-        assert findings == []
-
-    @pytest.mark.asyncio
-    async def test_empty_json_array_returns_clean_fallback(self, mock_ai_provider):
-        """Empty JSON array returns clean fallback."""
-        agent = SummarizationAgent(mock_ai_provider)
-        summary, findings = agent._parse_response("[]")
-        assert summary == "No actionable findings extracted from agent responses."
-        assert findings == []
-
-    @pytest.mark.asyncio
-    async def test_json_array_all_invalid_dicts_returns_clean_fallback(
-        self, mock_ai_provider
-    ):
-        """Array of dicts that all fail validation returns clean fallback."""
-        response = json.dumps(
-            [
-                {"no_file_field": True},
-                {"file": "", "message": "blank file path"},
-                {"file": "a.py", "message": ""},
-            ]
-        )
-        agent = SummarizationAgent(mock_ai_provider)
-        summary, findings = agent._parse_response(response)
-        assert summary == "No actionable findings extracted from agent responses."
-        assert findings == []
-
-    @pytest.mark.asyncio
-    async def test_json_array_of_findings_extracts_findings(self, mock_ai_provider):
-        """JSON array of valid finding dicts should extract findings."""
-        response = json.dumps(
-            [
+    def test_line_wrong_type_rejected(self):
+        data = {
+            "summary": "Review",
+            "findings": [
                 {
-                    "file": "src/app.py",
-                    "severity": "major",
-                    "message": "SQL injection risk",
-                    "line": 42,
-                    "agent_source": "security-reviewer",
-                },
-                {
-                    "file": "src/utils.py",
+                    "file": "a.py",
+                    "line": "42",
                     "severity": "minor",
-                    "message": "Unused import",
-                    "agent_source": "code-reviewer",
-                },
-            ]
-        )
-        agent = SummarizationAgent(mock_ai_provider)
-        summary, findings = agent._parse_response(response)
-        assert summary == "Code review findings:"
-        assert len(findings) == 2
-        assert findings[0].file == "src/app.py"
-        assert findings[0].severity == "major"
-        assert findings[0].line == 42
-        assert findings[1].file == "src/utils.py"
-        assert findings[1].severity == "minor"
+                    "message": "Issue",
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("'line' must be an integer" in e for e in errors)
 
-    @pytest.mark.asyncio
-    async def test_json_array_mixed_extracts_valid_only(self, mock_ai_provider):
-        """Mixed array extracts only valid finding dicts."""
-        response = json.dumps(
-            [
-                {"file": "a.py", "severity": "major", "message": "real finding"},
-                "just a string",
-                {"no_file_field": True},
-                {"file": "b.py", "message": "another finding"},
-            ]
-        )
-        agent = SummarizationAgent(mock_ai_provider)
-        summary, findings = agent._parse_response(response)
-        assert summary == "Code review findings:"
-        assert len(findings) == 2
-        assert findings[0].file == "a.py"
-        assert findings[1].file == "b.py"
-        assert findings[1].severity == "minor"
-
-    @pytest.mark.asyncio
-    async def test_json_string_used_as_summary(self, mock_ai_provider):
-        """JSON-encoded string response should be used as summary text."""
-        agent = SummarizationAgent(mock_ai_provider)
-        summary, findings = agent._parse_response(
-            '"Here is a summary of the code review findings..."'
-        )
-        assert summary == "Here is a summary of the code review findings..."
-        assert findings == []
-
-    @pytest.mark.asyncio
-    async def test_whitespace_only_summary_raises(self, mock_ai_provider):
-        """Whitespace-only summary should raise ValueError."""
-        agent = SummarizationAgent(mock_ai_provider)
-        with pytest.raises(ValueError, match="missing 'summary' field"):
-            agent._parse_response('{"summary": "   ", "findings": []}')
-
-    @pytest.mark.asyncio
-    async def test_json_null_used_as_empty_raises(self, mock_ai_provider):
-        """JSON null should raise ValueError (empty after conversion)."""
-        agent = SummarizationAgent(mock_ai_provider)
-        with pytest.raises(ValueError, match="AI response is empty"):
-            agent._parse_response("null")
-
-    @pytest.mark.asyncio
-    async def test_json_true_used_as_summary(self, mock_ai_provider):
-        """JSON boolean true should be used as summary text."""
-        agent = SummarizationAgent(mock_ai_provider)
-        summary, findings = agent._parse_response("true")
-        assert summary == "true"
-        assert findings == []
-
-    @pytest.mark.asyncio
-    async def test_json_false_used_as_summary(self, mock_ai_provider):
-        """JSON boolean false should be used as summary text."""
-        agent = SummarizationAgent(mock_ai_provider)
-        summary, findings = agent._parse_response("false")
-        assert summary == "false"
-        assert findings == []
-
-    @pytest.mark.asyncio
-    async def test_json_number_used_as_summary(self, mock_ai_provider):
-        """JSON number should be used as summary text."""
-        agent = SummarizationAgent(mock_ai_provider)
-        summary, findings = agent._parse_response("42")
-        assert summary == "42"
-        assert findings == []
-
-    @pytest.mark.asyncio
-    async def test_whitespace_only_plain_text_raises(self, mock_ai_provider):
-        """Whitespace-only plain text should raise ValueError."""
-        agent = SummarizationAgent(mock_ai_provider)
-        with pytest.raises(ValueError, match="AI response is empty"):
-            agent._parse_response("   \n\t  ")
-
-    @pytest.mark.asyncio
-    async def test_plain_text_with_markdown_fences_uses_content(self, mock_ai_provider):
-        """Plain text wrapped in markdown fences should use stripped content."""
-        agent = SummarizationAgent(mock_ai_provider)
-        summary, findings = agent._parse_response("```\nThis is a review summary\n```")
-        assert "review summary" in summary
-        assert findings == []
-
-    @pytest.mark.asyncio
-    async def test_non_dict_findings_skipped(self, mock_ai_provider):
-        """Non-dict entries in findings array should be silently skipped."""
-        response = json.dumps(
-            {
-                "summary": "Valid summary",
-                "findings": [
-                    "not a dict",
-                    {"file": "a.py", "severity": "major", "message": "real finding"},
-                    42,
-                ],
-            }
-        )
-        agent = SummarizationAgent(mock_ai_provider)
-        summary, findings = agent._parse_response(response)
-        assert summary == "Valid summary"
-        assert len(findings) == 1
-        assert findings[0].file == "a.py"
-
-
-class TestParseDictResponseJsonSummaryGuard:
-    """Tests for _parse_dict_response guard against JSON in summary field."""
-
-    @pytest.mark.asyncio
-    async def test_json_array_in_summary_extracted_to_findings(self, mock_ai_provider):
-        """JSON array in summary field should be extracted into findings."""
-        findings_json = json.dumps(
-            [
+    def test_start_line_wrong_type_rejected(self):
+        data = {
+            "summary": "Review",
+            "findings": [
                 {
-                    "file": "Dockerfile",
-                    "severity": "major",
-                    "message": "Unstable base image",
-                },
-                {
-                    "file": "release.yml",
+                    "file": "a.py",
+                    "start_line": "10",
                     "severity": "minor",
-                    "message": "Missing git config",
-                },
-            ]
-        )
-        response = json.dumps({"summary": findings_json, "findings": []})
-        agent = SummarizationAgent(mock_ai_provider)
-        summary, findings = agent._parse_response(response)
-        assert summary == "Code review findings:"
-        assert len(findings) == 2
-        assert findings[0].file == "Dockerfile"
-        assert findings[1].file == "release.yml"
+                    "message": "Issue",
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("'start_line' must be an integer" in e for e in errors)
 
-    @pytest.mark.asyncio
-    async def test_json_array_in_summary_merged_with_existing_findings(
-        self, mock_ai_provider
-    ):
-        """Findings from summary JSON array merge with explicit findings field."""
-        summary_findings = [
-            {"file": "a.py", "severity": "major", "message": "From summary"},
+    def test_end_line_wrong_type_rejected(self):
+        data = {
+            "summary": "Review",
+            "findings": [
+                {
+                    "file": "a.py",
+                    "end_line": "20",
+                    "severity": "minor",
+                    "message": "Issue",
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("'end_line' must be an integer" in e for e in errors)
+
+    def test_existing_code_wrong_type_rejected(self):
+        data = {
+            "summary": "Review",
+            "findings": [
+                {
+                    "file": "a.py",
+                    "existing_code": 123,
+                    "severity": "minor",
+                    "message": "Issue",
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("'existing_code' must be a string or null" in e for e in errors)
+
+    def test_suggestion_wrong_type_rejected(self):
+        data = {
+            "summary": "Review",
+            "findings": [
+                {
+                    "file": "a.py",
+                    "suggestion": 42,
+                    "severity": "minor",
+                    "message": "Issue",
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("'suggestion' must be a string or null" in e for e in errors)
+
+    def test_agent_source_wrong_type_rejected(self):
+        data = {
+            "summary": "Review",
+            "findings": [
+                {
+                    "file": "a.py",
+                    "agent_source": 99,
+                    "severity": "minor",
+                    "message": "Issue",
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("'agent_source' must be a string or null" in e for e in errors)
+
+    def test_agent_source_null_accepted(self):
+        data = {
+            "summary": "Review",
+            "findings": [
+                {
+                    "file": "a.py",
+                    "agent_source": None,
+                    "severity": "minor",
+                    "message": "Issue",
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert errors == []
+
+    def test_start_line_greater_than_end_line_rejected(self):
+        data = {
+            "summary": "Review",
+            "findings": [
+                {
+                    "file": "a.py",
+                    "severity": "minor",
+                    "message": "Issue",
+                    "start_line": 20,
+                    "end_line": 5,
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("'start_line' (20) must be <= 'end_line' (5)" in e for e in errors)
+
+    def test_start_line_equal_to_end_line_valid(self):
+        data = {
+            "summary": "Review",
+            "findings": [
+                {
+                    "file": "a.py",
+                    "severity": "minor",
+                    "message": "Issue",
+                    "start_line": 10,
+                    "end_line": 10,
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert errors == []
+
+
+class TestUnpackBareArray:
+    """Tests for SummarizationAgent._unpack_bare_array."""
+
+    def test_non_list_passthrough(self):
+        data = {"summary": "OK", "findings": []}
+        assert SummarizationAgent._unpack_bare_array(data) == data
+
+    def test_string_passthrough(self):
+        assert SummarizationAgent._unpack_bare_array("hello") == "hello"
+
+    def test_empty_list_passthrough(self):
+        assert SummarizationAgent._unpack_bare_array([]) == []
+
+    def test_list_of_non_dicts_passthrough(self):
+        data = [1, 2, 3]
+        assert SummarizationAgent._unpack_bare_array(data) == data
+
+    def test_valid_findings_wrapped(self):
+        bare = [
+            {"file": "a.py", "severity": "major", "message": "Issue A"},
+            {"file": "b.py", "severity": "minor", "message": "Issue B"},
         ]
-        explicit_findings = [
-            {"file": "b.py", "severity": "minor", "message": "From findings field"},
+        result = SummarizationAgent._unpack_bare_array(bare)
+        assert isinstance(result, dict)
+        assert "summary" in result
+        assert "findings" in result
+        assert len(result["findings"]) == 2
+        assert result["summary"].startswith("Review of the code changes identified")
+        assert "2 finding(s)" in result["summary"]
+        assert "Issue A" in result["summary"]
+        assert "Issue B" in result["summary"]
+
+    def test_summary_groups_by_severity(self):
+        bare = [
+            {"file": "a.py", "severity": "critical", "message": "Crit issue"},
+            {"file": "b.py", "severity": "major", "message": "Major issue"},
+            {"file": "c.py", "severity": "minor", "message": "Minor issue"},
         ]
-        response = json.dumps(
+        result = SummarizationAgent._unpack_bare_array(bare)
+        assert "Critical" in result["summary"]
+        assert "Major" in result["summary"]
+        assert "Minor" in result["summary"]
+
+    def test_start_end_line_preserved(self):
+        """Real Gemini responses include start_line/end_line — schema allows them."""
+        bare = [
             {
-                "summary": json.dumps(summary_findings),
-                "findings": explicit_findings,
-            }
-        )
-        agent = SummarizationAgent(mock_ai_provider)
-        summary, findings = agent._parse_response(response)
-        assert summary == "Code review findings:"
-        assert len(findings) == 2
-        files = {f.file for f in findings}
-        assert files == {"a.py", "b.py"}
+                "file": "src/analyzer.py",
+                "line": 1,
+                "severity": "critical",
+                "message": "Diff retrieval fails in shallow clone",
+                "suggestion": "Use GitHub API instead",
+                "agent_source": "general-reviewer",
+                "existing_code": None,
+                "start_line": 1,
+                "end_line": 5,
+            },
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        finding = result["findings"][0]
+        assert finding["start_line"] == 1
+        assert finding["end_line"] == 5
+        assert finding["file"] == "src/analyzer.py"
 
-    @pytest.mark.asyncio
-    async def test_json_array_in_summary_invalid_entries_filtered(
-        self, mock_ai_provider
-    ):
-        """Invalid entries from summary JSON array are filtered out."""
-        findings_json = json.dumps(
-            [
-                {"file": "a.py", "severity": "major", "message": "Valid"},
-                {"no_file": True},
-                "not a dict",
-            ]
-        )
-        response = json.dumps({"summary": findings_json, "findings": []})
-        agent = SummarizationAgent(mock_ai_provider)
-        summary, findings = agent._parse_response(response)
-        assert summary == "Code review findings:"
-        assert len(findings) == 1
-        assert findings[0].file == "a.py"
-
-    @pytest.mark.asyncio
-    async def test_summary_starts_with_bracket_but_not_json(self, mock_ai_provider):
-        """Summary starting with [ but not valid JSON is left as prose."""
-        response = json.dumps(
+    def test_real_gemini_response_structure(self):
+        """Test with structure matching actual Gemini 3.5 Flash output."""
+        bare = [
             {
-                "summary": "[This is a bracketed note] about the review",
-                "findings": [],
-            }
-        )
-        agent = SummarizationAgent(mock_ai_provider)
-        summary, findings = agent._parse_response(response)
-        assert summary == "[This is a bracketed note] about the review"
-        assert findings == []
-
-    @pytest.mark.asyncio
-    async def test_normal_prose_summary_unchanged(self, mock_ai_provider):
-        """Normal prose summary should pass through unchanged."""
-        response = json.dumps(
+                "file": "src/cicaddy_github/github_integration/analyzer.py",
+                "line": 1,
+                "severity": "critical",
+                "message": "Diff Retrieval Failure due to Git Command Execution in Shallow Clone.",
+                "suggestion": "Use PyGithub API to fetch diff directly.",
+                "agent_source": "general-reviewer",
+                "existing_code": None,
+                "start_line": 1,
+                "end_line": 1,
+            },
             {
-                "summary": "## Major Issues\n\nFound 2 critical bugs.",
-                "findings": [
-                    {"file": "x.py", "severity": "critical", "message": "Bug"},
-                ],
-            }
-        )
-        agent = SummarizationAgent(mock_ai_provider)
-        summary, findings = agent._parse_response(response)
-        assert summary == "## Major Issues\n\nFound 2 critical bugs."
-        assert len(findings) == 1
+                "file": ".github/workflows/pr-review.yml",
+                "line": 1,
+                "severity": "minor",
+                "message": "Runner Resource Waste in large repos.",
+                "suggestion": "Fetch only specific SHAs.",
+                "agent_source": "devops-reviewer",
+                "existing_code": None,
+                "start_line": 1,
+                "end_line": 1,
+            },
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        assert isinstance(result, dict)
+        assert len(result["findings"]) == 2
+        errors = SummarizationAgent._validate_against_schema(result)
+        assert errors == []
 
-    @pytest.mark.asyncio
-    async def test_json_array_no_dicts_preserves_summary(self, mock_ai_provider):
-        """JSON array with no dict entries should NOT replace summary."""
-        findings_json = json.dumps(["string entry", 42, True])
-        response = json.dumps({"summary": findings_json, "findings": []})
-        agent = SummarizationAgent(mock_ai_provider)
-        summary, findings = agent._parse_response(response)
-        assert summary == findings_json
-        assert findings == []
+    def test_wrapped_result_validates_against_schema(self):
+        bare = [{"file": "a.py", "severity": "major", "message": "Issue"}]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        errors = SummarizationAgent._validate_against_schema(result)
+        assert errors == []
+
+    def test_mixed_dicts_and_non_dicts(self):
+        bare = [
+            {"file": "a.py", "severity": "major", "message": "Issue"},
+            "not a dict",
+            42,
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        assert isinstance(result, dict)
+        assert len(result["findings"]) == 1
 
 
 class TestValidateFinding:
@@ -706,6 +1006,32 @@ class TestValidateFinding:
         f = SummarizationAgent._validate_finding(entry)
         assert f is not None
         assert f.line is None
+
+    def test_start_end_line_mapped(self):
+        entry = {
+            "file": "foo.py",
+            "severity": "major",
+            "message": "issue",
+            "start_line": 10,
+            "end_line": 20,
+        }
+        f = SummarizationAgent._validate_finding(entry)
+        assert f is not None
+        assert f.start_line == 10
+        assert f.end_line == 20
+
+    def test_start_end_line_coerced_from_string(self):
+        entry = {
+            "file": "foo.py",
+            "severity": "major",
+            "message": "issue",
+            "start_line": "5",
+            "end_line": "invalid",
+        }
+        f = SummarizationAgent._validate_finding(entry)
+        assert f is not None
+        assert f.start_line == 5
+        assert f.end_line is None
 
 
 class TestBuildIndividualSections:
@@ -778,20 +1104,22 @@ diff --git a/src/foo.py b/src/foo.py
 +        validate(result)
          return result
 """
-        response_data = {
-            "summary": "Found issue",
-            "findings": [
-                {
-                    "file": "src/foo.py",
-                    "existing_code": "validate(result)",
-                    "severity": "major",
-                    "message": "Missing error handling",
-                    "agent_source": "agent-a",
-                },
-            ],
-        }
+        response_data = json.dumps(
+            {
+                "summary": "Found issue",
+                "findings": [
+                    {
+                        "file": "src/foo.py",
+                        "existing_code": "validate(result)",
+                        "severity": "major",
+                        "message": "Missing error handling",
+                        "agent_source": "agent-a",
+                    },
+                ],
+            }
+        )
         mock_response = MagicMock()
-        mock_response.content = json.dumps(response_data)
+        mock_response.content = response_data
         mock_ai_provider.chat_completion.return_value = mock_response
 
         results = [
@@ -817,7 +1145,7 @@ diff --git a/src/foo.py b/src/foo.py
         assert result.findings[0].line == 13
         assert result.findings[0].start_line == 13
         assert result.findings[0].existing_code == "validate(result)"
-        # Only the summarization call, no AI line mapping needed
+        # Single call — valid response, no correction or line mapping needed
         assert mock_ai_provider.chat_completion.call_count == 1
 
     @pytest.mark.asyncio
@@ -833,7 +1161,6 @@ diff --git a/src/foo.py b/src/foo.py
 +        validate(data)
          return data
 """
-        # First call: summarization response with snippet that won't match
         summary_response = json.dumps(
             {
                 "summary": "Found issue",
@@ -848,7 +1175,6 @@ diff --git a/src/foo.py b/src/foo.py
                 ],
             }
         )
-        # Second call: AI line mapping response
         mapping_response = '[{"index": 0, "start_line": 12, "end_line": 12}]'
 
         mock_ai_provider.chat_completion.side_effect = [
@@ -878,7 +1204,7 @@ diff --git a/src/foo.py b/src/foo.py
         assert len(result.findings) == 1
         assert result.findings[0].line == 12
         assert result.findings[0].start_line == 12
-        # Two AI calls: summarization + line mapping
+        # Two AI calls: summarization + line mapping (no correction needed)
         assert mock_ai_provider.chat_completion.call_count == 2
 
     @pytest.mark.asyncio
@@ -938,20 +1264,22 @@ diff --git a/src/foo.py b/src/foo.py
     @pytest.mark.asyncio
     async def test_no_diff_skips_resolution(self, mock_ai_provider):
         """Without a diff, findings are returned without line resolution."""
-        response_data = {
-            "summary": "Summary",
-            "findings": [
-                {
-                    "file": "src/foo.py",
-                    "existing_code": "some code",
-                    "severity": "major",
-                    "message": "Issue",
-                    "agent_source": "a",
-                },
-            ],
-        }
+        response_data = json.dumps(
+            {
+                "summary": "Summary",
+                "findings": [
+                    {
+                        "file": "src/foo.py",
+                        "existing_code": "some code",
+                        "severity": "major",
+                        "message": "Issue",
+                        "agent_source": "a",
+                    },
+                ],
+            }
+        )
         mock_response = MagicMock()
-        mock_response.content = json.dumps(response_data)
+        mock_response.content = response_data
         mock_ai_provider.chat_completion.return_value = mock_response
 
         results = [
@@ -976,4 +1304,57 @@ diff --git a/src/foo.py b/src/foo.py
         assert len(result.findings) == 1
         assert result.findings[0].line is None
         # Only one AI call (no line mapping without diff)
+        assert mock_ai_provider.chat_completion.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_bare_array_unpacked_then_line_resolution(self, mock_ai_provider):
+        """Bare JSON array is unpacked and findings get line resolution."""
+        diff = """\
+diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -10,4 +10,5 @@ def process():
+     data = fetch()
+     if data:
+         result = transform(data)
++        validate(result)
+         return result
+"""
+        # Bare array with valid findings — gets unpacked without correction
+        bare = json.dumps(
+            [
+                {
+                    "file": "src/foo.py",
+                    "existing_code": "validate(result)",
+                    "severity": "major",
+                    "message": "Issue",
+                    "agent_source": "a",
+                }
+            ]
+        )
+        mock_ai_provider.chat_completion.return_value = MagicMock(content=bare)
+
+        results = [
+            {
+                "agent_name": "a",
+                "status": "success",
+                "analysis": "A",
+                "categories": ["code"],
+                "execution_time": 1,
+            },
+            {
+                "agent_name": "b",
+                "status": "success",
+                "analysis": "B",
+                "categories": ["arch"],
+                "execution_time": 2,
+            },
+        ]
+        agent = SummarizationAgent(mock_ai_provider)
+        result = await agent.summarize(results, diff=diff)
+
+        assert len(result.findings) == 1
+        assert result.findings[0].line == 13
+        assert result.ai_summarized is True
+        # 1 call: bare array unpacked directly, line resolves deterministically
         assert mock_ai_provider.chat_completion.call_count == 1
