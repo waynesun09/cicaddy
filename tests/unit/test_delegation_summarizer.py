@@ -871,9 +871,9 @@ class TestUnpackBareArray:
         assert "2 finding(s)" in result["summary"]
         assert "Issue A" in result["summary"]
         assert "Issue B" in result["summary"]
-        assert "## Major (1)" in result["summary"]
-        assert "- `a.py`:" in result["summary"]
-        assert "- `b.py`:" in result["summary"]
+        assert "Major (1)" in result["summary"]
+        assert "**`a.py`**" in result["summary"]
+        assert "**`b.py`**" in result["summary"]
 
     def test_summary_groups_by_severity(self):
         bare = [
@@ -882,9 +882,9 @@ class TestUnpackBareArray:
             {"file": "c.py", "severity": "minor", "message": "Minor issue"},
         ]
         result = SummarizationAgent._unpack_bare_array(bare)
-        assert "## Critical (1)" in result["summary"]
-        assert "## Major (1)" in result["summary"]
-        assert "## Minor (1)" in result["summary"]
+        assert "Critical (1)" in result["summary"]
+        assert "Major (1)" in result["summary"]
+        assert "Minor (1)" in result["summary"]
 
     def test_summary_preserves_special_chars(self):
         """Special characters in messages/code are preserved in markdown."""
@@ -899,10 +899,10 @@ class TestUnpackBareArray:
         result = SummarizationAgent._unpack_bare_array(bare)
         summary = result["summary"]
         assert "<str>" in summary
-        assert "- `src/types.py`:" in summary
+        assert "**`src/types.py`**" in summary
 
-    def test_summary_includes_code_snippets(self):
-        """Code snippets are wrapped in fenced code blocks."""
+    def test_summary_omits_code_snippets(self):
+        """Code snippets are kept in findings but omitted from summary text."""
         bare = [
             {
                 "file": "a.py",
@@ -913,11 +913,12 @@ class TestUnpackBareArray:
         ]
         result = SummarizationAgent._unpack_bare_array(bare)
         summary = result["summary"]
-        assert "```" in summary
-        assert "if x > 0:" in summary
+        assert "Potential issue" in summary
+        assert "**`a.py`**" in summary
+        assert result["findings"][0]["existing_code"] == "if x > 0:"
 
     def test_summary_includes_suggestion(self):
-        """Suggestions are rendered as italicized text."""
+        """Suggestions are rendered inline."""
         bare = [
             {
                 "file": "a.py",

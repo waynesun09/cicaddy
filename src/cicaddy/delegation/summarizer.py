@@ -48,12 +48,14 @@ _SUMMARY_RULES = """\
 - Preserve concrete, actionable suggestions — include code snippets when agents provided them
 - Do NOT invent new findings — only summarize what agents reported
 - Use markdown formatting for structure:
-  - ## headings for each severity group with count (e.g. ## Critical (2))
-  - Bullet list (`-` or `*`) for findings — one finding per bullet, never combine multiple findings on one line
-  - Backtick-wrapped file paths (e.g. `src/foo.py`)
-  - Fenced code blocks (```) for code snippets
+  - ### headings for each severity group with emoji and count (e.g. ### 🔴 Critical (2))
+  - Emoji per severity: 🔴 Critical, 🟠 Major, 🟡 Minor, 🔵 Nit
+  - Numbered list for findings within each severity group
+  - Each finding on its own line: **`file_path`** — description
+  - Keep suggestions inline and concise (one sentence), do NOT use fenced code blocks in the summary
+  - Use backtick-wrapped file paths and inline code references
 - Omit empty severity groups (if no Critical findings, skip that section)
-- End with a brief overall assessment (1-2 sentences)"""
+- End with a brief **Overall Assessment** (1-2 sentences)"""
 
 _RESPONSE_FORMAT = """\
 ## Response Format
@@ -124,23 +126,19 @@ def _coerce_int(val: Any) -> Optional[int]:
 
 
 def _format_finding_md(entry: dict) -> str:
-    """Format a single finding dict as a markdown bullet body."""
+    """Format a single finding dict as a numbered-list body."""
     msg = str(entry.get("message") or "")
     file_path = entry.get("file", "")
-    existing_code = entry.get("existing_code")
     suggestion = entry.get("suggestion")
 
     parts: list[str] = []
     if file_path:
-        parts.append(f"`{file_path}`: {msg}")
+        parts.append(f"**`{file_path}`** — {msg}")
     else:
         parts.append(msg)
 
-    if existing_code and isinstance(existing_code, str) and existing_code.strip():
-        parts.append(f"\n  ```\n  {existing_code}\n  ```")
-
     if suggestion and isinstance(suggestion, str) and suggestion.strip():
-        parts.append(f"\n  *Suggestion: {suggestion}*")
+        parts.append(f" *Suggestion: {suggestion.strip()}*")
 
     return "".join(parts)
 
@@ -504,16 +502,23 @@ class SummarizationAgent:
             if msg:
                 severity_groups.setdefault(sev, []).append(f)
 
+        _sev_emoji = {
+            "critical": "\U0001f534",
+            "major": "\U0001f7e0",
+            "minor": "\U0001f7e1",
+            "nit": "\U0001f535",
+        }
         parts: list[str] = []
         for sev in ("critical", "major", "minor", "nit"):
             group = severity_groups.get(sev, [])
             if not group:
                 continue
-            parts.append(f"## {sev.title()} ({len(group)})")
+            emoji = _sev_emoji.get(sev, "")
+            parts.append(f"### {emoji} {sev.title()} ({len(group)})")
             items: list[str] = []
-            for entry in group:
+            for idx, entry in enumerate(group, 1):
                 item = _format_finding_md(entry)
-                items.append(f"- {item}")
+                items.append(f"{idx}. {item}")
             parts.append("\n".join(items))
 
         if parts:
