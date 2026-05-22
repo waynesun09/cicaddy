@@ -1,14 +1,18 @@
 """AI-powered summarization of multi-agent delegation results.
 
-Uses the parent agent's AI provider (single lightweight call) to
-condense multiple sub-agent analyses into a concise consolidated
-review with structured findings for inline comment support.
+Uses the parent agent's AI provider to condense multiple sub-agent
+analyses into a concise consolidated review with structured findings
+for inline comment support.  Employs a multi-turn schema-validated
+conversation loop: the AI generates a response, the code validates
+it against a JSON schema, and sends correction requests back until
+the output is valid (up to ``max_turns``).
 """
 
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from cicaddy.delegation.triage import (
@@ -26,6 +30,10 @@ logger = get_logger(__name__)
 
 _VALID_SEVERITIES = frozenset({"critical", "major", "minor", "nit"})
 _ERR_EMPTY = "AI response is empty"
+_MAX_CORRECTION_TURNS = 8
+
+_SCHEMA_PATH = Path(__file__).parent / "schemas" / "summarizer_response.schema.json"
+_RESPONSE_SCHEMA: Dict[str, Any] = json.loads(_SCHEMA_PATH.read_text())
 
 _SUMMARIZATION_SYSTEM_PROMPT = (
     "You are a technical review summarizer. Condense the following "
@@ -43,56 +51,32 @@ _SUMMARY_RULES = """\
 - Omit empty severity groups (if no Critical findings, skip that section)
 - End with a brief overall assessment (1-2 sentences)"""
 
-_FINDINGS_RULES = """\
-## Findings Extraction Rules
-- Extract file path from agent analyses when referenced
-- **Include the exact code snippet** the finding refers to in `existing_code`.
-  Quote 1-3 lines of the relevant code from the diff. This is used for
-  precise inline comment placement — accurate snippets are critical
-- If an agent mentions a line number, include it in the `line` field as
-  a best-effort hint. Otherwise set `line` to null (line resolution is
-  handled separately)
-- Map severity from agent output (Critical/Major/Minor/Nit)
-- Include concrete suggestion/fix when the agent provided one
-- Track which agent identified each finding via agent_source
-- Do NOT invent findings — only extract what agents explicitly reported"""
-
 _RESPONSE_FORMAT = """\
 ## Response Format
 
-Respond with ONLY a JSON object (not an array) in this exact format \
-(no markdown code fences, no explanation):
-{
-  "summary": "Concise consolidated review in markdown...",
-  "findings": [
-    {
-      "file": "path/to/file.py",
-      "existing_code": "the relevant code snippet from the diff (1-3 lines)",
-      "line": 42,
-      "severity": "major",
-      "message": "Description of the finding",
-      "suggestion": "Concrete fix or null if none",
-      "agent_source": "agent-name"
-    }
-  ]
-}
+Respond with ONLY a JSON object (no markdown fences, no preamble).
+The JSON must match this schema exactly:
 
-IMPORTANT: Always wrap findings inside the object above. \
-Do NOT return a bare JSON array — always use {"summary": ..., "findings": [...]}.
+```json
+{schema_json}
+```
 
-### Field reference
-- "summary" — required, PROSE markdown string summarizing the review \
-(NEVER put a JSON array or raw findings here — always human-readable text)
-- "findings" — required, array of finding objects (empty array if no findings)
+Field rules:
+- "summary" — required, non-empty markdown string with the consolidated review
+- "findings" — required array of structured findings
+- Each finding requires: "file" (non-empty string), "severity" (critical|major|minor|nit), "message" (non-empty string)
+- Optional finding fields: "existing_code" (string or null), "line" (integer or null), "suggestion" (string or null), "agent_source" (string)
+- If no findings, use an empty array: []"""
 
-Each finding object:
-- "file" — required, string, path to the file
-- "existing_code" — string or null, exact code snippet from the diff (1-3 lines)
-- "line" — integer or null, best-effort line number if the agent cited one
-- "severity" — one of: critical | major | minor | nit (defaults to "minor" if omitted)
-- "message" — required, string, description of the finding
-- "suggestion" — string or null, concrete fix when the agent provided one
-- "agent_source" — string, name of the agent (defaults to "" if omitted)"""
+_CORRECTION_PROMPT = """\
+Your response did not match the required JSON schema. Errors:
+
+{errors}
+
+Fix these issues and respond with ONLY the corrected JSON object \
+(no markdown fences, no explanation). The schema requires:
+- Root: {{"summary": "<markdown string>", "findings": [...]}}
+- Each finding: {{"file": "...", "severity": "critical|major|minor|nit", "message": "..."}}"""
 
 
 @dataclass
@@ -124,9 +108,10 @@ class SummarizationResult:
 class SummarizationAgent:
     """AI-powered summarization of multi-agent review results.
 
-    Uses the parent agent's AI provider (single lightweight call, no new
-    provider needed) to condense multiple sub-agent analyses into a
-    concise summary with structured findings.
+    Uses a multi-turn conversation with JSON schema validation to
+    ensure the AI produces well-structured output.  On each turn the
+    response is validated against the bundled JSON schema; validation
+    errors are sent back as a correction prompt up to ``max_turns``.
     """
 
     def __init__(self, ai_provider: "BaseProvider"):
@@ -140,10 +125,10 @@ class SummarizationAgent:
     ) -> SummarizationResult:
         """Summarize multiple agent analyses into structured output.
 
-        Uses a two-step line resolution approach:
-        1. AI generates findings with ``existing_code`` snippets
-        2. Deterministic search maps snippets to line numbers, with
-           AI fallback for unresolved findings
+        Uses a multi-turn schema-validated conversation:
+        1. AI generates JSON response matching the schema
+        2. Response is validated; errors trigger correction turns
+        3. Deterministic + AI line resolution on extracted findings
 
         Args:
             agent_results: List of per-agent result dicts from the
@@ -187,9 +172,10 @@ class SummarizationAgent:
             messages = [ProviderMessage(content=prompt, role="user")]
             response = await self.ai_provider.chat_completion(messages)
 
-            summary, findings = self._parse_response(response.content)
+            summary, findings = await self._validate_and_correct(
+                messages, response.content
+            )
 
-            # Step 2: Resolve line numbers via deterministic diff search
             if diff and findings:
                 findings = await self._resolve_lines(findings, diff)
 
@@ -223,7 +209,6 @@ class SummarizationAgent:
         """Build the summarization prompt for the AI."""
         boundary_start, boundary_end = _make_boundary_pair()
 
-        # Build analyses section
         analyses_parts = []
         for result in successful_results:
             agent_name = _sanitize_agent_name(result.get("agent_name", "unknown"))
@@ -245,104 +230,211 @@ class SummarizationAgent:
             )
             custom_section = f"\n## Additional Instructions\n{sanitized}\n"
 
+        schema_json = json.dumps(_RESPONSE_SCHEMA, indent=2)
+        response_format = _RESPONSE_FORMAT.format(schema_json=schema_json)
+
         return (
             f"{_SUMMARIZATION_SYSTEM_PROMPT}\n\n"
-            f"{_SUMMARY_RULES}\n\n"
-            f"{_FINDINGS_RULES}\n"
+            f"{_SUMMARY_RULES}\n"
             f"{custom_section}\n"
             f"## Agent Analyses to Summarize\n\n"
             f"{boundary_start}\n{analyses_section}\n{boundary_end}\n\n"
-            f"{_RESPONSE_FORMAT}"
+            f"{response_format}"
         )
 
-    def _parse_response(self, response_content: str) -> tuple[str, List[Finding]]:
-        """Parse AI response into summary text and findings list.
+    async def _validate_and_correct(
+        self,
+        messages: list,
+        response_content: str,
+        max_turns: int = _MAX_CORRECTION_TURNS,
+    ) -> tuple[str, List[Finding]]:
+        """Multi-turn schema validation loop.
 
-        Handles four response shapes:
-            1. JSON object with ``summary`` + ``findings``.
-            2. JSON array of finding dicts.
-            3. JSON string or non-object scalar.
-            4. Plain text (not valid JSON).
-
-        Args:
-            response_content: Raw AI response content.
+        Validates the AI response against the JSON schema.  If invalid,
+        appends the response and a correction prompt to the conversation
+        and re-calls the AI, up to ``max_turns`` total attempts.
 
         Returns:
-            A tuple of (summary_text, findings).
+            Tuple of (summary_text, findings_list).
         """
-        content = extract_json(response_content)
+        from cicaddy.ai_providers.base import ProviderMessage
 
-        try:
-            data = json.loads(content)
-        except json.JSONDecodeError:
-            summary = content.strip() or response_content.strip()
-            if not summary:
-                raise ValueError(_ERR_EMPTY)
-            logger.info("Summarization response is plain text, using as summary")
-            return summary, []
-
-        if isinstance(data, dict):
-            return self._parse_dict_response(data)
-
-        if isinstance(data, list):
-            findings = [
-                f
-                for entry in data
-                if isinstance(entry, dict) and (f := self._validate_finding(entry))
-            ]
-            if findings:
-                logger.info(
-                    "Summarization response is a JSON array, extracted %d finding(s)",
-                    len(findings),
-                )
-                return "Code review findings:", findings
-            logger.warning(
-                "Summarization response is a JSON array with no valid findings"
-            )
-            return "No actionable findings extracted from agent responses.", []
-
-        if data is None:
-            raise ValueError(_ERR_EMPTY)
-        text = data.strip() if isinstance(data, str) else content.strip()
-        if not text:
-            raise ValueError(_ERR_EMPTY)
-        logger.info("Summarization response is not a JSON object, using as summary")
-        return text, []
-
-    def _parse_dict_response(self, data: Dict[str, Any]) -> tuple[str, List[Finding]]:
-        """Extract summary and findings from a JSON object response."""
-        summary = data.get("summary", "")
-        if not summary or not summary.strip():
-            raise ValueError("AI response missing 'summary' field")
-
-        raw_findings = data.get("findings", [])
-        if not isinstance(raw_findings, list):
-            raw_findings = []
-
-        # Guard: AI sometimes puts JSON findings into summary field
-        stripped = summary.strip()
-        if stripped.startswith("["):
-            try:
-                embedded = json.loads(stripped)
-                if isinstance(embedded, list):
-                    dict_entries = [e for e in embedded if isinstance(e, dict)]
-                    if dict_entries:
-                        raw_findings.extend(dict_entries)
-                        logger.warning(
-                            "AI put JSON array in summary field, "
-                            "extracted %d entries into findings",
-                            len(dict_entries),
+        content = response_content
+        for turn in range(max_turns):
+            text = content.strip()
+            if not text:
+                if turn == 0:
+                    raise ValueError(_ERR_EMPTY)
+                errors = ["Response is empty."]
+            else:
+                result = self._try_parse_and_validate(text)
+                if result is not None:
+                    summary, findings = result
+                    if turn > 0:
+                        logger.info(
+                            "Schema validation passed after %d correction turn(s)",
+                            turn,
                         )
-                        summary = "Code review findings:"
-            except json.JSONDecodeError:
-                pass
+                    return summary, findings
+                errors = self._collect_validation_errors(text)
 
+            if turn >= max_turns - 1:
+                break
+
+            logger.info(
+                "Schema validation failed (turn %d/%d), requesting correction: %s",
+                turn + 1,
+                max_turns,
+                "; ".join(errors),
+            )
+
+            messages.append(ProviderMessage(content=content, role="assistant"))
+            correction = _CORRECTION_PROMPT.format(
+                errors="\n".join(f"- {e}" for e in errors)
+            )
+            messages.append(ProviderMessage(content=correction, role="user"))
+
+            response = await self.ai_provider.chat_completion(messages)
+            content = response.content
+
+        logger.warning(
+            "Schema validation failed after %d turns, using raw text as summary",
+            max_turns,
+        )
+        # Fallback: use raw text as summary, no structured findings
+        fallback_text = response_content.strip()
+        # Try to extract summary from JSON if possible
+        try:
+            data = json.loads(extract_json(fallback_text))
+            if isinstance(data, dict) and isinstance(data.get("summary"), str):
+                return data["summary"], []
+        except (json.JSONDecodeError, ValueError):
+            pass
+        return fallback_text, []
+
+    def _try_parse_and_validate(self, text: str) -> Optional[tuple[str, List[Finding]]]:
+        """Try to parse JSON and validate against schema.
+
+        Returns (summary, findings) on success, None on failure.
+        """
+        try:
+            raw = extract_json(text)
+            data = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            return None
+
+        if not isinstance(data, dict):
+            return None
+
+        errors = self._validate_against_schema(data)
+        if errors:
+            return None
+
+        summary = data["summary"]
+        raw_findings = data.get("findings", [])
         findings = [
             f
             for entry in raw_findings
             if isinstance(entry, dict) and (f := self._validate_finding(entry))
         ]
         return summary, findings
+
+    @staticmethod
+    def _validate_against_schema(data: Any) -> List[str]:
+        """Validate parsed JSON against the response schema.
+
+        Returns a list of error descriptions (empty if valid).
+        """
+        errors: List[str] = []
+
+        if not isinstance(data, dict):
+            errors.append(f"Root must be a JSON object, got {type(data).__name__}")
+            return errors
+
+        if "summary" not in data:
+            errors.append("Missing required field: 'summary'")
+        elif not isinstance(data["summary"], str):
+            errors.append(
+                f"'summary' must be a string, got {type(data['summary']).__name__}"
+            )
+        elif not data["summary"].strip():
+            errors.append("'summary' must be non-empty")
+
+        if "findings" not in data:
+            errors.append("Missing required field: 'findings'")
+        elif not isinstance(data["findings"], list):
+            errors.append(
+                f"'findings' must be an array, got {type(data['findings']).__name__}"
+            )
+        else:
+            for i, entry in enumerate(data["findings"]):
+                if not isinstance(entry, dict):
+                    errors.append(
+                        f"findings[{i}]: must be an object, got {type(entry).__name__}"
+                    )
+                    continue
+                if (
+                    "file" not in entry
+                    or not isinstance(entry.get("file"), str)
+                    or not entry["file"].strip()
+                ):
+                    errors.append(
+                        f"findings[{i}]: missing or empty required field 'file'"
+                    )
+                if (
+                    "message" not in entry
+                    or not isinstance(entry.get("message"), str)
+                    or not entry["message"].strip()
+                ):
+                    errors.append(
+                        f"findings[{i}]: missing or empty required field 'message'"
+                    )
+                sev = entry.get("severity", "")
+                if not isinstance(sev, str) or sev.lower() not in _VALID_SEVERITIES:
+                    errors.append(
+                        f"findings[{i}]: 'severity' must be one of "
+                        f"{sorted(_VALID_SEVERITIES)}, got {sev!r}"
+                    )
+
+                allowed_keys = {
+                    "file",
+                    "existing_code",
+                    "line",
+                    "severity",
+                    "message",
+                    "suggestion",
+                    "agent_source",
+                }
+                extra = set(entry.keys()) - allowed_keys
+                if extra:
+                    errors.append(f"findings[{i}]: unexpected fields {extra}")
+
+        allowed_root = {"summary", "findings"}
+        extra_root = set(data.keys()) - allowed_root
+        if extra_root:
+            errors.append(f"Unexpected root fields: {extra_root}")
+
+        return errors
+
+    def _collect_validation_errors(self, text: str) -> List[str]:
+        """Collect validation errors for a correction prompt."""
+        try:
+            raw = extract_json(text)
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            return ["Response is not valid JSON. Respond with a JSON object only."]
+        except ValueError:
+            return [
+                "Could not extract JSON from response. Respond with a JSON object only."
+            ]
+
+        if not isinstance(data, dict):
+            return [
+                f"Response is a JSON {type(data).__name__}, not an object. "
+                'Wrap in {{"summary": "...", "findings": [...]}}.'
+            ]
+
+        return self._validate_against_schema(data)
 
     @staticmethod
     def _validate_finding(entry: Dict[str, Any]) -> Optional[Finding]:
@@ -414,7 +506,6 @@ class SummarizationAgent:
                         filtered_lines.append(line)
                     pending_headers = []
                 else:
-                    # Accumulate metadata (--- a/..., index, mode changes)
                     pending_headers.append(line)
                 continue
             if include_file:
@@ -449,7 +540,6 @@ class SummarizationAgent:
             filtered_diff = self._filter_diff_for_files(diff, relevant_files)
             annotated = annotate_diff_with_line_numbers(filtered_diff)
 
-            # Sanitize diff content with boundary markers (prompt injection protection)
             boundary_start, boundary_end = _make_boundary_pair()
             sanitized_diff = _sanitize_for_boundary(
                 annotated, boundary_start, boundary_end

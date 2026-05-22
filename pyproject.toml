@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cicaddy"
-version = "0.12.5"
+version = "0.12.6"
 description = "Platform-agnostic pipeline AI agent with MCP tool integration and multi-step execution engine"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -100,7 +100,7 @@ include = ["cicaddy*"]
 exclude = ["tests*", "docs*", "examples*"]
 
 [tool.setuptools.package-data]
-cicaddy = ["bundled_skills/**/*.md", "delegation/builtin/**/*.yaml"]
+cicaddy = ["bundled_skills/**/*.md", "delegation/builtin/**/*.yaml", "delegation/schemas/**/*.json"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
