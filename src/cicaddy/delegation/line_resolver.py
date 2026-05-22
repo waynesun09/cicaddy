@@ -398,6 +398,34 @@ def _clamp_to_nearest_hunk(
     return None
 
 
+def _validate_one_finding(
+    finding: "Finding",
+    ranges: list[tuple[int, int]],
+) -> str:
+    """Validate a single finding's line range against hunk ranges.
+
+    Returns "valid", "clamped", or "cleared".
+    """
+    assert finding.line is not None
+    start: int = finding.start_line if finding.start_line is not None else finding.line
+    end: int = finding.end_line if finding.end_line is not None else finding.line
+
+    if any(s <= start and end <= e for s, e in ranges):
+        return "valid"
+
+    clamped_range = _clamp_to_nearest_hunk(start, end, ranges)
+    if clamped_range is not None:
+        finding.line = clamped_range[0]
+        finding.start_line = clamped_range[0]
+        finding.end_line = clamped_range[1]
+        return "clamped"
+
+    finding.line = None
+    finding.start_line = None
+    finding.end_line = None
+    return "cleared"
+
+
 def validate_findings_in_hunks(
     findings: List["Finding"],
     diff: str,
@@ -443,23 +471,12 @@ def validate_findings_in_hunks(
         if ranges is None:
             continue
 
-        start = finding.start_line if finding.start_line is not None else finding.line
-        end = finding.end_line if finding.end_line is not None else finding.line
-
-        if any(s <= start and end <= e for s, e in ranges):
+        result = _validate_one_finding(finding, ranges)
+        if result == "valid":
             validated += 1
-            continue
-
-        clamped_range = _clamp_to_nearest_hunk(start, end, ranges)
-        if clamped_range is not None:
-            finding.line = clamped_range[0]
-            finding.start_line = clamped_range[0]
-            finding.end_line = clamped_range[1]
+        elif result == "clamped":
             clamped += 1
         else:
-            finding.line = None
-            finding.start_line = None
-            finding.end_line = None
             cleared += 1
 
     logger.info(
