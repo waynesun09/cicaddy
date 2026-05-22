@@ -151,7 +151,7 @@ def _find_target_file(diff_files: List[DiffFile], file_path: str) -> Optional[Di
         if df.path == file_path:
             return df
     for df in diff_files:
-        if df.path.endswith(file_path) or file_path.endswith(df.path):
+        if df.path.endswith("/" + file_path) or file_path.endswith("/" + df.path):
             return df
     return None
 

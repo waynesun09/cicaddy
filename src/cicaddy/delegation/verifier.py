@@ -187,24 +187,37 @@ class FindingVerifier:
         provider_name = self.settings.ai_provider or DEFAULT_AI_PROVIDER
         provider = create_provider(provider_name, provider_config)
 
+        initialized = False
         try:
             await provider.initialize()
+            initialized = True
+
+            unique_files = {f.file for f in findings}
+            diff_snippets = {
+                fp: SummarizationAgent._filter_diff_for_files(diff, {fp})
+                for fp in unique_files
+            }
 
             semaphore = asyncio.Semaphore(max_concurrent)
 
             async def _verify_with_semaphore(finding: Finding) -> Finding:
                 async with semaphore:
                     return await self._verify_single(
-                        finding, diff, len(findings), provider, diff_ranges
+                        finding,
+                        diff_snippets.get(finding.file, ""),
+                        len(findings),
+                        provider,
+                        diff_ranges,
                     )
 
             tasks = [_verify_with_semaphore(f) for f in findings]
             results = await asyncio.gather(*tasks, return_exceptions=True)
         finally:
-            try:
-                await provider.shutdown()
-            except Exception:
-                logger.warning("Provider shutdown error", exc_info=True)
+            if initialized:
+                try:
+                    await provider.shutdown()
+                except Exception:
+                    logger.warning("Provider shutdown error", exc_info=True)
 
         verified_findings: list[Finding] = []
         for i, result in enumerate(results):
@@ -278,7 +291,7 @@ class FindingVerifier:
     async def _verify_single(
         self,
         finding: Finding,
-        diff: str,
+        diff_snippet: str,
         num_findings: int,
         provider: "BaseProvider",
         diff_ranges: Optional[Dict[str, list]] = None,
@@ -297,9 +310,6 @@ class FindingVerifier:
                 session_id=f"verify-{id(finding)}-{finding.file}",
             )
 
-            diff_snippet = SummarizationAgent._filter_diff_for_files(
-                diff, {finding.file}
-            )
             prompt = self._build_verification_prompt(finding, diff_snippet, diff_ranges)
             tools = self._get_verification_tools()
 
@@ -320,6 +330,7 @@ class FindingVerifier:
 
             # Re-resolve line from verifier's code snippet (most reliable
             # source — the verifier reads the actual file AND sees the diff).
+            snippet_resolved = False
             if vr.existing_code_snippet and diff_snippet:
                 try:
                     from cicaddy.delegation.line_resolver import (
@@ -341,6 +352,7 @@ class FindingVerifier:
                         result.start_line = start_line
                         result.end_line = end_line
                         result.existing_code = vr.existing_code_snippet
+                        snippet_resolved = True
                 except Exception:
                     logger.debug(
                         "Snippet line resolution failed for %s",
@@ -348,7 +360,14 @@ class FindingVerifier:
                         exc_info=True,
                     )
 
-            if vr.adjusted_line is not None and result.line is not None:
+            if vr.adjusted_line is not None and snippet_resolved:
+                logger.debug(
+                    "Verifier adjusted_line %d superseded by snippet-resolved line %d for %s",
+                    vr.adjusted_line,
+                    result.line,
+                    finding.file,
+                )
+            elif vr.adjusted_line is not None and result.line is not None:
                 logger.debug(
                     "Verifier adjusted_line %d superseded by existing line %d for %s",
                     vr.adjusted_line,

@@ -623,7 +623,7 @@ class SummarizationAgent:
                 if line.startswith("+++ b/"):
                     path = line[6:]
                     include_file = any(
-                        path == rf or path.endswith(rf) or rf.endswith(path)
+                        path == rf or path.endswith("/" + rf) or rf.endswith("/" + path)
                         for rf in relevant_files
                     )
                     if include_file:

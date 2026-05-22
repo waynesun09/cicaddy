@@ -309,7 +309,9 @@ class DelegationOrchestrator:
             tool_context=tool_context,
         )
         try:
-            return await verifier.verify_findings(findings, diff)
+            return await verifier.verify_findings(
+                findings, diff, max_concurrent=self.max_concurrent
+            )
         except Exception:
             logger.warning(
                 "Finding verification failed, returning unverified findings",
