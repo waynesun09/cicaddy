@@ -37,7 +37,8 @@ class ExecutionEngine:
         local_tool_registry: Optional[ToolRegistry] = None,
         session_id: Optional[str] = None,
         execution_limits: Optional[ExecutionLimits] = None,
-        context_safety_factor: float = 0.7,  # NEW: Configurable via CONTEXT_SAFETY_FACTOR env var
+        context_safety_factor: float = 0.7,
+        use_ai_summarization: bool = True,
     ):
         self.ai_provider = ai_provider
         self.mcp_manager = mcp_manager
@@ -53,7 +54,8 @@ class ExecutionEngine:
             local_tool_registry=local_tool_registry,
             limits=self.execution_limits,
             session_id=self.session_id,
-            context_safety_factor=context_safety_factor,  # NEW: Pass from settings
+            context_safety_factor=context_safety_factor,
+            use_ai_summarization=use_ai_summarization,
         )
         self.progressive_analyzer = ProgressiveAnalyzer(
             ai_provider, self.execution_limits

@@ -1499,3 +1499,52 @@ class TestTokenAwareExecutor:
         assert executor.state._degradation_skip_logged is True
         # Degradation should still not be active
         assert executor.state.degradation_active is False
+
+
+class TestTokenAwareExecutorAISummarization:
+    """Tests for use_ai_summarization parameter propagation to ContextCompactor."""
+
+    def test_default_ai_summarization_enabled(self):
+        """Default TokenAwareExecutor enables AI summarization in compactor."""
+        provider = Mock(spec=BaseProvider)
+        executor = TokenAwareExecutor(
+            ai_provider=provider,
+            session_id="test-default",
+        )
+        assert executor.compactor.config.use_ai_summarization is True
+
+    def test_ai_summarization_disabled(self):
+        """use_ai_summarization=False propagates to compactor config."""
+        provider = Mock(spec=BaseProvider)
+        executor = TokenAwareExecutor(
+            ai_provider=provider,
+            session_id="test-disabled",
+            use_ai_summarization=False,
+        )
+        assert executor.compactor.config.use_ai_summarization is False
+
+
+class TestExecutionEngineAISummarization:
+    """Tests for use_ai_summarization parameter forwarding through ExecutionEngine."""
+
+    def test_engine_default_ai_summarization_enabled(self):
+        """ExecutionEngine defaults to AI summarization enabled."""
+        from cicaddy.execution.engine import ExecutionEngine
+
+        provider = Mock(spec=BaseProvider)
+        engine = ExecutionEngine(ai_provider=provider, session_id="test-default")
+        assert engine.token_aware_executor.compactor.config.use_ai_summarization is True
+
+    def test_engine_forwards_ai_summarization_false(self):
+        """ExecutionEngine forwards use_ai_summarization=False to compactor."""
+        from cicaddy.execution.engine import ExecutionEngine
+
+        provider = Mock(spec=BaseProvider)
+        engine = ExecutionEngine(
+            ai_provider=provider,
+            session_id="test-disabled",
+            use_ai_summarization=False,
+        )
+        assert (
+            engine.token_aware_executor.compactor.config.use_ai_summarization is False
+        )

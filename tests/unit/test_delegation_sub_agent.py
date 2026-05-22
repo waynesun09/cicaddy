@@ -769,3 +769,63 @@ class TestDelegationSubAgentWorkspaceContext:
 
         # The core prompt should end the output (no trailing skills section)
         assert prompt.rstrip().endswith("Provide structured, actionable findings.")
+
+
+class TestDelegationSubAgentAISummarization:
+    """Tests for use_ai_summarization=False in sub-agent execution engine."""
+
+    @pytest.mark.asyncio
+    async def test_initialize_disables_ai_summarization(
+        self, sample_spec, sample_entry, mock_settings, sample_context
+    ):
+        """Sub-agent ExecutionEngine must use use_ai_summarization=False."""
+        agent = DelegationSubAgent(
+            spec=sample_spec,
+            delegation_entry=sample_entry,
+            settings=mock_settings,
+            context=sample_context,
+            parent_tools=[],
+            parent_mcp_manager=None,
+            parent_local_registry=None,
+        )
+
+        with (
+            patch("cicaddy.delegation.sub_agent.create_provider") as mock_create,
+            patch("cicaddy.delegation.sub_agent.get_provider_config"),
+            patch("cicaddy.execution.engine.TokenAwareExecutor") as mock_tae,
+        ):
+            mock_provider = AsyncMock()
+            mock_create.return_value = mock_provider
+
+            await agent.initialize(num_agents=1)
+
+            mock_tae.assert_called_once()
+            call_kwargs = mock_tae.call_args[1]
+            assert call_kwargs["use_ai_summarization"] is False
+
+    @pytest.mark.asyncio
+    async def test_initialize_compactor_has_ai_summarization_disabled(
+        self, sample_spec, sample_entry, mock_settings, sample_context
+    ):
+        """After initialize(), the compactor config has use_ai_summarization=False."""
+        agent = DelegationSubAgent(
+            spec=sample_spec,
+            delegation_entry=sample_entry,
+            settings=mock_settings,
+            context=sample_context,
+            parent_tools=[],
+            parent_mcp_manager=None,
+            parent_local_registry=None,
+        )
+
+        with (
+            patch("cicaddy.delegation.sub_agent.create_provider") as mock_create,
+            patch("cicaddy.delegation.sub_agent.get_provider_config"),
+        ):
+            mock_provider = AsyncMock()
+            mock_create.return_value = mock_provider
+
+            await agent.initialize(num_agents=1)
+
+        compactor = agent.execution_engine.token_aware_executor.compactor
+        assert compactor.config.use_ai_summarization is False
