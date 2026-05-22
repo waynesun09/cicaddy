@@ -352,7 +352,7 @@ class TestValidateAndCorrect:
 
         agent = SummarizationAgent(mock_ai_provider)
         messages = []
-        summary, findings = await agent._validate_and_correct(messages, bad)
+        summary, _ = await agent._validate_and_correct(messages, bad)
 
         assert summary == "Fixed"
         assert mock_ai_provider.chat_completion.call_count == 1
@@ -518,9 +518,7 @@ class TestValidateAndCorrect:
 
         agent = SummarizationAgent(mock_ai_provider)
         messages = []
-        summary, findings = await agent._validate_and_correct(
-            messages, bad, max_turns=4
-        )
+        summary, _ = await agent._validate_and_correct(messages, bad, max_turns=4)
 
         assert summary == "OK"
         assert mock_ai_provider.chat_completion.call_count == 2
@@ -534,7 +532,7 @@ class TestValidateAndCorrect:
 
         agent = SummarizationAgent(mock_ai_provider)
         messages = []
-        summary, findings = await agent._validate_and_correct(messages, bad)
+        summary, _ = await agent._validate_and_correct(messages, bad)
 
         assert summary == "Review"
         assert mock_ai_provider.chat_completion.call_count == 1

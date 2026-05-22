@@ -117,6 +117,60 @@ def _coerce_int(val: Any) -> Optional[int]:
         return None
 
 
+def _validate_single_finding(
+    i: int, entry: dict, allowed_keys: set, errors: List[str]
+) -> None:
+    """Validate a single finding entry, appending errors."""
+    if (
+        "file" not in entry
+        or not isinstance(entry.get("file"), str)
+        or not entry["file"].strip()
+    ):
+        errors.append(f"findings[{i}]: missing or empty required field 'file'")
+    if (
+        "message" not in entry
+        or not isinstance(entry.get("message"), str)
+        or not entry["message"].strip()
+    ):
+        errors.append(f"findings[{i}]: missing or empty required field 'message'")
+    sev = entry.get("severity", "")
+    if not isinstance(sev, str) or sev.lower() not in _VALID_SEVERITIES:
+        errors.append(
+            f"findings[{i}]: 'severity' must be one of "
+            f"{sorted(_VALID_SEVERITIES)}, got {sev!r}"
+        )
+
+    for int_field in ("line", "start_line", "end_line"):
+        int_val = entry.get(int_field)
+        if int_val is not None and not isinstance(int_val, int):
+            errors.append(
+                f"findings[{i}]: '{int_field}' must be an integer "
+                f"or null, got {type(int_val).__name__}"
+            )
+    sl = entry.get("start_line")
+    el = entry.get("end_line")
+    if isinstance(sl, int) and isinstance(el, int) and sl > el:
+        errors.append(
+            f"findings[{i}]: 'start_line' ({sl}) must be <= 'end_line' ({el})"
+        )
+    for str_field in ("existing_code", "suggestion"):
+        val = entry.get(str_field)
+        if val is not None and not isinstance(val, str):
+            errors.append(
+                f"findings[{i}]: '{str_field}' must be a string "
+                f"or null, got {type(val).__name__}"
+            )
+    agent_src = entry.get("agent_source")
+    if agent_src is not None and not isinstance(agent_src, str):
+        errors.append(
+            f"findings[{i}]: 'agent_source' must be a string "
+            f"or null, got {type(agent_src).__name__}"
+        )
+    extra = set(entry.keys()) - allowed_keys
+    if extra:
+        errors.append(f"findings[{i}]: unexpected fields {extra}")
+
+
 def _validate_findings_entries(findings: list[Any], errors: List[str]) -> None:
     """Validate each entry in the findings array, appending errors."""
     allowed_keys = set(
@@ -128,54 +182,7 @@ def _validate_findings_entries(findings: list[Any], errors: List[str]) -> None:
                 f"findings[{i}]: must be an object, got {type(entry).__name__}"
             )
             continue
-        if (
-            "file" not in entry
-            or not isinstance(entry.get("file"), str)
-            or not entry["file"].strip()
-        ):
-            errors.append(f"findings[{i}]: missing or empty required field 'file'")
-        if (
-            "message" not in entry
-            or not isinstance(entry.get("message"), str)
-            or not entry["message"].strip()
-        ):
-            errors.append(f"findings[{i}]: missing or empty required field 'message'")
-        sev = entry.get("severity", "")
-        if not isinstance(sev, str) or sev.lower() not in _VALID_SEVERITIES:
-            errors.append(
-                f"findings[{i}]: 'severity' must be one of "
-                f"{sorted(_VALID_SEVERITIES)}, got {sev!r}"
-            )
-
-        for int_field in ("line", "start_line", "end_line"):
-            int_val = entry.get(int_field)
-            if int_val is not None and not isinstance(int_val, int):
-                errors.append(
-                    f"findings[{i}]: '{int_field}' must be an integer "
-                    f"or null, got {type(int_val).__name__}"
-                )
-        sl = entry.get("start_line")
-        el = entry.get("end_line")
-        if isinstance(sl, int) and isinstance(el, int) and sl > el:
-            errors.append(
-                f"findings[{i}]: 'start_line' ({sl}) must be <= 'end_line' ({el})"
-            )
-        for str_field in ("existing_code", "suggestion"):
-            val = entry.get(str_field)
-            if val is not None and not isinstance(val, str):
-                errors.append(
-                    f"findings[{i}]: '{str_field}' must be a string "
-                    f"or null, got {type(val).__name__}"
-                )
-        agent_src = entry.get("agent_source")
-        if agent_src is not None and not isinstance(agent_src, str):
-            errors.append(
-                f"findings[{i}]: 'agent_source' must be a string "
-                f"or null, got {type(agent_src).__name__}"
-            )
-        extra = set(entry.keys()) - allowed_keys
-        if extra:
-            errors.append(f"findings[{i}]: unexpected fields {extra}")
+        _validate_single_finding(i, entry, allowed_keys, errors)
 
 
 class SummarizationAgent:
@@ -336,26 +343,9 @@ class SummarizationAgent:
 
         content = response_content
         for turn in range(max_turns):
-            text = content.strip()
-            if not text:
-                if turn == 0:
-                    raise ValueError(_ERR_EMPTY)
-                errors = ["Response is empty."]
-            else:
-                parsed = self._parse_and_unpack(text)
-                if parsed is not None:
-                    result = self._validate_parsed(parsed)
-                    if result is not None:
-                        summary, findings = result
-                        if turn > 0:
-                            logger.info(
-                                "Schema validation passed after %d correction turn(s)",
-                                turn,
-                            )
-                        return summary, findings
-                    errors = self._validate_against_schema(parsed)
-                else:
-                    errors = self._collect_validation_errors(text)
+            result, errors = self._attempt_validation(content, turn)
+            if result is not None:
+                return result
 
             if turn >= max_turns - 1:
                 break
@@ -380,14 +370,47 @@ class SummarizationAgent:
             "Schema validation failed after %d turns, using raw text as summary",
             max_turns,
         )
-        # Fallback: prefer latest correction attempt over original response
+        return self._fallback_extract(content, response_content)
+
+    def _attempt_validation(
+        self, content: str, turn: int
+    ) -> tuple[Optional[tuple[str, List[Finding]]], List[str]]:
+        """Attempt to validate a single response turn.
+
+        Returns (result, errors) where result is (summary, findings) on
+        success or None on failure.
+        """
+        text = content.strip()
+        if not text:
+            if turn == 0:
+                raise ValueError(_ERR_EMPTY)
+            return None, ["Response is empty."]
+
+        parsed = self._parse_and_unpack(text)
+        if parsed is not None:
+            result = self._validate_parsed(parsed)
+            if result is not None:
+                summary, findings = result
+                if turn > 0:
+                    logger.info(
+                        "Schema validation passed after %d correction turn(s)",
+                        turn,
+                    )
+                return (summary, findings), []
+            return None, self._validate_against_schema(parsed)
+        return None, self._collect_validation_errors(text)
+
+    def _fallback_extract(
+        self, content: str, response_content: str
+    ) -> tuple[str, List[Finding]]:
+        """Extract summary from raw text when validation loop exhausts."""
         for candidate in (content.strip(), response_content.strip()):
             try:
                 data = json.loads(extract_json(candidate))
                 data = self._unpack_bare_array(data)
                 if isinstance(data, dict) and isinstance(data.get("summary"), str):
                     return data["summary"], []
-            except (json.JSONDecodeError, ValueError):
+            except ValueError:
                 continue
         return content.strip() or response_content.strip(), []
 
@@ -396,7 +419,7 @@ class SummarizationAgent:
         try:
             raw = extract_json(text)
             data = json.loads(raw)
-        except (json.JSONDecodeError, ValueError):
+        except ValueError:
             return None
 
         data = self._unpack_bare_array(data)
