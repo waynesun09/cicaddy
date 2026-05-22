@@ -294,6 +294,49 @@ def _find_fuzzy_match(
     return None
 
 
+def _resolve_one_finding(
+    finding: "Finding",
+    diff_files: List[DiffFile],
+) -> str:
+    """Attempt to resolve line numbers for a single finding.
+
+    Returns "resolved" or "unresolved".
+    """
+    existing_code = getattr(finding, "existing_code", None)
+
+    if existing_code:
+        result = find_line_in_diff(diff_files, finding.file, existing_code)
+        if result is not None:
+            start_line, end_line = result
+            if finding.line is not None and finding.line != start_line:
+                logger.debug(
+                    f"Overriding AI line {finding.line} with snippet match "
+                    f"{start_line} in {finding.file}"
+                )
+            finding.line = start_line
+            finding.start_line = start_line
+            finding.end_line = end_line
+            logger.debug(
+                f"Resolved finding in {finding.file} to lines {start_line}-{end_line}"
+            )
+            return "resolved"
+
+    if finding.line is not None:
+        return "resolved"
+
+    if existing_code:
+        logger.debug(
+            f"Could not resolve finding in {finding.file}: "
+            f"snippet not found in diff, no AI line to fall back on"
+        )
+    else:
+        logger.debug(
+            f"Could not resolve finding in {finding.file}: "
+            f"no existing_code and no line number"
+        )
+    return "unresolved"
+
+
 def resolve_findings(
     findings: List["Finding"],
     diff: str,
@@ -321,44 +364,11 @@ def resolve_findings(
     unresolved: List["Finding"] = []
 
     for finding in findings:
-        existing_code = getattr(finding, "existing_code", None)
-
-        # When existing_code is available, always try deterministic resolution
-        # — it's more reliable than the AI's line guess (which often defaults to 1).
-        if existing_code:
-            result = find_line_in_diff(diff_files, finding.file, existing_code)
-            if result is not None:
-                start_line, end_line = result
-                if finding.line is not None and finding.line != start_line:
-                    logger.debug(
-                        f"Overriding AI line {finding.line} with snippet match "
-                        f"{start_line} in {finding.file}"
-                    )
-                finding.line = start_line
-                finding.start_line = start_line
-                finding.end_line = end_line
-                resolved.append(finding)
-                logger.debug(
-                    f"Resolved finding in {finding.file} to lines {start_line}-{end_line}"
-                )
-                continue
-
-        # No existing_code or snippet not found — keep existing line if present
-        if finding.line is not None:
+        bucket = _resolve_one_finding(finding, diff_files)
+        if bucket == "resolved":
             resolved.append(finding)
-            continue
-
-        unresolved.append(finding)
-        if existing_code:
-            logger.debug(
-                f"Could not resolve finding in {finding.file}: "
-                f"snippet not found in diff, no AI line to fall back on"
-            )
         else:
-            logger.debug(
-                f"Could not resolve finding in {finding.file}: "
-                f"no existing_code and no line number"
-            )
+            unresolved.append(finding)
 
     logger.info(
         f"Line resolution: {len(resolved)} resolved, "

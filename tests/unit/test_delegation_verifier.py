@@ -707,8 +707,8 @@ class TestVerifyFindings:
             Finding(file="c.py", line=3, severity="critical", message="Issue C"),
         ]
 
-        async def mock_verify(
-            self_arg, finding, diff, num_findings, provider, diff_ranges=None
+        def mock_verify(
+            finding, diff_snippet, num_findings, provider, diff_ranges=None
         ):
             import dataclasses
 
@@ -724,7 +724,9 @@ class TestVerifyFindings:
                 result.verification_reason = "Unclear"
             return result
 
-        with patch.object(FindingVerifier, "_verify_single", mock_verify):
+        with patch.object(
+            FindingVerifier, "_verify_single", AsyncMock(side_effect=mock_verify)
+        ):
             verifier = FindingVerifier(settings=mock_settings)
             result = await verifier.verify_findings(findings, "diff")
 
@@ -1017,8 +1019,8 @@ class TestVerifyFindingsLineCorrection:
             existing_code=None,
         )
 
-        async def mock_verify(
-            self_arg, finding, diff, num_findings, provider, diff_ranges=None
+        def mock_verify(
+            finding, diff_snippet, num_findings, provider, diff_ranges=None
         ):
             import dataclasses
 
@@ -1030,7 +1032,9 @@ class TestVerifyFindingsLineCorrection:
             result.end_line = 15
             return result
 
-        with patch.object(FindingVerifier, "_verify_single", mock_verify):
+        with patch.object(
+            FindingVerifier, "_verify_single", AsyncMock(side_effect=mock_verify)
+        ):
             verifier = FindingVerifier(settings=mock_settings)
             result = await verifier.verify_findings([finding], "diff")
 
@@ -1048,8 +1052,8 @@ class TestVerifyFindingsLineCorrection:
             existing_code="value = get_data()",
         )
 
-        async def mock_verify(
-            self_arg, finding, diff, num_findings, provider, diff_ranges=None
+        def mock_verify(
+            finding, diff_snippet, num_findings, provider, diff_ranges=None
         ):
             import dataclasses
 
@@ -1058,7 +1062,9 @@ class TestVerifyFindingsLineCorrection:
             result.verification_reason = "Confirmed"
             return result
 
-        with patch.object(FindingVerifier, "_verify_single", mock_verify):
+        with patch.object(
+            FindingVerifier, "_verify_single", AsyncMock(side_effect=mock_verify)
+        ):
             verifier = FindingVerifier(settings=mock_settings)
             result = await verifier.verify_findings([finding], "diff")
 

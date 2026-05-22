@@ -298,10 +298,11 @@ class FindingVerifier:
     ) -> Finding:
         """Verify a single finding using a lightweight ExecutionEngine."""
         import dataclasses
+        from typing import cast
 
         from cicaddy.ai_providers.base import ProviderMessage
 
-        result: Finding = dataclasses.replace(finding)
+        result = cast(Finding, dataclasses.replace(finding))
 
         try:
             engine = self._create_verification_engine(
@@ -328,60 +329,7 @@ class FindingVerifier:
             if vr.adjusted_severity and vr.adjusted_severity in _VALID_SEVERITIES:
                 result.severity = vr.adjusted_severity
 
-            # Re-resolve line from verifier's code snippet (most reliable
-            # source — the verifier reads the actual file AND sees the diff).
-            snippet_resolved = False
-            if vr.existing_code_snippet and diff_snippet:
-                try:
-                    from cicaddy.delegation.line_resolver import (
-                        find_line_in_diff,
-                        parse_diff,
-                    )
-
-                    diff_files = parse_diff(diff_snippet)
-                    match = find_line_in_diff(
-                        diff_files, finding.file, vr.existing_code_snippet
-                    )
-                    if match is not None:
-                        start_line, end_line = match
-                        logger.debug(
-                            f"Verifier snippet resolved {finding.file}: "
-                            f"{result.line} -> {start_line}-{end_line}"
-                        )
-                        result.line = start_line
-                        result.start_line = start_line
-                        result.end_line = end_line
-                        result.existing_code = vr.existing_code_snippet
-                        snippet_resolved = True
-                except Exception:
-                    logger.debug(
-                        "Snippet line resolution failed for %s",
-                        finding.file,
-                        exc_info=True,
-                    )
-
-            if vr.adjusted_line is not None and snippet_resolved:
-                logger.debug(
-                    "Verifier adjusted_line %d superseded by snippet-resolved line %d for %s",
-                    vr.adjusted_line,
-                    result.line,
-                    finding.file,
-                )
-            elif vr.adjusted_line is not None and result.line is not None:
-                logger.debug(
-                    "Verifier adjusted_line %d superseded by existing line %d for %s",
-                    vr.adjusted_line,
-                    result.line,
-                    finding.file,
-                )
-            elif vr.adjusted_line is not None:
-                logger.debug(
-                    f"Verifier corrected line for {finding.file}: "
-                    f"{finding.line} -> {vr.adjusted_line}"
-                )
-                result.line = vr.adjusted_line
-                result.start_line = vr.adjusted_line
-                result.end_line = vr.adjusted_line
+            FindingVerifier._apply_line_correction(result, finding, vr, diff_snippet)
 
         except Exception as exc:
             logger.debug("Verification of %s failed", finding.file, exc_info=True)
@@ -389,6 +337,67 @@ class FindingVerifier:
             result.verification_reason = f"Verification failed: {type(exc).__name__}"
 
         return result
+
+    @staticmethod
+    def _apply_line_correction(
+        result: Finding,
+        finding: Finding,
+        vr: "VerificationResult",
+        diff_snippet: str,
+    ) -> None:
+        """Apply snippet or adjusted_line correction to a verified finding."""
+        snippet_resolved = False
+        if vr.existing_code_snippet and diff_snippet:
+            try:
+                from cicaddy.delegation.line_resolver import (
+                    find_line_in_diff,
+                    parse_diff,
+                )
+
+                diff_files = parse_diff(diff_snippet)
+                match = find_line_in_diff(
+                    diff_files, finding.file, vr.existing_code_snippet
+                )
+                if match is not None:
+                    start_line, end_line = match
+                    logger.debug(
+                        f"Verifier snippet resolved {finding.file}: "
+                        f"{result.line} -> {start_line}-{end_line}"
+                    )
+                    result.line = start_line
+                    result.start_line = start_line
+                    result.end_line = end_line
+                    result.existing_code = vr.existing_code_snippet
+                    snippet_resolved = True
+            except Exception:
+                logger.debug(
+                    "Snippet line resolution failed for %s",
+                    finding.file,
+                    exc_info=True,
+                )
+
+        if vr.adjusted_line is not None and snippet_resolved:
+            logger.debug(
+                "Verifier adjusted_line %d superseded by snippet-resolved line %d for %s",
+                vr.adjusted_line,
+                result.line,
+                finding.file,
+            )
+        elif vr.adjusted_line is not None and result.line is not None:
+            logger.debug(
+                "Verifier adjusted_line %d superseded by existing line %d for %s",
+                vr.adjusted_line,
+                result.line,
+                finding.file,
+            )
+        elif vr.adjusted_line is not None:
+            logger.debug(
+                f"Verifier corrected line for {finding.file}: "
+                f"{finding.line} -> {vr.adjusted_line}"
+            )
+            result.line = vr.adjusted_line
+            result.start_line = vr.adjusted_line
+            result.end_line = vr.adjusted_line
 
     @staticmethod
     def _format_line_ranges(
@@ -507,6 +516,26 @@ class FindingVerifier:
         return FindingVerifier._validate_verification(data, diff_ranges, file_path)
 
     @staticmethod
+    def _extract_adjusted_line(
+        entry: Dict[str, Any],
+        diff_ranges: Optional[Dict[str, list]],
+        file_path: Optional[str],
+    ) -> Optional[int]:
+        """Extract and validate adjusted_line from a verification entry."""
+        raw_line = entry.get("adjusted_line")
+        if not isinstance(raw_line, (int, float)) or isinstance(raw_line, bool):
+            return None
+        adjusted_line = int(raw_line)
+        if adjusted_line <= 0:
+            return None
+        if diff_ranges and file_path:
+            from cicaddy.delegation.line_resolver import is_line_in_diff_ranges
+
+            if not is_line_in_diff_ranges(adjusted_line, file_path, diff_ranges):
+                return None
+        return adjusted_line
+
+    @staticmethod
     def _validate_verification(
         entry: Dict[str, Any],
         diff_ranges: Optional[Dict[str, list]] = None,
@@ -536,18 +565,6 @@ class FindingVerifier:
         except (TypeError, ValueError):
             confidence = 0.0
 
-        adjusted_line: Optional[int] = None
-        raw_line = entry.get("adjusted_line")
-        if isinstance(raw_line, (int, float)) and not isinstance(raw_line, bool):
-            adjusted_line = int(raw_line)
-            if adjusted_line <= 0:
-                adjusted_line = None
-            elif diff_ranges and file_path:
-                from cicaddy.delegation.line_resolver import is_line_in_diff_ranges
-
-                if not is_line_in_diff_ranges(adjusted_line, file_path, diff_ranges):
-                    adjusted_line = None
-
         existing_code_snippet: Optional[str] = None
         raw_snippet = entry.get("existing_code_snippet")
         if isinstance(raw_snippet, str) and raw_snippet.strip():
@@ -557,12 +574,14 @@ class FindingVerifier:
         return VerificationResult(
             status=status,
             reasoning=(
-                trimmed_reasoning[:2000]
+                trimmed_reasoning
                 if len(trimmed_reasoning) <= 2000
                 else trimmed_reasoning[:1997] + "..."
             ),
             adjusted_severity=adjusted_severity,
             confidence=confidence,
-            adjusted_line=adjusted_line,
+            adjusted_line=FindingVerifier._extract_adjusted_line(
+                entry, diff_ranges, file_path
+            ),
             existing_code_snippet=existing_code_snippet,
         )

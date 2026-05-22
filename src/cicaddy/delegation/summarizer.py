@@ -638,44 +638,61 @@ class SummarizationAgent:
         return "\n".join(filtered_lines)
 
     @staticmethod
+    def _validate_line_mapping(
+        mapping: dict,
+        finding: Finding,
+        diff_ranges: Optional[dict[str, list[tuple[int, int]]]],
+    ) -> Optional[tuple[int, int]]:
+        """Validate a single AI line mapping against diff ranges.
+
+        Returns (start, end) if valid, or None to skip the mapping.
+        """
+        from cicaddy.delegation.line_resolver import is_line_in_diff_ranges
+
+        start = mapping.get("start_line")
+        if not isinstance(start, int) or start <= 0:
+            return None
+
+        if diff_ranges and not is_line_in_diff_ranges(start, finding.file, diff_ranges):
+            logger.debug(
+                f"Rejecting AI line {start} for {finding.file}: "
+                f"not within any diff hunk"
+            )
+            return None
+
+        end = mapping.get("end_line", start)
+        resolved_end = int(end) if isinstance(end, int) else start
+        if (
+            diff_ranges
+            and resolved_end != start
+            and not is_line_in_diff_ranges(resolved_end, finding.file, diff_ranges)
+        ):
+            logger.debug(
+                f"Clamping end_line {resolved_end} to {start} for "
+                f"{finding.file}: end_line not in diff hunk"
+            )
+            resolved_end = start
+
+        return (start, resolved_end)
+
+    @staticmethod
     def _apply_line_mappings(
         mappings: list,
         unresolved: List[Finding],
         diff_ranges: Optional[dict[str, list[tuple[int, int]]]] = None,
     ) -> None:
         """Apply AI-resolved line mappings to unresolved findings in-place."""
-        from cicaddy.delegation.line_resolver import is_line_in_diff_ranges
-
         for mapping in mappings:
             if not isinstance(mapping, dict):
                 continue
             idx = mapping.get("index")
             if not isinstance(idx, int) or idx < 0 or idx >= len(unresolved):
                 continue
-            start = mapping.get("start_line")
-            end = mapping.get("end_line", start)
-            if isinstance(start, int) and start > 0:
-                if diff_ranges and not is_line_in_diff_ranges(
-                    start, unresolved[idx].file, diff_ranges
-                ):
-                    logger.debug(
-                        f"Rejecting AI line {start} for {unresolved[idx].file}: "
-                        f"not within any diff hunk"
-                    )
-                    continue
-                resolved_end = int(end) if isinstance(end, int) else start
-                if (
-                    diff_ranges
-                    and resolved_end != start
-                    and not is_line_in_diff_ranges(
-                        resolved_end, unresolved[idx].file, diff_ranges
-                    )
-                ):
-                    logger.debug(
-                        f"Clamping end_line {resolved_end} to {start} for "
-                        f"{unresolved[idx].file}: end_line not in diff hunk"
-                    )
-                    resolved_end = start
+            result = SummarizationAgent._validate_line_mapping(
+                mapping, unresolved[idx], diff_ranges
+            )
+            if result is not None:
+                start, resolved_end = result
                 unresolved[idx].line = start
                 unresolved[idx].start_line = start
                 unresolved[idx].end_line = resolved_end

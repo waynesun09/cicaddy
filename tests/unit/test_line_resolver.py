@@ -492,7 +492,7 @@ class TestResolveOverridesAILine:
             message="multi-line check",
             existing_code="if result is None:\n            raise ValueError",
         )
-        resolved, unresolved = resolve_findings([finding], SAMPLE_DIFF)
+        resolved, _ = resolve_findings([finding], SAMPLE_DIFF)
         assert len(resolved) == 1
         assert resolved[0].line == 13
         assert resolved[0].start_line == 13
