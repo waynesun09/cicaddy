@@ -54,19 +54,21 @@ _SUMMARY_RULES = """\
 _RESPONSE_FORMAT = """\
 ## Response Format
 
-Respond with ONLY a JSON object (no markdown fences, no preamble).
+Respond with ONLY a JSON object (no preamble, no explanation).
 The JSON must match this schema exactly:
 
-```json
 {schema_json}
-```
 
 Field rules:
-- "summary" — required, non-empty markdown string with the consolidated review
-- "findings" — required array of structured findings
+- "summary" — required, non-empty PROSE markdown string with the consolidated review (NOT a JSON array — always human-readable text)
+- "findings" — required array of structured findings extracted from the agent analyses
 - Each finding requires: "file" (non-empty string), "severity" (critical|major|minor|nit), "message" (non-empty string)
-- Optional finding fields: "existing_code" (string or null), "line" (integer or null), "suggestion" (string or null), "agent_source" (string)
-- If no findings, use an empty array: []"""
+- "existing_code" — include the EXACT code snippet from the diff (1-3 lines). Accurate snippets are critical for inline comment placement
+- "line" — integer line number if the agent cited one, otherwise null
+- "suggestion" — concrete fix when the agent provided one, otherwise null
+- "agent_source" — name of the agent that reported the finding
+- If no findings, use an empty array: []
+- Do NOT invent findings — only extract what agents explicitly reported"""
 
 _CORRECTION_PROMPT = """\
 Your response did not match the required JSON schema. Errors:
@@ -254,6 +256,8 @@ class SummarizationAgent:
         appends the response and a correction prompt to the conversation
         and re-calls the AI, up to ``max_turns`` total attempts.
 
+        Note: mutates ``messages`` in-place with correction turns.
+
         Returns:
             Tuple of (summary_text, findings_list).
         """
@@ -301,16 +305,15 @@ class SummarizationAgent:
             "Schema validation failed after %d turns, using raw text as summary",
             max_turns,
         )
-        # Fallback: use raw text as summary, no structured findings
-        fallback_text = response_content.strip()
-        # Try to extract summary from JSON if possible
-        try:
-            data = json.loads(extract_json(fallback_text))
-            if isinstance(data, dict) and isinstance(data.get("summary"), str):
-                return data["summary"], []
-        except (json.JSONDecodeError, ValueError):
-            pass
-        return fallback_text, []
+        # Fallback: prefer latest correction attempt over original response
+        for candidate in (content.strip(), response_content.strip()):
+            try:
+                data = json.loads(extract_json(candidate))
+                if isinstance(data, dict) and isinstance(data.get("summary"), str):
+                    return data["summary"], []
+            except (json.JSONDecodeError, ValueError):
+                continue
+        return content.strip() or response_content.strip(), []
 
     def _try_parse_and_validate(self, text: str) -> Optional[tuple[str, List[Finding]]]:
         """Try to parse JSON and validate against schema.
@@ -322,6 +325,8 @@ class SummarizationAgent:
             data = json.loads(raw)
         except (json.JSONDecodeError, ValueError):
             return None
+
+        data = self._unpack_bare_array(data)
 
         if not isinstance(data, dict):
             return None
@@ -338,6 +343,46 @@ class SummarizationAgent:
             if isinstance(entry, dict) and (f := self._validate_finding(entry))
         ]
         return summary, findings
+
+    @staticmethod
+    def _unpack_bare_array(data: Any) -> Any:
+        """Wrap a bare JSON array into the expected object format.
+
+        Gemini models often return ``[{...}, ...]`` instead of
+        ``{"summary": "...", "findings": [...]}``.  When *data* is a
+        list of dicts, wrap it as findings and synthesise a summary
+        from the individual messages so the schema validator can
+        accept it without an extra correction turn.
+        """
+        if not isinstance(data, list):
+            return data
+
+        findings = [e for e in data if isinstance(e, dict)]
+        if not findings:
+            return data
+
+        severity_groups: dict[str, list[str]] = {}
+        for f in findings:
+            sev = str(f.get("severity", "minor")).lower()
+            msg = f.get("message", "")
+            if msg:
+                severity_groups.setdefault(sev, []).append(msg)
+
+        parts: list[str] = []
+        for sev in ("critical", "major", "minor", "nit"):
+            msgs = severity_groups.get(sev, [])
+            if msgs:
+                parts.append(f"**{sev.title()}** ({len(msgs)}): " + "; ".join(msgs))
+
+        summary = (
+            "\n\n".join(parts) if parts else "Review findings from sub-agent analyses."
+        )
+
+        logger.info(
+            "Unpacked bare JSON array (%d items) into schema-compliant object",
+            len(findings),
+        )
+        return {"summary": summary, "findings": findings}
 
     @staticmethod
     def _validate_against_schema(data: Any) -> List[str]:
@@ -396,15 +441,32 @@ class SummarizationAgent:
                         f"{sorted(_VALID_SEVERITIES)}, got {sev!r}"
                     )
 
-                allowed_keys = {
-                    "file",
-                    "existing_code",
-                    "line",
-                    "severity",
-                    "message",
-                    "suggestion",
-                    "agent_source",
-                }
+                for int_field in ("line", "start_line", "end_line"):
+                    int_val = entry.get(int_field)
+                    if int_val is not None and not isinstance(int_val, int):
+                        errors.append(
+                            f"findings[{i}]: '{int_field}' must be an integer "
+                            f"or null, got {type(int_val).__name__}"
+                        )
+                for str_field in ("existing_code", "suggestion"):
+                    val = entry.get(str_field)
+                    if val is not None and not isinstance(val, str):
+                        errors.append(
+                            f"findings[{i}]: '{str_field}' must be a string "
+                            f"or null, got {type(val).__name__}"
+                        )
+                agent_src = entry.get("agent_source")
+                if agent_src is not None and not isinstance(agent_src, str):
+                    errors.append(
+                        f"findings[{i}]: 'agent_source' must be a string, "
+                        f"got {type(agent_src).__name__}"
+                    )
+
+                allowed_keys = set(
+                    _RESPONSE_SCHEMA["properties"]["findings"]["items"][
+                        "properties"
+                    ].keys()
+                )
                 extra = set(entry.keys()) - allowed_keys
                 if extra:
                     errors.append(f"findings[{i}]: unexpected fields {extra}")
@@ -427,6 +489,8 @@ class SummarizationAgent:
             return [
                 "Could not extract JSON from response. Respond with a JSON object only."
             ]
+
+        data = self._unpack_bare_array(data)
 
         if not isinstance(data, dict):
             return [
@@ -461,6 +525,14 @@ class SummarizationAgent:
         if isinstance(existing_code, str) and not existing_code.strip():
             existing_code = None
 
+        def _coerce_int(val: Any) -> Optional[int]:
+            if val is None:
+                return None
+            try:
+                return int(val)
+            except (TypeError, ValueError):
+                return None
+
         return Finding(
             file=file_path,
             line=line,
@@ -469,6 +541,8 @@ class SummarizationAgent:
             suggestion=entry.get("suggestion"),
             agent_source=entry.get("agent_source", ""),
             existing_code=existing_code,
+            start_line=_coerce_int(entry.get("start_line")),
+            end_line=_coerce_int(entry.get("end_line")),
         )
 
     async def _resolve_lines(self, findings: List[Finding], diff: str) -> List[Finding]:

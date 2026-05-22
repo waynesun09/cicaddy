@@ -311,31 +311,21 @@ class TestValidateAndCorrect:
         mock_ai_provider.chat_completion.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_bare_json_array_triggers_correction(self, mock_ai_provider):
-        """Bare JSON array should trigger a correction turn."""
+    async def test_bare_json_array_unpacked_without_correction(self, mock_ai_provider):
+        """Bare JSON array with valid findings is unpacked without correction."""
         bare_array = json.dumps(
             [{"file": "a.py", "severity": "major", "message": "Issue"}]
         )
-        corrected = json.dumps(
-            {
-                "summary": "Found issues",
-                "findings": [{"file": "a.py", "severity": "major", "message": "Issue"}],
-            }
-        )
-        mock_ai_provider.chat_completion.return_value = MagicMock(content=corrected)
 
         agent = SummarizationAgent(mock_ai_provider)
         messages = []
         summary, findings = await agent._validate_and_correct(messages, bare_array)
 
-        assert summary == "Found issues"
+        assert "Issue" in summary
         assert len(findings) == 1
-        assert mock_ai_provider.chat_completion.call_count == 1
-        # Messages should have assistant (bad response) + user (correction)
-        assert len(messages) == 2
-        assert messages[0].role == "assistant"
-        assert messages[1].role == "user"
-        assert "schema" in messages[1].content.lower()
+        assert findings[0].severity == "major"
+        mock_ai_provider.chat_completion.assert_not_called()
+        assert len(messages) == 0
 
     @pytest.mark.asyncio
     async def test_invalid_json_triggers_correction(self, mock_ai_provider):
@@ -418,7 +408,7 @@ class TestValidateAndCorrect:
 
     @pytest.mark.asyncio
     async def test_max_turns_exceeded_falls_back_to_text(self, mock_ai_provider):
-        """After max turns, falls back to raw text as summary."""
+        """After max turns, falls back to latest correction attempt."""
         bad = "This is just plain text"
         mock_ai_provider.chat_completion.return_value = MagicMock(
             content="Still not JSON"
@@ -430,7 +420,8 @@ class TestValidateAndCorrect:
             messages, bad, max_turns=2
         )
 
-        assert summary == bad
+        # Fallback prefers latest correction attempt over original
+        assert summary == "Still not JSON"
         assert findings == []
         # 1 correction attempt (max_turns=2: initial + 1 correction)
         assert mock_ai_provider.chat_completion.call_count == 1
@@ -511,6 +502,16 @@ class TestValidateAndCorrect:
         assert summary == "Review"
         assert findings == []
         mock_ai_provider.chat_completion.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_correction_turn_api_error_propagates(self, mock_ai_provider):
+        """API error during correction turn propagates to caller."""
+        mock_ai_provider.chat_completion.side_effect = RuntimeError(
+            "API quota exceeded"
+        )
+        agent = SummarizationAgent(mock_ai_provider)
+        with pytest.raises(RuntimeError, match="API quota exceeded"):
+            await agent._validate_and_correct([], "not json")
 
 
 class TestValidateAgainstSchema:
@@ -626,6 +627,8 @@ class TestValidateAgainstSchema:
                     "message": "Issue",
                     "suggestion": "Fix it",
                     "agent_source": "reviewer-1",
+                    "start_line": 10,
+                    "end_line": 15,
                 }
             ],
         }
@@ -649,6 +652,207 @@ class TestValidateAgainstSchema:
         }
         errors = SummarizationAgent._validate_against_schema(data)
         assert errors == []
+
+    def test_line_wrong_type_rejected(self):
+        data = {
+            "summary": "Review",
+            "findings": [
+                {
+                    "file": "a.py",
+                    "line": "42",
+                    "severity": "minor",
+                    "message": "Issue",
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("'line' must be an integer" in e for e in errors)
+
+    def test_start_line_wrong_type_rejected(self):
+        data = {
+            "summary": "Review",
+            "findings": [
+                {
+                    "file": "a.py",
+                    "start_line": "10",
+                    "severity": "minor",
+                    "message": "Issue",
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("'start_line' must be an integer" in e for e in errors)
+
+    def test_end_line_wrong_type_rejected(self):
+        data = {
+            "summary": "Review",
+            "findings": [
+                {
+                    "file": "a.py",
+                    "end_line": "20",
+                    "severity": "minor",
+                    "message": "Issue",
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("'end_line' must be an integer" in e for e in errors)
+
+    def test_existing_code_wrong_type_rejected(self):
+        data = {
+            "summary": "Review",
+            "findings": [
+                {
+                    "file": "a.py",
+                    "existing_code": 123,
+                    "severity": "minor",
+                    "message": "Issue",
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("'existing_code' must be a string or null" in e for e in errors)
+
+    def test_suggestion_wrong_type_rejected(self):
+        data = {
+            "summary": "Review",
+            "findings": [
+                {
+                    "file": "a.py",
+                    "suggestion": 42,
+                    "severity": "minor",
+                    "message": "Issue",
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("'suggestion' must be a string or null" in e for e in errors)
+
+    def test_agent_source_wrong_type_rejected(self):
+        data = {
+            "summary": "Review",
+            "findings": [
+                {
+                    "file": "a.py",
+                    "agent_source": 99,
+                    "severity": "minor",
+                    "message": "Issue",
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("'agent_source' must be a string" in e for e in errors)
+
+
+class TestUnpackBareArray:
+    """Tests for SummarizationAgent._unpack_bare_array."""
+
+    def test_non_list_passthrough(self):
+        data = {"summary": "OK", "findings": []}
+        assert SummarizationAgent._unpack_bare_array(data) is data
+
+    def test_string_passthrough(self):
+        assert SummarizationAgent._unpack_bare_array("hello") == "hello"
+
+    def test_empty_list_passthrough(self):
+        assert SummarizationAgent._unpack_bare_array([]) == []
+
+    def test_list_of_non_dicts_passthrough(self):
+        data = [1, 2, 3]
+        assert SummarizationAgent._unpack_bare_array(data) is data
+
+    def test_valid_findings_wrapped(self):
+        bare = [
+            {"file": "a.py", "severity": "major", "message": "Issue A"},
+            {"file": "b.py", "severity": "minor", "message": "Issue B"},
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        assert isinstance(result, dict)
+        assert "summary" in result
+        assert "findings" in result
+        assert len(result["findings"]) == 2
+        assert "Issue A" in result["summary"]
+        assert "Issue B" in result["summary"]
+
+    def test_summary_groups_by_severity(self):
+        bare = [
+            {"file": "a.py", "severity": "critical", "message": "Crit issue"},
+            {"file": "b.py", "severity": "major", "message": "Major issue"},
+            {"file": "c.py", "severity": "minor", "message": "Minor issue"},
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        assert "Critical" in result["summary"]
+        assert "Major" in result["summary"]
+        assert "Minor" in result["summary"]
+
+    def test_start_end_line_preserved(self):
+        """Real Gemini responses include start_line/end_line — schema allows them."""
+        bare = [
+            {
+                "file": "src/analyzer.py",
+                "line": 1,
+                "severity": "critical",
+                "message": "Diff retrieval fails in shallow clone",
+                "suggestion": "Use GitHub API instead",
+                "agent_source": "general-reviewer",
+                "existing_code": None,
+                "start_line": 1,
+                "end_line": 5,
+            },
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        finding = result["findings"][0]
+        assert finding["start_line"] == 1
+        assert finding["end_line"] == 5
+        assert finding["file"] == "src/analyzer.py"
+
+    def test_real_gemini_response_structure(self):
+        """Test with structure matching actual Gemini 3.5 Flash output."""
+        bare = [
+            {
+                "file": "src/cicaddy_github/github_integration/analyzer.py",
+                "line": 1,
+                "severity": "critical",
+                "message": "Diff Retrieval Failure due to Git Command Execution in Shallow Clone.",
+                "suggestion": "Use PyGithub API to fetch diff directly.",
+                "agent_source": "general-reviewer",
+                "existing_code": None,
+                "start_line": 1,
+                "end_line": 1,
+            },
+            {
+                "file": ".github/workflows/pr-review.yml",
+                "line": 1,
+                "severity": "minor",
+                "message": "Runner Resource Waste in large repos.",
+                "suggestion": "Fetch only specific SHAs.",
+                "agent_source": "devops-reviewer",
+                "existing_code": None,
+                "start_line": 1,
+                "end_line": 1,
+            },
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        assert isinstance(result, dict)
+        assert len(result["findings"]) == 2
+        errors = SummarizationAgent._validate_against_schema(result)
+        assert errors == []
+
+    def test_wrapped_result_validates_against_schema(self):
+        bare = [{"file": "a.py", "severity": "major", "message": "Issue"}]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        errors = SummarizationAgent._validate_against_schema(result)
+        assert errors == []
+
+    def test_mixed_dicts_and_non_dicts(self):
+        bare = [
+            {"file": "a.py", "severity": "major", "message": "Issue"},
+            "not a dict",
+            42,
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        assert isinstance(result, dict)
+        assert len(result["findings"]) == 1
 
 
 class TestValidateFinding:
@@ -706,6 +910,32 @@ class TestValidateFinding:
         f = SummarizationAgent._validate_finding(entry)
         assert f is not None
         assert f.line is None
+
+    def test_start_end_line_mapped(self):
+        entry = {
+            "file": "foo.py",
+            "severity": "major",
+            "message": "issue",
+            "start_line": 10,
+            "end_line": 20,
+        }
+        f = SummarizationAgent._validate_finding(entry)
+        assert f is not None
+        assert f.start_line == 10
+        assert f.end_line == 20
+
+    def test_start_end_line_coerced_from_string(self):
+        entry = {
+            "file": "foo.py",
+            "severity": "major",
+            "message": "issue",
+            "start_line": "5",
+            "end_line": "invalid",
+        }
+        f = SummarizationAgent._validate_finding(entry)
+        assert f is not None
+        assert f.start_line == 5
+        assert f.end_line is None
 
 
 class TestBuildIndividualSections:
@@ -981,8 +1211,8 @@ diff --git a/src/foo.py b/src/foo.py
         assert mock_ai_provider.chat_completion.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_correction_then_line_resolution(self, mock_ai_provider):
-        """Schema correction followed by successful line resolution."""
+    async def test_bare_array_unpacked_then_line_resolution(self, mock_ai_provider):
+        """Bare JSON array is unpacked and findings get line resolution."""
         diff = """\
 diff --git a/src/foo.py b/src/foo.py
 --- a/src/foo.py
@@ -994,29 +1224,19 @@ diff --git a/src/foo.py b/src/foo.py
 +        validate(result)
          return result
 """
-        # First response: bare array (invalid)
-        bad = json.dumps(
-            [{"file": "src/foo.py", "severity": "major", "message": "Issue"}]
+        # Bare array with valid findings — gets unpacked without correction
+        bare = json.dumps(
+            [
+                {
+                    "file": "src/foo.py",
+                    "existing_code": "validate(result)",
+                    "severity": "major",
+                    "message": "Issue",
+                    "agent_source": "a",
+                }
+            ]
         )
-        # Second response: corrected valid JSON
-        corrected = json.dumps(
-            {
-                "summary": "Found issue",
-                "findings": [
-                    {
-                        "file": "src/foo.py",
-                        "existing_code": "validate(result)",
-                        "severity": "major",
-                        "message": "Issue",
-                        "agent_source": "a",
-                    }
-                ],
-            }
-        )
-        mock_ai_provider.chat_completion.side_effect = [
-            MagicMock(content=bad),
-            MagicMock(content=corrected),
-        ]
+        mock_ai_provider.chat_completion.return_value = MagicMock(content=bare)
 
         results = [
             {
@@ -1040,5 +1260,5 @@ diff --git a/src/foo.py b/src/foo.py
         assert len(result.findings) == 1
         assert result.findings[0].line == 13
         assert result.ai_summarized is True
-        # 2 calls: initial (bad) + correction (valid, resolves deterministically)
-        assert mock_ai_provider.chat_completion.call_count == 2
+        # 1 call: bare array unpacked directly, line resolves deterministically
+        assert mock_ai_provider.chat_completion.call_count == 1

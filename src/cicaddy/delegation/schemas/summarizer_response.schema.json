@@ -44,6 +44,14 @@
           "agent_source": {
             "type": "string",
             "description": "Name of the agent that reported the finding"
+          },
+          "start_line": {
+            "type": ["integer", "null"],
+            "description": "Start line for multi-line findings"
+          },
+          "end_line": {
+            "type": ["integer", "null"],
+            "description": "End line for multi-line findings"
           }
         },
         "additionalProperties": false
