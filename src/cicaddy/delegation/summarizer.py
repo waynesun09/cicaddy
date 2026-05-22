@@ -107,6 +107,61 @@ class SummarizationResult:
     ai_summarized: bool = False
 
 
+def _validate_findings_entries(findings: list[Any], errors: List[str]) -> None:
+    """Validate each entry in the findings array, appending errors."""
+    allowed_keys = set(
+        _RESPONSE_SCHEMA["properties"]["findings"]["items"]["properties"].keys()
+    )
+    for i, entry in enumerate(findings):
+        if not isinstance(entry, dict):
+            errors.append(
+                f"findings[{i}]: must be an object, got {type(entry).__name__}"
+            )
+            continue
+        if (
+            "file" not in entry
+            or not isinstance(entry.get("file"), str)
+            or not entry["file"].strip()
+        ):
+            errors.append(f"findings[{i}]: missing or empty required field 'file'")
+        if (
+            "message" not in entry
+            or not isinstance(entry.get("message"), str)
+            or not entry["message"].strip()
+        ):
+            errors.append(f"findings[{i}]: missing or empty required field 'message'")
+        sev = entry.get("severity", "")
+        if not isinstance(sev, str) or sev.lower() not in _VALID_SEVERITIES:
+            errors.append(
+                f"findings[{i}]: 'severity' must be one of "
+                f"{sorted(_VALID_SEVERITIES)}, got {sev!r}"
+            )
+
+        for int_field in ("line", "start_line", "end_line"):
+            int_val = entry.get(int_field)
+            if int_val is not None and not isinstance(int_val, int):
+                errors.append(
+                    f"findings[{i}]: '{int_field}' must be an integer "
+                    f"or null, got {type(int_val).__name__}"
+                )
+        for str_field in ("existing_code", "suggestion"):
+            val = entry.get(str_field)
+            if val is not None and not isinstance(val, str):
+                errors.append(
+                    f"findings[{i}]: '{str_field}' must be a string "
+                    f"or null, got {type(val).__name__}"
+                )
+        agent_src = entry.get("agent_source")
+        if agent_src is not None and not isinstance(agent_src, str):
+            errors.append(
+                f"findings[{i}]: 'agent_source' must be a string, "
+                f"got {type(agent_src).__name__}"
+            )
+        extra = set(entry.keys()) - allowed_keys
+        if extra:
+            errors.append(f"findings[{i}]: unexpected fields {extra}")
+
+
 class SummarizationAgent:
     """AI-powered summarization of multi-agent review results.
 
@@ -412,64 +467,7 @@ class SummarizationAgent:
                 f"'findings' must be an array, got {type(data['findings']).__name__}"
             )
         else:
-            for i, entry in enumerate(data["findings"]):
-                if not isinstance(entry, dict):
-                    errors.append(
-                        f"findings[{i}]: must be an object, got {type(entry).__name__}"
-                    )
-                    continue
-                if (
-                    "file" not in entry
-                    or not isinstance(entry.get("file"), str)
-                    or not entry["file"].strip()
-                ):
-                    errors.append(
-                        f"findings[{i}]: missing or empty required field 'file'"
-                    )
-                if (
-                    "message" not in entry
-                    or not isinstance(entry.get("message"), str)
-                    or not entry["message"].strip()
-                ):
-                    errors.append(
-                        f"findings[{i}]: missing or empty required field 'message'"
-                    )
-                sev = entry.get("severity", "")
-                if not isinstance(sev, str) or sev.lower() not in _VALID_SEVERITIES:
-                    errors.append(
-                        f"findings[{i}]: 'severity' must be one of "
-                        f"{sorted(_VALID_SEVERITIES)}, got {sev!r}"
-                    )
-
-                for int_field in ("line", "start_line", "end_line"):
-                    int_val = entry.get(int_field)
-                    if int_val is not None and not isinstance(int_val, int):
-                        errors.append(
-                            f"findings[{i}]: '{int_field}' must be an integer "
-                            f"or null, got {type(int_val).__name__}"
-                        )
-                for str_field in ("existing_code", "suggestion"):
-                    val = entry.get(str_field)
-                    if val is not None and not isinstance(val, str):
-                        errors.append(
-                            f"findings[{i}]: '{str_field}' must be a string "
-                            f"or null, got {type(val).__name__}"
-                        )
-                agent_src = entry.get("agent_source")
-                if agent_src is not None and not isinstance(agent_src, str):
-                    errors.append(
-                        f"findings[{i}]: 'agent_source' must be a string, "
-                        f"got {type(agent_src).__name__}"
-                    )
-
-                allowed_keys = set(
-                    _RESPONSE_SCHEMA["properties"]["findings"]["items"][
-                        "properties"
-                    ].keys()
-                )
-                extra = set(entry.keys()) - allowed_keys
-                if extra:
-                    errors.append(f"findings[{i}]: unexpected fields {extra}")
+            _validate_findings_entries(data["findings"], errors)
 
         allowed_root = {"summary", "findings"}
         extra_root = set(data.keys()) - allowed_root

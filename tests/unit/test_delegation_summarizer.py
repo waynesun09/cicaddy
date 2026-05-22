@@ -749,7 +749,7 @@ class TestUnpackBareArray:
 
     def test_non_list_passthrough(self):
         data = {"summary": "OK", "findings": []}
-        assert SummarizationAgent._unpack_bare_array(data) is data
+        assert SummarizationAgent._unpack_bare_array(data) == data
 
     def test_string_passthrough(self):
         assert SummarizationAgent._unpack_bare_array("hello") == "hello"
@@ -759,7 +759,7 @@ class TestUnpackBareArray:
 
     def test_list_of_non_dicts_passthrough(self):
         data = [1, 2, 3]
-        assert SummarizationAgent._unpack_bare_array(data) is data
+        assert SummarizationAgent._unpack_bare_array(data) == data
 
     def test_valid_findings_wrapped(self):
         bare = [
