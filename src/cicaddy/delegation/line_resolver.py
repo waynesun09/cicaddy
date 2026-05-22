@@ -151,7 +151,7 @@ def _find_target_file(diff_files: List[DiffFile], file_path: str) -> Optional[Di
         if df.path == file_path:
             return df
     for df in diff_files:
-        if df.path.endswith(file_path) or file_path.endswith(df.path):
+        if df.path.endswith("/" + file_path) or file_path.endswith("/" + df.path):
             return df
     return None
 
@@ -294,6 +294,49 @@ def _find_fuzzy_match(
     return None
 
 
+def _resolve_one_finding(
+    finding: "Finding",
+    diff_files: List[DiffFile],
+) -> str:
+    """Attempt to resolve line numbers for a single finding.
+
+    Returns "resolved" or "unresolved".
+    """
+    existing_code = getattr(finding, "existing_code", None)
+
+    if existing_code:
+        result = find_line_in_diff(diff_files, finding.file, existing_code)
+        if result is not None:
+            start_line, end_line = result
+            if finding.line is not None and finding.line != start_line:
+                logger.debug(
+                    f"Overriding AI line {finding.line} with snippet match "
+                    f"{start_line} in {finding.file}"
+                )
+            finding.line = start_line
+            finding.start_line = start_line
+            finding.end_line = end_line
+            logger.debug(
+                f"Resolved finding in {finding.file} to lines {start_line}-{end_line}"
+            )
+            return "resolved"
+
+    if finding.line is not None:
+        return "resolved"
+
+    if existing_code:
+        logger.debug(
+            f"Could not resolve finding in {finding.file}: "
+            f"snippet not found in diff, no AI line to fall back on"
+        )
+    else:
+        logger.debug(
+            f"Could not resolve finding in {finding.file}: "
+            f"no existing_code and no line number"
+        )
+    return "unresolved"
+
+
 def resolve_findings(
     findings: List["Finding"],
     diff: str,
@@ -321,32 +364,11 @@ def resolve_findings(
     unresolved: List["Finding"] = []
 
     for finding in findings:
-        # Already has a line number — keep it
-        if finding.line is not None:
+        bucket = _resolve_one_finding(finding, diff_files)
+        if bucket == "resolved":
             resolved.append(finding)
-            continue
-
-        existing_code = getattr(finding, "existing_code", None)
-        if not existing_code:
-            unresolved.append(finding)
-            continue
-
-        result = find_line_in_diff(diff_files, finding.file, existing_code)
-        if result is not None:
-            start_line, end_line = result
-            finding.line = start_line
-            finding.start_line = start_line
-            finding.end_line = end_line
-            resolved.append(finding)
-            logger.debug(
-                f"Resolved finding in {finding.file} to lines {start_line}-{end_line}"
-            )
         else:
             unresolved.append(finding)
-            logger.debug(
-                f"Could not resolve finding in {finding.file}: "
-                f"snippet not found in diff"
-            )
 
     logger.info(
         f"Line resolution: {len(resolved)} resolved, "
@@ -372,6 +394,29 @@ def _build_hunk_ranges(
     return ranges
 
 
+def get_diff_line_ranges(diff: str) -> dict[str, list[tuple[int, int]]]:
+    """Extract valid new-side line ranges from a unified diff.
+
+    Returns a mapping from file path to list of (start, end) inclusive
+    ranges representing lines that appear in diff hunks.
+    """
+    files = parse_diff(diff)
+    ranges: dict[str, list[tuple[int, int]]] = {}
+    for df in files:
+        file_ranges = []
+        for hunk in df.hunks:
+            if hunk.new_count == 0:
+                continue
+            new_lines = [
+                dl.new_lineno for dl in hunk.lines if dl.new_lineno is not None
+            ]
+            if new_lines:
+                file_ranges.append((min(new_lines), max(new_lines)))
+        if file_ranges:
+            ranges[df.path] = file_ranges
+    return ranges
+
+
 def _find_hunk_ranges_for_file(
     file_path: str,
     hunk_ranges: dict[str, list[tuple[int, int]]],
@@ -380,7 +425,7 @@ def _find_hunk_ranges_for_file(
     if file_path in hunk_ranges:
         return hunk_ranges[file_path]
     for path, ranges in hunk_ranges.items():
-        if path.endswith(file_path) or file_path.endswith(path):
+        if path.endswith("/" + file_path) or file_path.endswith("/" + path):
             return ranges
     return None
 
@@ -487,6 +532,20 @@ def validate_findings_in_hunks(
         len(findings),
     )
     return findings
+
+
+def is_line_in_diff_ranges(
+    line: int,
+    file_path: str,
+    ranges: dict[str, list[tuple[int, int]]],
+) -> bool:
+    """Check if a line number falls within any diff hunk range for a file."""
+    if file_path in ranges:
+        return any(start <= line <= end for start, end in ranges[file_path])
+    for path, file_ranges in ranges.items():
+        if path.endswith("/" + file_path) or file_path.endswith("/" + path):
+            return any(start <= line <= end for start, end in file_ranges)
+    return False
 
 
 def _annotate_hunk_line(raw_line: str, new_lineno: int) -> Tuple[str, int]:

@@ -335,6 +335,11 @@ class CoreSettings(BaseSettings):
         validation_alias="DELEGATION_SUMMARIZATION_PROMPT",
         description="Optional custom instructions for the AI review summarizer.",
     )
+    delegation_verify_findings: bool = Field(
+        default=False,
+        validation_alias="DELEGATION_VERIFY_FINDINGS",
+        description="Verify each finding against actual codebase via lightweight AI check.",
+    )
 
     # Execution configuration
     max_infer_iters: int = Field(
@@ -468,6 +473,7 @@ class CoreSettings(BaseSettings):
         "enable_local_tools",
         "agent_rules_enabled",
         "delegation_summarize",
+        "delegation_verify_findings",
         mode="before",
     )
     @classmethod

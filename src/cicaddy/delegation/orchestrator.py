@@ -76,6 +76,7 @@ class DelegationOrchestrator:
         skills: Optional[List["SkillMetadata"]] = None,
         summarize_results: bool = False,
         summarization_prompt: str = "",
+        verify_findings: bool = False,
     ) -> DelegationResult:
         """Execute delegation plan by spawning sub-agents in parallel.
 
@@ -91,6 +92,7 @@ class DelegationOrchestrator:
             skills: Per-repo skill metadata from parent.
             summarize_results: Whether to use AI summarization for 2+ agents.
             summarization_prompt: Optional custom instructions for the summarizer.
+            verify_findings: Whether to verify each finding against codebase.
 
         Returns:
             DelegationResult with aggregated analysis and per-agent results.
@@ -203,6 +205,10 @@ class DelegationOrchestrator:
             summarize=summarize_results,
             summarization_prompt=summarization_prompt,
             diff=context.get("diff", ""),
+            verify_findings=verify_findings,
+            parent_tools=parent_tools,
+            mcp_manager=mcp_manager,
+            local_registry=local_registry,
         )
 
         logger.info(
@@ -229,6 +235,10 @@ class DelegationOrchestrator:
         summarize: bool = False,
         summarization_prompt: str = "",
         diff: str = "",
+        verify_findings: bool = False,
+        parent_tools: Optional[List[Dict[str, Any]]] = None,
+        mcp_manager: Optional["OfficialMCPClientManager"] = None,
+        local_registry: Optional["ToolRegistry"] = None,
     ) -> tuple[str, list, bool, bool]:
         """Aggregate sub-agent results into unified markdown output.
 
@@ -246,10 +256,20 @@ class DelegationOrchestrator:
         if summarize and self.ai_provider and num_successful >= 2:
             from cicaddy.delegation.summarizer import SummarizationAgent
 
-            summarizer = SummarizationAgent(self.ai_provider)
+            summarizer = SummarizationAgent(
+                self.ai_provider,
+                settings=self.settings,
+            )
             result = await summarizer.summarize(
                 results, summarization_prompt, diff=diff
             )
+
+            findings = result.findings
+
+            if verify_findings and findings and self.settings:
+                findings = await self._verify_findings(
+                    findings, diff, parent_tools, mcp_manager, local_registry
+                )
 
             # Assemble: summary + individual sections + footer
             parts = [result.summary]
@@ -260,13 +280,44 @@ class DelegationOrchestrator:
 
             return (
                 "\n\n".join(parts),
-                result.findings,
+                findings,
                 True,  # summarized (path was taken)
                 result.ai_summarized,
             )
 
         # Deterministic concatenation (original behavior)
         return self._concat_results(results), [], False, False
+
+    async def _verify_findings(
+        self,
+        findings: List["Finding"],
+        diff: str,
+        parent_tools: Optional[List[Dict[str, Any]]],
+        mcp_manager: Optional["OfficialMCPClientManager"],
+        local_registry: Optional["ToolRegistry"],
+    ) -> List["Finding"]:
+        """Verify findings against actual codebase, filtering false positives."""
+        from cicaddy.delegation.verifier import FindingVerifier, ToolContext
+
+        tool_context = ToolContext(
+            parent_tools=parent_tools or [],
+            mcp_manager=mcp_manager,
+            local_registry=local_registry,
+        )
+        verifier = FindingVerifier(
+            settings=self.settings,
+            tool_context=tool_context,
+        )
+        try:
+            return await verifier.verify_findings(
+                findings, diff, max_concurrent=self.max_concurrent
+            )
+        except Exception:
+            logger.warning(
+                "Finding verification failed, returning unverified findings",
+                exc_info=True,
+            )
+            return findings
 
     @staticmethod
     def _concat_results(results: List[Dict[str, Any]]) -> str:

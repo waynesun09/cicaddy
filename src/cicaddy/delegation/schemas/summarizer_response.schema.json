@@ -52,6 +52,15 @@
           "end_line": {
             "type": ["integer", "null"],
             "description": "End line for multi-line findings"
+          },
+          "verified": {
+            "type": ["string", "null"],
+            "enum": ["valid", "invalid", "uncertain", null],
+            "description": "Verification status from FindingVerifier"
+          },
+          "verification_reason": {
+            "type": ["string", "null"],
+            "description": "Explanation from FindingVerifier for the verification status"
           }
         },
         "additionalProperties": false
