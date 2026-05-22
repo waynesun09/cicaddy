@@ -111,6 +111,8 @@ class TestFinding:
         f = Finding(file="foo.py", line=10, severity="major", message="issue")
         assert f.suggestion is None
         assert f.agent_source == ""
+        assert f.verified is None
+        assert f.verification_reason is None
 
     def test_full(self):
         f = Finding(

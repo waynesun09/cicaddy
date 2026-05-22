@@ -94,6 +94,8 @@ class Finding:
     existing_code: Optional[str] = None
     start_line: Optional[int] = None
     end_line: Optional[int] = None
+    verified: Optional[str] = None
+    verification_reason: Optional[str] = None
 
 
 @dataclass
@@ -194,8 +196,13 @@ class SummarizationAgent:
     errors are sent back as a correction prompt up to ``max_turns``.
     """
 
-    def __init__(self, ai_provider: "BaseProvider"):
+    def __init__(
+        self,
+        ai_provider: "BaseProvider",
+        settings: Optional[Any] = None,
+    ):
         self.ai_provider = ai_provider
+        self.settings = settings
 
     async def summarize(
         self,
@@ -631,8 +638,14 @@ class SummarizationAgent:
         return "\n".join(filtered_lines)
 
     @staticmethod
-    def _apply_line_mappings(mappings: list, unresolved: List[Finding]) -> None:
+    def _apply_line_mappings(
+        mappings: list,
+        unresolved: List[Finding],
+        diff_ranges: Optional[dict[str, list[tuple[int, int]]]] = None,
+    ) -> None:
         """Apply AI-resolved line mappings to unresolved findings in-place."""
+        from cicaddy.delegation.line_resolver import is_line_in_diff_ranges
+
         for mapping in mappings:
             if not isinstance(mapping, dict):
                 continue
@@ -642,9 +655,30 @@ class SummarizationAgent:
             start = mapping.get("start_line")
             end = mapping.get("end_line", start)
             if isinstance(start, int) and start > 0:
+                if diff_ranges and not is_line_in_diff_ranges(
+                    start, unresolved[idx].file, diff_ranges
+                ):
+                    logger.debug(
+                        f"Rejecting AI line {start} for {unresolved[idx].file}: "
+                        f"not within any diff hunk"
+                    )
+                    continue
+                resolved_end = int(end) if isinstance(end, int) else start
+                if (
+                    diff_ranges
+                    and resolved_end != start
+                    and not is_line_in_diff_ranges(
+                        resolved_end, unresolved[idx].file, diff_ranges
+                    )
+                ):
+                    logger.debug(
+                        f"Clamping end_line {resolved_end} to {start} for "
+                        f"{unresolved[idx].file}: end_line not in diff hunk"
+                    )
+                    resolved_end = start
                 unresolved[idx].line = start
                 unresolved[idx].start_line = start
-                unresolved[idx].end_line = int(end) if isinstance(end, int) else start
+                unresolved[idx].end_line = resolved_end
 
     async def _ai_resolve_lines(
         self, unresolved: List[Finding], diff: str
@@ -652,11 +686,15 @@ class SummarizationAgent:
         """AI fallback for findings that deterministic resolution missed."""
         try:
             from cicaddy.ai_providers.base import ProviderMessage
-            from cicaddy.delegation.line_resolver import annotate_diff_with_line_numbers
+            from cicaddy.delegation.line_resolver import (
+                annotate_diff_with_line_numbers,
+                get_diff_line_ranges,
+            )
 
             relevant_files = {f.file for f in unresolved}
             filtered_diff = self._filter_diff_for_files(diff, relevant_files)
             annotated = annotate_diff_with_line_numbers(filtered_diff)
+            diff_ranges = get_diff_line_ranges(filtered_diff)
 
             boundary_start, boundary_end = _make_boundary_pair()
             sanitized_diff = _sanitize_for_boundary(
@@ -683,11 +721,18 @@ class SummarizationAgent:
                 "with line numbers and a list of code findings, determine the "
                 "exact line numbers where each finding occurs in the NEW version "
                 "of the file.\n\n"
+                "CRITICAL: You MUST only use line numbers that are visible in the "
+                "annotated diff below. Each content line is prefixed with its line "
+                "number (e.g., '  13 +    if result is None:'). Only use those "
+                "numbered lines. If a finding refers to code that is NOT in any "
+                "diff hunk, set start_line to null — do NOT guess a line number "
+                "from the full file.\n\n"
                 f"## Diff\n{boundary_start}\n{sanitized_diff}\n{boundary_end}\n\n"
                 f"## Findings to resolve\n```json\n"
                 f"{json.dumps(findings_for_prompt, indent=2)}\n```\n\n"
                 "Respond with ONLY a JSON array (no markdown fences):\n"
-                '[{"index": 0, "start_line": 42, "end_line": 44}, ...]'
+                '[{"index": 0, "start_line": 42, "end_line": 44}, ...]\n'
+                "Use null for start_line if the finding's code is not in the diff."
             )
 
             messages = [ProviderMessage(content=prompt, role="user")]
@@ -696,7 +741,7 @@ class SummarizationAgent:
             content = extract_json(response.content)
             mappings = json.loads(content)
             if isinstance(mappings, list):
-                self._apply_line_mappings(mappings, unresolved)
+                self._apply_line_mappings(mappings, unresolved, diff_ranges)
 
             ai_resolved_count = sum(1 for f in unresolved if f.line is not None)
             logger.info(

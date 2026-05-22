@@ -672,6 +672,173 @@ class TestAggregateResults:
         assert result.agents_succeeded == 2
 
 
+class TestVerifyFindingsInOrchestrator:
+    """Tests for finding verification in _aggregate_results."""
+
+    @pytest.fixture
+    def two_agent_results(self):
+        return [
+            {
+                "agent_name": "a",
+                "status": "success",
+                "analysis": "A",
+                "categories": [],
+                "execution_time": 1,
+            },
+            {
+                "agent_name": "b",
+                "status": "success",
+                "analysis": "B",
+                "categories": [],
+                "execution_time": 1,
+            },
+        ]
+
+    @pytest.mark.asyncio
+    async def test_verify_findings_called_after_summarization(
+        self, mock_settings, two_agent_results
+    ):
+        """verify_findings=True should invoke FindingVerifier on summarized findings."""
+        from cicaddy.delegation.summarizer import Finding
+
+        mock_finding = Finding(file="x.py", line=1, severity="major", message="bug")
+        verified_finding = Finding(
+            file="x.py",
+            line=1,
+            severity="major",
+            message="bug",
+            verified="valid",
+            verification_reason="confirmed",
+        )
+
+        mock_provider = MagicMock()
+        orch = DelegationOrchestrator(mock_settings, ai_provider=mock_provider)
+
+        mock_summarizer = MagicMock()
+        mock_summarizer.summarize = AsyncMock(
+            return_value=MagicMock(
+                summary="OK",
+                individual_sections="",
+                footer="",
+                findings=[mock_finding],
+                ai_summarized=True,
+            )
+        )
+
+        mock_verifier = MagicMock()
+        mock_verifier.verify_findings = AsyncMock(return_value=[verified_finding])
+
+        with (
+            patch(
+                "cicaddy.delegation.summarizer.SummarizationAgent",
+                return_value=mock_summarizer,
+            ),
+            patch(
+                "cicaddy.delegation.verifier.FindingVerifier",
+                return_value=mock_verifier,
+            ),
+        ):
+            _, findings, _, _ = await orch._aggregate_results(
+                two_agent_results,
+                summarize=True,
+                diff="some diff",
+                verify_findings=True,
+            )
+
+        assert len(findings) == 1
+        assert findings[0].verified == "valid"
+        mock_verifier.verify_findings.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_verify_findings_exception_returns_unverified(
+        self, mock_settings, two_agent_results
+    ):
+        """When verifier raises, original findings should be preserved."""
+        from cicaddy.delegation.summarizer import Finding
+
+        mock_finding = Finding(file="x.py", line=1, severity="major", message="bug")
+
+        mock_provider = MagicMock()
+        orch = DelegationOrchestrator(mock_settings, ai_provider=mock_provider)
+
+        mock_summarizer = MagicMock()
+        mock_summarizer.summarize = AsyncMock(
+            return_value=MagicMock(
+                summary="OK",
+                individual_sections="",
+                footer="",
+                findings=[mock_finding],
+                ai_summarized=True,
+            )
+        )
+
+        mock_verifier = MagicMock()
+        mock_verifier.verify_findings = AsyncMock(
+            side_effect=RuntimeError("verifier exploded")
+        )
+
+        with (
+            patch(
+                "cicaddy.delegation.summarizer.SummarizationAgent",
+                return_value=mock_summarizer,
+            ),
+            patch(
+                "cicaddy.delegation.verifier.FindingVerifier",
+                return_value=mock_verifier,
+            ),
+        ):
+            _, findings, _, _ = await orch._aggregate_results(
+                two_agent_results,
+                summarize=True,
+                diff="some diff",
+                verify_findings=True,
+            )
+
+        assert len(findings) == 1
+        assert findings[0].verified is None
+
+    @pytest.mark.asyncio
+    async def test_verify_findings_false_skips_verification(
+        self, mock_settings, two_agent_results
+    ):
+        """verify_findings=False should not create a FindingVerifier."""
+        from cicaddy.delegation.summarizer import Finding
+
+        mock_finding = Finding(file="x.py", line=1, severity="major", message="bug")
+
+        mock_provider = MagicMock()
+        orch = DelegationOrchestrator(mock_settings, ai_provider=mock_provider)
+
+        mock_summarizer = MagicMock()
+        mock_summarizer.summarize = AsyncMock(
+            return_value=MagicMock(
+                summary="OK",
+                individual_sections="",
+                footer="",
+                findings=[mock_finding],
+                ai_summarized=True,
+            )
+        )
+
+        with (
+            patch(
+                "cicaddy.delegation.summarizer.SummarizationAgent",
+                return_value=mock_summarizer,
+            ),
+            patch(
+                "cicaddy.delegation.verifier.FindingVerifier",
+            ) as mock_verifier_cls,
+        ):
+            _, findings, _, _ = await orch._aggregate_results(
+                two_agent_results,
+                summarize=True,
+                verify_findings=False,
+            )
+
+        mock_verifier_cls.assert_not_called()
+        assert len(findings) == 1
+
+
 class TestOrchestratorWorkspaceContextForwarding:
     """Tests that orchestrator forwards workspace context to sub-agents."""
 

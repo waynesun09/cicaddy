@@ -1035,6 +1035,7 @@ Detailed Execution Logs
             summarization_prompt=getattr(
                 self.settings, "delegation_summarization_prompt", ""
             ),
+            verify_findings=getattr(self.settings, "delegation_verify_findings", False),
         )
 
         # 5. Build standard analysis_result dict

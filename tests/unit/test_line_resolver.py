@@ -399,6 +399,106 @@ class TestResolveFindings:
         assert unresolved == []
 
 
+class TestResolveOverridesAILine:
+    """Verify that snippet-based resolution overrides AI-guessed line numbers."""
+
+    def test_overrides_line_1_with_snippet_match(self):
+        """AI defaulted to line=1, but existing_code matches line 13."""
+        finding = Finding(
+            file="src/foo.py",
+            line=1,
+            severity="major",
+            message="result is None check",
+            existing_code="if result is None:",
+        )
+        resolved, unresolved = resolve_findings([finding], SAMPLE_DIFF)
+        assert len(resolved) == 1
+        assert len(unresolved) == 0
+        assert resolved[0].line == 13
+        assert resolved[0].start_line == 13
+        assert resolved[0].end_line == 13
+
+    def test_overrides_wrong_line_with_snippet_match(self):
+        """AI guessed line=99, but snippet matches line 31."""
+        finding = Finding(
+            file="src/foo.py",
+            line=99,
+            severity="minor",
+            message="new function",
+            existing_code="def new_function():",
+        )
+        resolved, unresolved = resolve_findings([finding], SAMPLE_DIFF)
+        assert len(resolved) == 1
+        assert resolved[0].line == 31
+        assert resolved[0].start_line == 31
+        assert resolved[0].end_line == 31
+
+    def test_keeps_ai_line_when_no_existing_code(self):
+        """No existing_code — keep the AI's line number as-is."""
+        finding = Finding(
+            file="src/foo.py",
+            line=5,
+            severity="minor",
+            message="general issue",
+        )
+        resolved, unresolved = resolve_findings([finding], SAMPLE_DIFF)
+        assert len(resolved) == 1
+        assert resolved[0].line == 5
+
+    def test_keeps_ai_line_when_snippet_not_found(self):
+        """existing_code doesn't match anything — keep AI's line."""
+        finding = Finding(
+            file="src/foo.py",
+            line=3,
+            severity="minor",
+            message="nonexistent code",
+            existing_code="this_code_does_not_exist()",
+        )
+        resolved, unresolved = resolve_findings([finding], SAMPLE_DIFF)
+        assert len(resolved) == 1
+        assert resolved[0].line == 3
+
+    def test_unresolved_when_no_line_and_no_snippet(self):
+        """No line, no existing_code — truly unresolved."""
+        finding = Finding(
+            file="src/foo.py",
+            line=None,
+            severity="minor",
+            message="vague finding",
+        )
+        resolved, unresolved = resolve_findings([finding], SAMPLE_DIFF)
+        assert len(resolved) == 0
+        assert len(unresolved) == 1
+
+    def test_unresolved_when_snippet_fails_and_no_ai_line(self):
+        """existing_code present but not in diff, no AI line — unresolved."""
+        finding = Finding(
+            file="src/foo.py",
+            line=None,
+            severity="minor",
+            message="unresolvable",
+            existing_code="nonexistent_code()",
+        )
+        resolved, unresolved = resolve_findings([finding], SAMPLE_DIFF)
+        assert len(resolved) == 0
+        assert len(unresolved) == 1
+
+    def test_overrides_with_multiline_snippet(self):
+        """AI line is wrong, multi-line existing_code resolves correctly."""
+        finding = Finding(
+            file="src/foo.py",
+            line=99,
+            severity="major",
+            message="multi-line check",
+            existing_code="if result is None:\n            raise ValueError",
+        )
+        resolved, unresolved = resolve_findings([finding], SAMPLE_DIFF)
+        assert len(resolved) == 1
+        assert resolved[0].line == 13
+        assert resolved[0].start_line == 13
+        assert resolved[0].end_line == 14
+
+
 class TestAnnotateDiffWithLineNumbers:
     """Tests for annotate_diff_with_line_numbers()."""
 
@@ -593,3 +693,120 @@ class TestValidateFindingsInHunks:
         captured = capsys.readouterr()
         assert "1 valid" in captured.out
         assert "1 cleared" in captured.out
+
+
+class TestGetDiffLineRanges:
+    """Tests for get_diff_line_ranges()."""
+
+    def test_single_hunk(self):
+        from cicaddy.delegation.line_resolver import get_diff_line_ranges
+
+        ranges = get_diff_line_ranges(SAMPLE_DIFF)
+        assert "src/foo.py" in ranges
+        # Two hunks: first covers lines 10-18, second covers lines 27-32
+        assert len(ranges["src/foo.py"]) == 2
+
+    def test_multi_file(self):
+        from cicaddy.delegation.line_resolver import get_diff_line_ranges
+
+        ranges = get_diff_line_ranges(MULTI_FILE_DIFF)
+        assert "src/foo.py" in ranges
+        assert "src/bar.py" in ranges
+
+    def test_empty_diff(self):
+        from cicaddy.delegation.line_resolver import get_diff_line_ranges
+
+        assert get_diff_line_ranges("") == {}
+        assert get_diff_line_ranges("   ") == {}
+
+    def test_hunk_range_boundaries(self):
+        from cicaddy.delegation.line_resolver import get_diff_line_ranges
+
+        ranges = get_diff_line_ranges(SAMPLE_DIFF)
+        foo_ranges = ranges["src/foo.py"]
+        # First hunk: new lines 10-18 (context + adds)
+        first_start, first_end = foo_ranges[0]
+        assert first_start == 10
+        assert first_end == 18
+        # Second hunk: new lines 27-32
+        second_start, second_end = foo_ranges[1]
+        assert second_start == 27
+        assert second_end == 32
+
+    def test_removal_only_hunk(self):
+        from cicaddy.delegation.line_resolver import get_diff_line_ranges
+
+        diff = """\
+diff --git a/src/old.py b/src/old.py
+--- a/src/old.py
++++ b/src/old.py
+@@ -10,3 +10,0 @@
+-removed1
+-removed2
+-removed3
+"""
+        ranges = get_diff_line_ranges(diff)
+        assert ranges == {}
+
+
+class TestIsLineInDiffRanges:
+    """Tests for is_line_in_diff_ranges()."""
+
+    def test_line_in_range(self):
+        from cicaddy.delegation.line_resolver import (
+            get_diff_line_ranges,
+            is_line_in_diff_ranges,
+        )
+
+        ranges = get_diff_line_ranges(SAMPLE_DIFF)
+        assert is_line_in_diff_ranges(13, "src/foo.py", ranges) is True
+
+    def test_line_outside_range(self):
+        from cicaddy.delegation.line_resolver import (
+            get_diff_line_ranges,
+            is_line_in_diff_ranges,
+        )
+
+        ranges = get_diff_line_ranges(SAMPLE_DIFF)
+        # Line 5 is before any hunk
+        assert is_line_in_diff_ranges(5, "src/foo.py", ranges) is False
+        # Line 20 is between hunks
+        assert is_line_in_diff_ranges(20, "src/foo.py", ranges) is False
+
+    def test_line_at_boundaries(self):
+        from cicaddy.delegation.line_resolver import (
+            get_diff_line_ranges,
+            is_line_in_diff_ranges,
+        )
+
+        ranges = get_diff_line_ranges(SAMPLE_DIFF)
+        # Exact boundary of first hunk
+        assert is_line_in_diff_ranges(10, "src/foo.py", ranges) is True
+        assert is_line_in_diff_ranges(18, "src/foo.py", ranges) is True
+        # Just outside
+        assert is_line_in_diff_ranges(9, "src/foo.py", ranges) is False
+        assert is_line_in_diff_ranges(19, "src/foo.py", ranges) is False
+
+    def test_suffix_file_match(self):
+        from cicaddy.delegation.line_resolver import (
+            get_diff_line_ranges,
+            is_line_in_diff_ranges,
+        )
+
+        ranges = get_diff_line_ranges(MULTI_FILE_DIFF)
+        # "bar.py" should match "src/bar.py"
+        assert is_line_in_diff_ranges(2, "bar.py", ranges) is True
+
+    def test_unknown_file(self):
+        from cicaddy.delegation.line_resolver import (
+            get_diff_line_ranges,
+            is_line_in_diff_ranges,
+        )
+
+        ranges = get_diff_line_ranges(SAMPLE_DIFF)
+        assert is_line_in_diff_ranges(10, "unknown.py", ranges) is False
+
+    def test_empty_ranges(self):
+        from cicaddy.delegation.line_resolver import is_line_in_diff_ranges
+
+        assert is_line_in_diff_ranges(10, "foo.py", {}) is False
