@@ -867,13 +867,11 @@ class TestUnpackBareArray:
         assert "summary" in result
         assert "findings" in result
         assert len(result["findings"]) == 2
-        assert result["summary"].startswith("Review of the code changes identified")
-        assert "2 finding(s)" in result["summary"]
         assert "Issue A" in result["summary"]
         assert "Issue B" in result["summary"]
-        assert "## Major (1)" in result["summary"]
-        assert "- `a.py`:" in result["summary"]
-        assert "- `b.py`:" in result["summary"]
+        assert "## Major" in result["summary"]
+        assert "`a.py`" in result["summary"]
+        assert "`b.py`" in result["summary"]
 
     def test_summary_groups_by_severity(self):
         bare = [
@@ -882,9 +880,9 @@ class TestUnpackBareArray:
             {"file": "c.py", "severity": "minor", "message": "Minor issue"},
         ]
         result = SummarizationAgent._unpack_bare_array(bare)
-        assert "## Critical (1)" in result["summary"]
-        assert "## Major (1)" in result["summary"]
-        assert "## Minor (1)" in result["summary"]
+        assert "## Critical" in result["summary"]
+        assert "## Major" in result["summary"]
+        assert "## Minor" in result["summary"]
 
     def test_summary_preserves_special_chars(self):
         """Special characters in messages/code are preserved in markdown."""
@@ -899,10 +897,10 @@ class TestUnpackBareArray:
         result = SummarizationAgent._unpack_bare_array(bare)
         summary = result["summary"]
         assert "<str>" in summary
-        assert "- `src/types.py`:" in summary
+        assert "`src/types.py`" in summary
 
     def test_summary_includes_code_snippets(self):
-        """Code snippets are wrapped in fenced code blocks."""
+        """Code snippets are rendered in fenced blocks in the summary."""
         bare = [
             {
                 "file": "a.py",
@@ -913,11 +911,13 @@ class TestUnpackBareArray:
         ]
         result = SummarizationAgent._unpack_bare_array(bare)
         summary = result["summary"]
-        assert "```" in summary
+        assert "Potential issue" in summary
+        assert "`a.py`" in summary
         assert "if x > 0:" in summary
+        assert result["findings"][0]["existing_code"] == "if x > 0:"
 
     def test_summary_includes_suggestion(self):
-        """Suggestions are rendered as italicized text."""
+        """Suggestions are rendered as bold-labeled blocks."""
         bare = [
             {
                 "file": "a.py",
@@ -928,7 +928,7 @@ class TestUnpackBareArray:
         ]
         result = SummarizationAgent._unpack_bare_array(bare)
         summary = result["summary"]
-        assert "*Suggestion:" in summary
+        assert "**Suggestion:**" in summary
         assert "Replace with MAX_RETRIES = 3" in summary
 
     def test_start_end_line_preserved(self):
@@ -999,6 +999,67 @@ class TestUnpackBareArray:
         result = SummarizationAgent._unpack_bare_array(bare)
         assert isinstance(result, dict)
         assert len(result["findings"]) == 1
+
+    def test_unknown_severity_mapped_to_known(self):
+        """Severities like 'high', 'medium', 'low' are mapped to canonical values."""
+        bare = [
+            {"file": "a.py", "severity": "high", "message": "Mapped to major"},
+            {"file": "b.py", "severity": "medium", "message": "Mapped to minor"},
+            {"file": "c.py", "severity": "low", "message": "Mapped to nit"},
+            {"file": "d.py", "severity": "error", "message": "Mapped to critical"},
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        summary = result["summary"]
+        assert "## Critical" in summary
+        assert "## Major" in summary
+        assert "## Minor" in summary
+        assert "## Nit" in summary
+        assert "Mapped to major" in summary
+        assert "Mapped to critical" in summary
+
+    def test_completely_unknown_severity_defaults_minor(self):
+        """Unrecognized severity strings default to minor."""
+        bare = [
+            {"file": "a.py", "severity": "banana", "message": "Unknown sev"},
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        assert "## Minor" in result["summary"]
+
+    def test_no_file_no_empty_output(self):
+        """Findings without a file produce meaningful output."""
+        bare = [
+            {"severity": "minor", "message": "General issue"},
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        summary = result["summary"]
+        assert "General issue" in summary
+        assert summary.strip()
+
+    def test_code_with_backticks_uses_tilde_fence(self):
+        """Existing code containing triple backticks uses ~~~ fences."""
+        bare = [
+            {
+                "file": "a.py",
+                "severity": "major",
+                "message": "Nested fence",
+                "existing_code": "```python\nfoo()\n```",
+            },
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        summary = result["summary"]
+        assert "~~~" in summary
+        assert "foo()" in summary
+
+    def test_heading_hierarchy(self):
+        """Finding sub-headings use ### (not ####) under ## sections."""
+        bare = [
+            {"file": "a.py", "severity": "major", "message": "Issue one"},
+            {"file": "b.py", "severity": "major", "message": "Issue two"},
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        summary = result["summary"]
+        assert "### 1. (Major)" in summary
+        assert "### 2. (Major)" in summary
 
 
 class TestValidateFinding:

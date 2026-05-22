@@ -48,12 +48,14 @@ _SUMMARY_RULES = """\
 - Preserve concrete, actionable suggestions — include code snippets when agents provided them
 - Do NOT invent new findings — only summarize what agents reported
 - Use markdown formatting for structure:
-  - ## headings for each severity group with count (e.g. ## Critical (2))
-  - Bullet list (`-` or `*`) for findings — one finding per bullet, never combine multiple findings on one line
-  - Backtick-wrapped file paths (e.g. `src/foo.py`)
-  - Fenced code blocks (```) for code snippets
+  - ### headings for each severity group with emoji and count (e.g. ### 🔴 Critical (2))
+  - Emoji per severity: 🔴 Critical, 🟠 Major, 🟡 Minor, 🔵 Nit
+  - Numbered list for findings within each severity group
+  - Each finding on its own line: **`file_path`** — description
+  - Keep suggestions inline and concise (one sentence), do NOT use fenced code blocks in the summary
+  - Use backtick-wrapped file paths and inline code references
 - Omit empty severity groups (if no Critical findings, skip that section)
-- End with a brief overall assessment (1-2 sentences)"""
+- End with a brief **Overall Assessment** (1-2 sentences)"""
 
 _RESPONSE_FORMAT = """\
 ## Response Format
@@ -124,25 +126,27 @@ def _coerce_int(val: Any) -> Optional[int]:
 
 
 def _format_finding_md(entry: dict) -> str:
-    """Format a single finding dict as a markdown bullet body."""
-    msg = str(entry.get("message") or "")
+    """Format a single finding dict as a rich markdown block."""
+    msg = str(entry.get("message") or "").strip()
     file_path = entry.get("file", "")
     existing_code = entry.get("existing_code")
     suggestion = entry.get("suggestion")
 
     parts: list[str] = []
     if file_path:
-        parts.append(f"`{file_path}`: {msg}")
-    else:
+        parts.append(f"In `{file_path}`:")
+    if msg:
         parts.append(msg)
 
     if existing_code and isinstance(existing_code, str) and existing_code.strip():
-        parts.append(f"\n  ```\n  {existing_code}\n  ```")
+        code = existing_code.strip()
+        fence = "~~~" if "```" in code else "```"
+        parts.append(f"\n{fence}\n{code}\n{fence}")
 
     if suggestion and isinstance(suggestion, str) and suggestion.strip():
-        parts.append(f"\n  *Suggestion: {suggestion}*")
+        parts.append(f"\n**Suggestion:** {suggestion.strip()}")
 
-    return "".join(parts)
+    return "\n".join(parts) if parts else "No details provided."
 
 
 def _validate_single_finding(
@@ -497,29 +501,38 @@ class SummarizationAgent:
         if dropped:
             logger.debug("Dropped %d non-dict entries from bare array", dropped)
 
+        _SEV_MAP = {
+            "high": "major",
+            "medium": "minor",
+            "low": "nit",
+            "warning": "minor",
+            "info": "nit",
+            "error": "critical",
+        }
         severity_groups: dict[str, list[dict]] = {}
         for f in findings:
             sev = str(f.get("severity", "minor")).lower()
+            sev = _SEV_MAP.get(sev, sev)
+            if sev not in ("critical", "major", "minor", "nit"):
+                sev = "minor"
             msg = f.get("message", "")
             if msg:
                 severity_groups.setdefault(sev, []).append(f)
 
         parts: list[str] = []
+        finding_num = 0
         for sev in ("critical", "major", "minor", "nit"):
             group = severity_groups.get(sev, [])
             if not group:
                 continue
-            parts.append(f"## {sev.title()} ({len(group)})")
-            items: list[str] = []
+            parts.append(f"## {sev.title()}")
             for entry in group:
-                item = _format_finding_md(entry)
-                items.append(f"- {item}")
-            parts.append("\n".join(items))
+                finding_num += 1
+                body = _format_finding_md(entry)
+                parts.append(f"### {finding_num}. ({sev.title()})\n\n{body}")
 
         if parts:
-            total = sum(len(v) for v in severity_groups.values())
-            intro = f"Review of the code changes identified {total} finding(s):\n\n"
-            summary = intro + "\n\n".join(parts)
+            summary = "\n\n".join(parts)
         else:
             summary = "Review findings from sub-agent analyses."
 
