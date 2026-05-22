@@ -1208,6 +1208,66 @@ diff --git a/src/foo.py b/src/foo.py
         assert mock_ai_provider.chat_completion.call_count == 2
 
     @pytest.mark.asyncio
+    async def test_resolved_line_outside_hunk_cleared(self, mock_ai_provider):
+        """AI-resolved line outside hunk boundaries gets cleared by validation."""
+        diff = """\
+diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -10,3 +10,4 @@ def process():
+     data = fetch()
+     if data:
++        validate(data)
+         return data
+"""
+        summary_response = json.dumps(
+            {
+                "summary": "Found issue",
+                "findings": [
+                    {
+                        "file": "src/foo.py",
+                        "existing_code": "not in diff",
+                        "severity": "major",
+                        "message": "Some issue",
+                        "agent_source": "agent-a",
+                    },
+                ],
+            }
+        )
+        # AI maps to line 50, which is outside the hunk (10-13)
+        mapping_response = '[{"index": 0, "start_line": 50, "end_line": 50}]'
+
+        mock_ai_provider.chat_completion.side_effect = [
+            MagicMock(content=summary_response),
+            MagicMock(content=mapping_response),
+        ]
+
+        results = [
+            {
+                "agent_name": "a",
+                "status": "success",
+                "analysis": "A",
+                "categories": ["code"],
+                "execution_time": 1,
+            },
+            {
+                "agent_name": "b",
+                "status": "success",
+                "analysis": "B",
+                "categories": ["arch"],
+                "execution_time": 2,
+            },
+        ]
+        agent = SummarizationAgent(mock_ai_provider)
+        result = await agent.summarize(results, diff=diff)
+
+        assert len(result.findings) == 1
+        # Line was cleared by hunk validation — becomes file-level comment
+        assert result.findings[0].line is None
+        assert result.findings[0].start_line is None
+        assert result.findings[0].end_line is None
+
+    @pytest.mark.asyncio
     async def test_ai_fallback_failure_preserves_findings(self, mock_ai_provider):
         """If AI line mapping fails, findings remain with line=None."""
         diff = """\

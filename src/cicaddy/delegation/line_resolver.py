@@ -355,6 +355,128 @@ def resolve_findings(
     return resolved, unresolved
 
 
+def _build_hunk_ranges(
+    diff_files: List[DiffFile],
+) -> dict[str, list[tuple[int, int]]]:
+    """Build file → [(hunk_start, hunk_end), ...] mapping from parsed diff."""
+    ranges: dict[str, list[tuple[int, int]]] = {}
+    for df in diff_files:
+        file_ranges: list[tuple[int, int]] = []
+        for hunk in df.hunks:
+            start = hunk.new_start
+            end = start + hunk.new_count - 1
+            if hunk.new_count > 0:
+                file_ranges.append((start, end))
+        if file_ranges:
+            ranges[df.path] = file_ranges
+    return ranges
+
+
+def _find_hunk_ranges_for_file(
+    file_path: str,
+    hunk_ranges: dict[str, list[tuple[int, int]]],
+) -> Optional[list[tuple[int, int]]]:
+    """Find hunk ranges for a file path (exact match, then suffix match)."""
+    if file_path in hunk_ranges:
+        return hunk_ranges[file_path]
+    for path, ranges in hunk_ranges.items():
+        if path.endswith(file_path) or file_path.endswith(path):
+            return ranges
+    return None
+
+
+def _line_in_any_hunk(line: int, ranges: list[tuple[int, int]]) -> bool:
+    """Check if a line number falls within any hunk range."""
+    return any(start <= line <= end for start, end in ranges)
+
+
+def _clamp_to_nearest_hunk(
+    start: int, end: int, ranges: list[tuple[int, int]]
+) -> Optional[tuple[int, int]]:
+    """Clamp a line range to the nearest overlapping hunk.
+
+    Returns clamped (start, end) if any hunk overlaps, else None.
+    """
+    for h_start, h_end in ranges:
+        if start <= h_end and end >= h_start:
+            return (max(start, h_start), min(end, h_end))
+    return None
+
+
+def validate_findings_in_hunks(
+    findings: List["Finding"],
+    diff: str,
+) -> List["Finding"]:
+    """Validate that finding line numbers fall within diff hunk ranges.
+
+    Ensures findings have line numbers that platform plugins can post
+    as inline comments without API rejection.
+
+    - Lines fully inside a hunk: kept as-is
+    - Lines partially overlapping: clamped to hunk boundaries
+    - Lines completely outside all hunks: cleared to None
+    - Findings with no line number: passed through unchanged
+    - Findings for files not in the diff: passed through unchanged
+
+    Args:
+        findings: List of Finding objects with resolved line numbers.
+        diff: Raw unified diff string.
+
+    Returns:
+        The same findings list with invalid line numbers corrected.
+    """
+    if not diff or not findings:
+        return findings
+
+    diff_files = parse_diff(diff)
+    if not diff_files:
+        return findings
+
+    hunk_ranges = _build_hunk_ranges(diff_files)
+    if not hunk_ranges:
+        return findings
+
+    validated = 0
+    clamped = 0
+    cleared = 0
+
+    for finding in findings:
+        if finding.line is None:
+            continue
+
+        ranges = _find_hunk_ranges_for_file(finding.file, hunk_ranges)
+        if ranges is None:
+            continue
+
+        start = finding.start_line if finding.start_line is not None else finding.line
+        end = finding.end_line if finding.end_line is not None else finding.line
+
+        if _line_in_any_hunk(start, ranges) and _line_in_any_hunk(end, ranges):
+            validated += 1
+            continue
+
+        clamped_range = _clamp_to_nearest_hunk(start, end, ranges)
+        if clamped_range is not None:
+            finding.line = clamped_range[0]
+            finding.start_line = clamped_range[0]
+            finding.end_line = clamped_range[1]
+            clamped += 1
+        else:
+            finding.line = None
+            finding.start_line = None
+            finding.end_line = None
+            cleared += 1
+
+    logger.info(
+        "Hunk validation: %d valid, %d clamped, %d cleared out of %d findings",
+        validated,
+        clamped,
+        cleared,
+        len(findings),
+    )
+    return findings
+
+
 def _annotate_hunk_line(raw_line: str, new_lineno: int) -> Tuple[str, int]:
     """Annotate a single hunk content line with its line number.
 
