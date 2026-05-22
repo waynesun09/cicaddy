@@ -47,7 +47,11 @@ _SUMMARY_RULES = """\
 - De-duplicate: if multiple agents flagged the same issue, mention it once
 - Preserve concrete, actionable suggestions — include code snippets when agents provided them
 - Do NOT invent new findings — only summarize what agents reported
-- Use markdown formatting with ## headings for severity groups
+- Use markdown formatting for structure:
+  - ## headings for each severity group with count (e.g. ## Critical (2))
+  - Bullet list (`-` or `*`) for findings — one finding per bullet, never combine multiple findings on one line
+  - Backtick-wrapped file paths (e.g. `src/foo.py`)
+  - Fenced code blocks (```) for code snippets
 - Omit empty severity groups (if no Critical findings, skip that section)
 - End with a brief overall assessment (1-2 sentences)"""
 
@@ -117,6 +121,28 @@ def _coerce_int(val: Any) -> Optional[int]:
         return int(val)
     except (TypeError, ValueError):
         return None
+
+
+def _format_finding_md(entry: dict) -> str:
+    """Format a single finding dict as a markdown bullet body."""
+    msg = str(entry.get("message") or "")
+    file_path = entry.get("file", "")
+    existing_code = entry.get("existing_code")
+    suggestion = entry.get("suggestion")
+
+    parts: list[str] = []
+    if file_path:
+        parts.append(f"`{file_path}`: {msg}")
+    else:
+        parts.append(msg)
+
+    if existing_code and isinstance(existing_code, str) and existing_code.strip():
+        parts.append(f"\n  ```\n  {existing_code}\n  ```")
+
+    if suggestion and isinstance(suggestion, str) and suggestion.strip():
+        parts.append(f"\n  *Suggestion: {suggestion}*")
+
+    return "".join(parts)
 
 
 def _validate_single_finding(
@@ -471,18 +497,24 @@ class SummarizationAgent:
         if dropped:
             logger.debug("Dropped %d non-dict entries from bare array", dropped)
 
-        severity_groups: dict[str, list[str]] = {}
+        severity_groups: dict[str, list[dict]] = {}
         for f in findings:
             sev = str(f.get("severity", "minor")).lower()
             msg = f.get("message", "")
             if msg:
-                severity_groups.setdefault(sev, []).append(msg)
+                severity_groups.setdefault(sev, []).append(f)
 
         parts: list[str] = []
         for sev in ("critical", "major", "minor", "nit"):
-            msgs = severity_groups.get(sev, [])
-            if msgs:
-                parts.append(f"**{sev.title()}** ({len(msgs)}): " + "; ".join(msgs))
+            group = severity_groups.get(sev, [])
+            if not group:
+                continue
+            parts.append(f"## {sev.title()} ({len(group)})")
+            items: list[str] = []
+            for entry in group:
+                item = _format_finding_md(entry)
+                items.append(f"- {item}")
+            parts.append("\n".join(items))
 
         if parts:
             total = sum(len(v) for v in severity_groups.values())
