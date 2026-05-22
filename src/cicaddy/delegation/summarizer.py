@@ -126,13 +126,8 @@ def _coerce_int(val: Any) -> Optional[int]:
 
 
 def _format_finding_md(entry: dict) -> str:
-    """Format a single finding dict as a rich markdown block.
-
-    Mirrors the structure individual review agents produce naturally:
-    file reference, issue description, code snippet, and suggestion
-    as separate visual blocks.
-    """
-    msg = str(entry.get("message") or "")
+    """Format a single finding dict as a rich markdown block."""
+    msg = str(entry.get("message") or "").strip()
     file_path = entry.get("file", "")
     existing_code = entry.get("existing_code")
     suggestion = entry.get("suggestion")
@@ -140,15 +135,18 @@ def _format_finding_md(entry: dict) -> str:
     parts: list[str] = []
     if file_path:
         parts.append(f"In `{file_path}`:")
-    parts.append(f"\n{msg}")
+    if msg:
+        parts.append(msg)
 
     if existing_code and isinstance(existing_code, str) and existing_code.strip():
-        parts.append(f"\n\n```\n{existing_code.strip()}\n```")
+        code = existing_code.strip()
+        fence = "~~~" if "```" in code else "```"
+        parts.append(f"\n{fence}\n{code}\n{fence}")
 
     if suggestion and isinstance(suggestion, str) and suggestion.strip():
-        parts.append(f"\n\n**Suggestion:** {suggestion.strip()}")
+        parts.append(f"\n**Suggestion:** {suggestion.strip()}")
 
-    return "\n".join(parts) if len(parts) > 1 else parts[0]
+    return "\n".join(parts) if parts else "No details provided."
 
 
 def _validate_single_finding(
@@ -503,9 +501,20 @@ class SummarizationAgent:
         if dropped:
             logger.debug("Dropped %d non-dict entries from bare array", dropped)
 
+        _SEV_MAP = {
+            "high": "major",
+            "medium": "minor",
+            "low": "nit",
+            "warning": "minor",
+            "info": "nit",
+            "error": "critical",
+        }
         severity_groups: dict[str, list[dict]] = {}
         for f in findings:
             sev = str(f.get("severity", "minor")).lower()
+            sev = _SEV_MAP.get(sev, sev)
+            if sev not in ("critical", "major", "minor", "nit"):
+                sev = "minor"
             msg = f.get("message", "")
             if msg:
                 severity_groups.setdefault(sev, []).append(f)
@@ -520,7 +529,7 @@ class SummarizationAgent:
             for entry in group:
                 finding_num += 1
                 body = _format_finding_md(entry)
-                parts.append(f"#### {finding_num}. ({sev.title()})\n\n{body}")
+                parts.append(f"### {finding_num}. ({sev.title()})\n\n{body}")
 
         if parts:
             summary = "\n\n".join(parts)

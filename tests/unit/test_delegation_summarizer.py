@@ -1000,6 +1000,67 @@ class TestUnpackBareArray:
         assert isinstance(result, dict)
         assert len(result["findings"]) == 1
 
+    def test_unknown_severity_mapped_to_known(self):
+        """Severities like 'high', 'medium', 'low' are mapped to canonical values."""
+        bare = [
+            {"file": "a.py", "severity": "high", "message": "Mapped to major"},
+            {"file": "b.py", "severity": "medium", "message": "Mapped to minor"},
+            {"file": "c.py", "severity": "low", "message": "Mapped to nit"},
+            {"file": "d.py", "severity": "error", "message": "Mapped to critical"},
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        summary = result["summary"]
+        assert "## Critical" in summary
+        assert "## Major" in summary
+        assert "## Minor" in summary
+        assert "## Nit" in summary
+        assert "Mapped to major" in summary
+        assert "Mapped to critical" in summary
+
+    def test_completely_unknown_severity_defaults_minor(self):
+        """Unrecognized severity strings default to minor."""
+        bare = [
+            {"file": "a.py", "severity": "banana", "message": "Unknown sev"},
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        assert "## Minor" in result["summary"]
+
+    def test_no_file_no_empty_output(self):
+        """Findings without a file produce meaningful output."""
+        bare = [
+            {"severity": "minor", "message": "General issue"},
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        summary = result["summary"]
+        assert "General issue" in summary
+        assert summary.strip()
+
+    def test_code_with_backticks_uses_tilde_fence(self):
+        """Existing code containing triple backticks uses ~~~ fences."""
+        bare = [
+            {
+                "file": "a.py",
+                "severity": "major",
+                "message": "Nested fence",
+                "existing_code": "```python\nfoo()\n```",
+            },
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        summary = result["summary"]
+        assert "~~~" in summary
+        assert "foo()" in summary
+
+    def test_heading_hierarchy(self):
+        """Finding sub-headings use ### (not ####) under ## sections."""
+        bare = [
+            {"file": "a.py", "severity": "major", "message": "Issue one"},
+            {"file": "b.py", "severity": "major", "message": "Issue two"},
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        summary = result["summary"]
+        assert "### 1. (Major)" in summary
+        assert "### 2. (Major)" in summary
+
 
 class TestValidateFinding:
     """Tests for SummarizationAgent._validate_finding."""
