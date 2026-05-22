@@ -427,7 +427,7 @@ class TestResolveOverridesAILine:
             message="new function",
             existing_code="def new_function():",
         )
-        resolved, unresolved = resolve_findings([finding], SAMPLE_DIFF)
+        resolved, _ = resolve_findings([finding], SAMPLE_DIFF)
         assert len(resolved) == 1
         assert resolved[0].line == 31
         assert resolved[0].start_line == 31
@@ -441,7 +441,7 @@ class TestResolveOverridesAILine:
             severity="minor",
             message="general issue",
         )
-        resolved, unresolved = resolve_findings([finding], SAMPLE_DIFF)
+        resolved, _ = resolve_findings([finding], SAMPLE_DIFF)
         assert len(resolved) == 1
         assert resolved[0].line == 5
 
@@ -454,7 +454,7 @@ class TestResolveOverridesAILine:
             message="nonexistent code",
             existing_code="this_code_does_not_exist()",
         )
-        resolved, unresolved = resolve_findings([finding], SAMPLE_DIFF)
+        resolved, _ = resolve_findings([finding], SAMPLE_DIFF)
         assert len(resolved) == 1
         assert resolved[0].line == 3
 

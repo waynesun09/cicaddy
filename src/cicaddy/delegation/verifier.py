@@ -177,6 +177,8 @@ class FindingVerifier:
         if not findings:
             return findings
 
+        max_concurrent = max(1, max_concurrent)
+
         from cicaddy.delegation.line_resolver import get_diff_line_ranges
 
         diff_ranges = get_diff_line_ranges(diff)
@@ -286,7 +288,7 @@ class FindingVerifier:
 
         from cicaddy.ai_providers.base import ProviderMessage
 
-        result = dataclasses.replace(finding)
+        result: Finding = dataclasses.replace(finding)
 
         try:
             engine = self._create_verification_engine(
@@ -454,7 +456,7 @@ class FindingVerifier:
         try:
             raw = extract_json(content)
             data = json.loads(raw)
-        except (json.JSONDecodeError, ValueError, TypeError):
+        except (ValueError, TypeError):
             return VerificationResult(
                 status="uncertain",
                 reasoning=content.strip()[:500],
