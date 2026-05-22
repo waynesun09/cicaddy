@@ -385,11 +385,6 @@ def _find_hunk_ranges_for_file(
     return None
 
 
-def _line_in_any_hunk(line: int, ranges: list[tuple[int, int]]) -> bool:
-    """Check if a line number falls within any hunk range."""
-    return any(start <= line <= end for start, end in ranges)
-
-
 def _clamp_to_nearest_hunk(
     start: int, end: int, ranges: list[tuple[int, int]]
 ) -> Optional[tuple[int, int]]:
@@ -451,7 +446,7 @@ def validate_findings_in_hunks(
         start = finding.start_line if finding.start_line is not None else finding.line
         end = finding.end_line if finding.end_line is not None else finding.line
 
-        if _line_in_any_hunk(start, ranges) and _line_in_any_hunk(end, ranges):
+        if any(s <= start and end <= e for s, e in ranges):
             validated += 1
             continue
 

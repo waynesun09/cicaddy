@@ -531,6 +531,15 @@ class TestValidateFindingsInHunks:
         result = validate_findings_in_hunks([finding], VALIDATION_DIFF)
         assert result[0].line == 33
 
+    def test_range_spanning_two_hunks_clamped(self):
+        """Finding spanning from hunk 1 to hunk 2 should be clamped, not validated."""
+        finding = Finding(file="src/foo.py", line=14, severity="major", message="issue")
+        finding.start_line = 14
+        finding.end_line = 33
+        result = validate_findings_in_hunks([finding], VALIDATION_DIFF)
+        assert result[0].start_line == 14
+        assert result[0].end_line == 16
+
     def test_completely_outside_between_hunks_cleared(self):
         """Finding between two hunks (gap) gets cleared."""
         finding = Finding(file="src/foo.py", line=22, severity="major", message="issue")
