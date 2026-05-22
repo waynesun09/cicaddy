@@ -640,6 +640,16 @@ class TestParseDictResponseJsonSummaryGuard:
         assert summary == "## Major Issues\n\nFound 2 critical bugs."
         assert len(findings) == 1
 
+    @pytest.mark.asyncio
+    async def test_json_array_no_dicts_preserves_summary(self, mock_ai_provider):
+        """JSON array with no dict entries should NOT replace summary."""
+        findings_json = json.dumps(["string entry", 42, True])
+        response = json.dumps({"summary": findings_json, "findings": []})
+        agent = SummarizationAgent(mock_ai_provider)
+        summary, findings = agent._parse_response(response)
+        assert summary == findings_json
+        assert findings == []
+
 
 class TestValidateFinding:
     """Tests for SummarizationAgent._validate_finding."""

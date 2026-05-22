@@ -325,15 +325,15 @@ class SummarizationAgent:
             try:
                 embedded = json.loads(stripped)
                 if isinstance(embedded, list):
-                    for entry in embedded:
-                        if isinstance(entry, dict):
-                            raw_findings.append(entry)
-                    logger.warning(
-                        "AI put JSON array in summary field, "
-                        "extracted %d entries into findings",
-                        len(embedded),
-                    )
-                    summary = "Code review findings:"
+                    dict_entries = [e for e in embedded if isinstance(e, dict)]
+                    if dict_entries:
+                        raw_findings.extend(dict_entries)
+                        logger.warning(
+                            "AI put JSON array in summary field, "
+                            "extracted %d entries into findings",
+                            len(dict_entries),
+                        )
+                        summary = "Code review findings:"
             except json.JSONDecodeError:
                 pass
 
