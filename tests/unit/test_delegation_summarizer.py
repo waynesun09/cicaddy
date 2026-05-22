@@ -871,6 +871,9 @@ class TestUnpackBareArray:
         assert "2 finding(s)" in result["summary"]
         assert "Issue A" in result["summary"]
         assert "Issue B" in result["summary"]
+        assert "## Major (1)" in result["summary"]
+        assert "- `a.py`:" in result["summary"]
+        assert "- `b.py`:" in result["summary"]
 
     def test_summary_groups_by_severity(self):
         bare = [
@@ -879,9 +882,54 @@ class TestUnpackBareArray:
             {"file": "c.py", "severity": "minor", "message": "Minor issue"},
         ]
         result = SummarizationAgent._unpack_bare_array(bare)
-        assert "Critical" in result["summary"]
-        assert "Major" in result["summary"]
-        assert "Minor" in result["summary"]
+        assert "## Critical (1)" in result["summary"]
+        assert "## Major (1)" in result["summary"]
+        assert "## Minor (1)" in result["summary"]
+
+    def test_summary_preserves_special_chars(self):
+        """Special characters in messages/code are preserved in markdown."""
+        bare = [
+            {
+                "file": "src/types.py",
+                "severity": "minor",
+                "message": "Type hint <str> should use quotes",
+                "existing_code": "x: Dict<str, int> = {}",
+            },
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        summary = result["summary"]
+        assert "<str>" in summary
+        assert "- `src/types.py`:" in summary
+
+    def test_summary_includes_code_snippets(self):
+        """Code snippets are wrapped in fenced code blocks."""
+        bare = [
+            {
+                "file": "a.py",
+                "severity": "major",
+                "message": "Potential issue",
+                "existing_code": "if x > 0:",
+            },
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        summary = result["summary"]
+        assert "```" in summary
+        assert "if x > 0:" in summary
+
+    def test_summary_includes_suggestion(self):
+        """Suggestions are rendered as italicized text."""
+        bare = [
+            {
+                "file": "a.py",
+                "severity": "minor",
+                "message": "Use constant",
+                "suggestion": "Replace with MAX_RETRIES = 3",
+            },
+        ]
+        result = SummarizationAgent._unpack_bare_array(bare)
+        summary = result["summary"]
+        assert "*Suggestion:" in summary
+        assert "Replace with MAX_RETRIES = 3" in summary
 
     def test_start_end_line_preserved(self):
         """Real Gemini responses include start_line/end_line — schema allows them."""
