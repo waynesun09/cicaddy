@@ -450,6 +450,55 @@ class TestValidateAndCorrect:
         assert findings == []
 
     @pytest.mark.asyncio
+    async def test_bare_array_correction_unpacked_in_loop(self, mock_ai_provider):
+        """Bare JSON array from correction turn is unpacked and accepted."""
+        initial_bad = "not valid json at all"
+        bare_array = json.dumps(
+            [
+                {
+                    "file": "x.py",
+                    "severity": "minor",
+                    "message": "Missing type hint",
+                }
+            ]
+        )
+        mock_ai_provider.chat_completion.return_value = MagicMock(content=bare_array)
+
+        agent = SummarizationAgent(mock_ai_provider)
+        messages = []
+        summary, findings = await agent._validate_and_correct(
+            messages, initial_bad, max_turns=2
+        )
+
+        assert "Missing type hint" in summary
+        assert len(findings) == 1
+        assert findings[0].file == "x.py"
+
+    @pytest.mark.asyncio
+    async def test_fallback_unpacks_bare_array_after_max_turns(self, mock_ai_provider):
+        """Fallback path unpacks bare array when loop exhausts max turns."""
+        bare_array = json.dumps(
+            [
+                {
+                    "file": "a.py",
+                    "severity": "major",
+                    "message": "Null check",
+                    "extra_bad_field": True,
+                }
+            ]
+        )
+        mock_ai_provider.chat_completion.return_value = MagicMock(content=bare_array)
+
+        agent = SummarizationAgent(mock_ai_provider)
+        messages = []
+        summary, findings = await agent._validate_and_correct(
+            messages, "not json", max_turns=2
+        )
+
+        assert "Null check" in summary
+        assert findings == []
+
+    @pytest.mark.asyncio
     async def test_empty_response_raises_on_first_turn(self, mock_ai_provider):
         """Empty response on first turn raises ValueError."""
         agent = SummarizationAgent(mock_ai_provider)
@@ -741,7 +790,54 @@ class TestValidateAgainstSchema:
             ],
         }
         errors = SummarizationAgent._validate_against_schema(data)
-        assert any("'agent_source' must be a string" in e for e in errors)
+        assert any("'agent_source' must be a string or null" in e for e in errors)
+
+    def test_agent_source_null_accepted(self):
+        data = {
+            "summary": "Review",
+            "findings": [
+                {
+                    "file": "a.py",
+                    "agent_source": None,
+                    "severity": "minor",
+                    "message": "Issue",
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert errors == []
+
+    def test_start_line_greater_than_end_line_rejected(self):
+        data = {
+            "summary": "Review",
+            "findings": [
+                {
+                    "file": "a.py",
+                    "severity": "minor",
+                    "message": "Issue",
+                    "start_line": 20,
+                    "end_line": 5,
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert any("'start_line' (20) must be <= 'end_line' (5)" in e for e in errors)
+
+    def test_start_line_equal_to_end_line_valid(self):
+        data = {
+            "summary": "Review",
+            "findings": [
+                {
+                    "file": "a.py",
+                    "severity": "minor",
+                    "message": "Issue",
+                    "start_line": 10,
+                    "end_line": 10,
+                }
+            ],
+        }
+        errors = SummarizationAgent._validate_against_schema(data)
+        assert errors == []
 
 
 class TestUnpackBareArray:

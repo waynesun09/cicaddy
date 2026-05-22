@@ -107,6 +107,16 @@ class SummarizationResult:
     ai_summarized: bool = False
 
 
+def _coerce_int(val: Any) -> Optional[int]:
+    """Coerce a value to int, returning None on failure."""
+    if val is None:
+        return None
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return None
+
+
 def _validate_findings_entries(findings: list[Any], errors: List[str]) -> None:
     """Validate each entry in the findings array, appending errors."""
     allowed_keys = set(
@@ -144,6 +154,12 @@ def _validate_findings_entries(findings: list[Any], errors: List[str]) -> None:
                     f"findings[{i}]: '{int_field}' must be an integer "
                     f"or null, got {type(int_val).__name__}"
                 )
+        sl = entry.get("start_line")
+        el = entry.get("end_line")
+        if isinstance(sl, int) and isinstance(el, int) and sl > el:
+            errors.append(
+                f"findings[{i}]: 'start_line' ({sl}) must be <= 'end_line' ({el})"
+            )
         for str_field in ("existing_code", "suggestion"):
             val = entry.get(str_field)
             if val is not None and not isinstance(val, str):
@@ -154,8 +170,8 @@ def _validate_findings_entries(findings: list[Any], errors: List[str]) -> None:
         agent_src = entry.get("agent_source")
         if agent_src is not None and not isinstance(agent_src, str):
             errors.append(
-                f"findings[{i}]: 'agent_source' must be a string, "
-                f"got {type(agent_src).__name__}"
+                f"findings[{i}]: 'agent_source' must be a string "
+                f"or null, got {type(agent_src).__name__}"
             )
         extra = set(entry.keys()) - allowed_keys
         if extra:
@@ -326,16 +342,20 @@ class SummarizationAgent:
                     raise ValueError(_ERR_EMPTY)
                 errors = ["Response is empty."]
             else:
-                result = self._try_parse_and_validate(text)
-                if result is not None:
-                    summary, findings = result
-                    if turn > 0:
-                        logger.info(
-                            "Schema validation passed after %d correction turn(s)",
-                            turn,
-                        )
-                    return summary, findings
-                errors = self._collect_validation_errors(text)
+                parsed = self._parse_and_unpack(text)
+                if parsed is not None:
+                    result = self._validate_parsed(parsed)
+                    if result is not None:
+                        summary, findings = result
+                        if turn > 0:
+                            logger.info(
+                                "Schema validation passed after %d correction turn(s)",
+                                turn,
+                            )
+                        return summary, findings
+                    errors = self._validate_against_schema(parsed)
+                else:
+                    errors = self._collect_validation_errors(text)
 
             if turn >= max_turns - 1:
                 break
@@ -364,17 +384,15 @@ class SummarizationAgent:
         for candidate in (content.strip(), response_content.strip()):
             try:
                 data = json.loads(extract_json(candidate))
+                data = self._unpack_bare_array(data)
                 if isinstance(data, dict) and isinstance(data.get("summary"), str):
                     return data["summary"], []
             except (json.JSONDecodeError, ValueError):
                 continue
         return content.strip() or response_content.strip(), []
 
-    def _try_parse_and_validate(self, text: str) -> Optional[tuple[str, List[Finding]]]:
-        """Try to parse JSON and validate against schema.
-
-        Returns (summary, findings) on success, None on failure.
-        """
+    def _parse_and_unpack(self, text: str) -> Optional[Dict[str, Any]]:
+        """Parse JSON text, unpack bare arrays, return dict or None."""
         try:
             raw = extract_json(text)
             data = json.loads(raw)
@@ -382,10 +400,14 @@ class SummarizationAgent:
             return None
 
         data = self._unpack_bare_array(data)
-
         if not isinstance(data, dict):
             return None
+        return data
 
+    def _validate_parsed(
+        self, data: Dict[str, Any]
+    ) -> Optional[tuple[str, List[Finding]]]:
+        """Validate pre-parsed dict against schema, extract findings on success."""
         errors = self._validate_against_schema(data)
         if errors:
             return None
@@ -415,6 +437,9 @@ class SummarizationAgent:
         findings = [e for e in data if isinstance(e, dict)]
         if not findings:
             return data
+        dropped = len(data) - len(findings)
+        if dropped:
+            logger.debug("Dropped %d non-dict entries from bare array", dropped)
 
         severity_groups: dict[str, list[str]] = {}
         for f in findings:
@@ -523,21 +548,13 @@ class SummarizationAgent:
         if isinstance(existing_code, str) and not existing_code.strip():
             existing_code = None
 
-        def _coerce_int(val: Any) -> Optional[int]:
-            if val is None:
-                return None
-            try:
-                return int(val)
-            except (TypeError, ValueError):
-                return None
-
         return Finding(
             file=file_path,
             line=line,
             severity=severity,
             message=message,
             suggestion=entry.get("suggestion"),
-            agent_source=entry.get("agent_source", ""),
+            agent_source=entry.get("agent_source") or "",
             existing_code=existing_code,
             start_line=_coerce_int(entry.get("start_line")),
             end_line=_coerce_int(entry.get("end_line")),

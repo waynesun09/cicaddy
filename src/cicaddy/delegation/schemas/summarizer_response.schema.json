@@ -42,7 +42,7 @@
             "description": "Concrete fix when provided"
           },
           "agent_source": {
-            "type": "string",
+            "type": ["string", "null"],
             "description": "Name of the agent that reported the finding"
           },
           "start_line": {
