@@ -8,7 +8,7 @@ description: >
   setting up delegation, or extending the agent registry.
 compatibility: Requires Python 3.11+ and uv. Dev install with uv pip install -e ".[dev,test]" or released package with uv pip install cicaddy.
 metadata:
-  version: "0.12.3"
+  version: "0.12.6"
   author: waynesun09
 ---
 
@@ -28,7 +28,7 @@ factory that can be extended without modifying core code.
 uv run cicaddy run --env-file .env
 
 # With inline overrides
-uv run cicaddy run --env-file .env --ai-model gemini-3-pro-preview --log-level DEBUG
+uv run cicaddy run --env-file .env --ai-model gemini-3.5-flash --log-level DEBUG
 
 # Dry-run: print resolved config without executing
 uv run cicaddy run --env-file .env --dry-run
@@ -44,7 +44,7 @@ Key `run` flags:
 | `--env-file, -e FILE` | Load env vars from a `.env` file |
 | `-t, --agent-type` | `task` (default), `branch_review`, `merge_request`, or custom |
 | `--ai-provider` | `gemini`, `gemini-vertex`, `openai`, `claude`, `anthropic-vertex` |
-| `--ai-model` | e.g. `gemini-3-pro-preview`, `gpt-4o` |
+| `--ai-model` | e.g. `gemini-3.5-flash`, `gpt-4o` |
 | `--mcp-config` | JSON string or path with MCP server configs |
 | `--max-iters` | Maximum inference iterations |
 | `--task-prompt` | Inline task prompt (alternative to AI_TASK_FILE) |
@@ -87,7 +87,7 @@ TASK_TYPE=custom          # for custom DSPy task file mode
 
 # AI provider
 AI_PROVIDER=gemini        # gemini | gemini-vertex | openai | claude | anthropic-vertex
-AI_MODEL=gemini-3-pro-preview
+AI_MODEL=gemini-3.5-flash
 AI_TEMPERATURE=0.0
 GEMINI_API_KEY=<key>      # or OPENAI_API_KEY / ANTHROPIC_API_KEY
 # For Gemini Vertex AI: GOOGLE_CLOUD_PROJECT=<project> GOOGLE_CLOUD_LOCATION=global
@@ -140,7 +140,7 @@ inputs:
 - `AI_TASK_FILE` paths are relative to CWD, not the env file location
 - `LOCAL_TOOLS_WORKING_DIR` must be absolute when running from output directories
 - `MCP_SERVERS_CONFIG` server `name` must exactly match `tools.servers` in task YAML
-- Delegation mode `auto` requires at least 2 sub-agents to be useful
+- Delegation mode `auto` with 1 agent skips summarization — use `TRIAGE_PROMPT` to force 2+ agents (see `references/local-testing.md`)
 - `--dry-run` does NOT validate MCP server connectivity, only config parsing
 - Session JSONL files can be very large (50MB+) -- never read directly
 - Report output goes to CWD, not the source repo directory
