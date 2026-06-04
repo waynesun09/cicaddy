@@ -7,6 +7,10 @@ resolution-markers = [
     "python_full_version < '3.13'",
 ]
 
+[options]
+exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
+exclude-newer-span = "P7D"
+
 [[package]]
 name = "aiofile"
 version = "3.11.1"
@@ -689,7 +693,7 @@ wheels = [
 
 [[package]]
 name = "code-review-graph"
-version = "2.3.3"
+version = "2.3.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastmcp" },
@@ -699,9 +703,9 @@ dependencies = [
     { name = "tree-sitter-language-pack" },
     { name = "watchdog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/28/9e/d7743ca8703c7d6322bb958f35a1e07075206b4dc1b6c24f764c3fb671a1/code_review_graph-2.3.3.tar.gz", hash = "sha256:705ff6468a6e031f148a43948bb9cbbf5a23dd24faba18ebcc3b0574c1a6a1f7", size = 298140, upload-time = "2026-05-08T09:37:46.859Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/82/fb/6ec81765e1c65fe6734186ed3c2b1f496283ba57aedc9b981bdb5aecfba5/code_review_graph-2.3.5.tar.gz", hash = "sha256:cd7864f1f9ce6d4cd853f9c04b975c68b7db2dbe7c92e7956f0e41f30303bab3", size = 327848, upload-time = "2026-05-25T22:01:38.391Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/03/d7/0d634119035f45b17bc2635470939cde580b6952dcdf6ef44112c05b10f5/code_review_graph-2.3.3-py3-none-any.whl", hash = "sha256:14cd24706090c9e98883bc70d45cf2323bbdc61f633225c4e206621de10424df", size = 299108, upload-time = "2026-05-08T09:37:45.221Z" },
+    { url = "https://files.pythonhosted.org/packages/fd/41/e7db686adc941f71f6e43a0310a37e67fbfa2542946923ec672f5e287c2d/code_review_graph-2.3.5-py3-none-any.whl", hash = "sha256:357a8b82d3548b829b07d1991aa0561827d33bd80e88d3debf22ee35f88af4cd", size = 319612, upload-time = "2026-05-25T22:01:36.676Z" },
 ]
 
 [[package]]
@@ -3236,15 +3240,15 @@ wheels = [
 
 [[package]]
 name = "pytest-asyncio"
-version = "1.3.0"
+version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pytest" },
     { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/90/2c/8af215c0f776415f3590cac4f9086ccefd6fd463befeae41cd4d3f193e5a/pytest_asyncio-1.3.0.tar.gz", hash = "sha256:d7f52f36d231b80ee124cd216ffb19369aa168fc10095013c6b014a34d3ee9e5", size = 50087, upload-time = "2025-11-10T16:07:47.256Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/43/7c/d36d04db312ecf4298932ef77e6e4a9e8ad017906e24e34f0b0c361a2473/pytest_asyncio-1.4.0.tar.gz", hash = "sha256:c6c0d2259945122819f171a32ecea2c349ead889ee28176caaf492143424be42", size = 58514, upload-time = "2026-05-26T09:56:04.083Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e5/35/f8b19922b6a25bc0880171a2f1a003eaeb93657475193ab516fd87cac9da/pytest_asyncio-1.3.0-py3-none-any.whl", hash = "sha256:611e26147c7f77640e6d0a92a38ed17c3e9848063698d5c93d5aa7aa11cebff5", size = 15075, upload-time = "2025-11-10T16:07:45.537Z" },
+    { url = "https://files.pythonhosted.org/packages/03/e2/08a497ef684b88559c9cc5f4ad53a37e7b99e727094a86d6ea32536d5d3c/pytest_asyncio-1.4.0-py3-none-any.whl", hash = "sha256:933ca923a23075a87fb7070c0ec272a6848489824d887c85c812670932835aa1", size = 16930, upload-time = "2026-05-26T09:56:02.576Z" },
 ]
 
 [[package]]
