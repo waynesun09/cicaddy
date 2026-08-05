@@ -168,7 +168,7 @@ class SSEMCPTransport(BaseMCPTransport):
                     content_list = result.content
                     if content_list:
                         # Extract text content from the result
-                        text_content = []
+                        text_content: list[str] = []
                         for content_item in content_list:
                             if hasattr(content_item, "text"):
                                 text_content.append(content_item.text)
