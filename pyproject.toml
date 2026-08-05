@@ -47,6 +47,7 @@ dependencies = [
     "websockets>=13.0",
     "typing-extensions>=4.12.0; python_version < '3.12'",
     "python-dotenv>=1.0.0",
+    "cryptography>=50.0.0",
 ]
 
 [project.optional-dependencies]
@@ -157,6 +158,7 @@ skips = ["B101"]
 
 [tool.uv]
 exclude-newer = "7 days"
+exclude-newer-package = { cryptography = false }
 
 [dependency-groups]
 dev = [
